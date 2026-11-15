@@ -230,7 +230,7 @@ aside.sort1 #dlist .dtop{padding-right:50px}
 .rd-acts{display:none;gap:2px;flex:none}.rd-row:hover .rd-acts,.rd-row.on .rd-acts,.rd-acts.on{display:inline-flex}.rd-acts button{width:30px;height:30px;border:0;border-radius:7px;background:transparent;font-size:15px;cursor:pointer;padding:0}.rd-acts button:hover{background:var(--bg)}.rd-row.edit input,.rd-row.edit select{flex:1;min-width:0;height:32px;padding:0 8px;border:1px solid var(--acc);border-radius:8px;font:inherit;background:var(--bg)}
 .rd-add{display:flex;gap:8px;padding-top:6px;border-top:1px solid var(--line)}.rd-add button{width:42px;height:40px;border-radius:10px;font-size:18px}
 .dh-upl{color:var(--sub);font-weight:700}.dh-pen{width:26px;height:26px;border:0;border-radius:7px;background:transparent;font-size:13px;cursor:pointer;padding:0;opacity:.6}.dh-pen:hover{opacity:1;background:var(--hl)}
-#paperonly,#stamp-toggle,#save-status,#new,#more,#nav-back,#nav-fwd{font-size:17px}#save-status[hidden]{display:none}#paperonly.on,#stamp-toggle.on{background:var(--acc-bg);color:var(--acc)}
+#stamp-toggle,#save-status,#new,#more,#nav-back,#nav-fwd{font-size:17px}#save-status[hidden]{display:none}#stamp-toggle.on{background:var(--acc-bg);color:var(--acc)}
 .fzf{font-style:normal;cursor:pointer;color:var(--sub);margin-right:4px;padding:0 3px}.fzf:hover{color:var(--acc)}
 .tl-row{padding:10px 12px;border-bottom:1px solid var(--line,#e3e6ee);cursor:pointer;font-size:15px}.tl-row:hover{background:#eef1f7}.tl-row b{color:var(--sub);font-weight:600;margin-right:8px}.tl-note{color:var(--sub)}
 .ti tr.tmark td{color:var(--sub);font-size:13px;padding-top:8px}
@@ -643,7 +643,7 @@ button,select,.vseg button,.nb,.tab span,.c-speaker-label{white-space:nowrap}
 .item.topicrow.tc{margin:6px 10px;padding:9px 12px;border-radius:10px}.item.topicrow.tc.on,.item.topicrow.tc.decided{border-radius:10px}   /* カード表示のとき、索引 の行も、カードと同じ幅に */
 body{font-family:var(--uifont,system-ui),"Noto Sans JP","Noto Color Emoji","Apple Color Emoji","Segoe UI Emoji",sans-serif}button,input,select,textarea{font-family:inherit}
 html.dark{filter:invert(.92) hue-rotate(180deg);background:#fff}html.dark img,html.dark .kimg,html.dark video,html.dark .pic img{filter:invert(1) hue-rotate(180deg)}
-#rail #more{margin-top:auto;font-size:20px}
+#rail #more{margin-top:auto;font-size:20px}#rail #more{position:relative}#rail #more.badge{opacity:1}#rail #more.badge::after{content:"";position:absolute;top:7px;right:7px;width:9px;height:9px;border-radius:50%;background:#e03131}
 .sdlg h3{margin:0 0 8px}.sdlg .sec{border-top:1px solid var(--line);padding:10px 0}.sdlg .sec:first-of-type{border-top:0}.sdlg .sec>b{display:block;font-size:12px;color:var(--sub);letter-spacing:.06em;margin-bottom:6px}
 .sdlg .srow{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin:4px 0}.sdlg .srow>span{min-width:110px;font-size:13px}.sdlg .sw{display:inline-block;width:24px;height:24px;border-radius:50%;cursor:pointer;border:2px solid transparent}.sdlg .sw.on{border-color:#222}
 .sdlg input[type=range]{flex:1;min-width:120px}.sdlg select,.sdlg input[type=text],.sdlg input[type=number]{font:inherit;font-size:13px;border:1px solid var(--line);border-radius:6px;padding:2px 6px}
@@ -704,7 +704,7 @@ body{-webkit-user-select:none;user-select:none}
       <button id="nav-back" class="ic" title="戻る (Ctrl+,)" disabled>⬅️</button><button id="nav-fwd" class="ic" title="進む (Ctrl+.)" disabled>➡️</button>
       <div id="tabbar"></div>
       <button id="save-status" class="ic" aria-live="polite" title="保存済み" hidden>⚠️</button>
-      <button id="phone-papers" class="ic" hidden style="width:auto;padding:0 8px;font-size:14px">📷</button><button id="paperonly" class="ic" title="全体を紙だけにする（ノート・Index・トピックIndex）">📜</button><button id="stamp-toggle" class="ic" title="行ごとの時刻を表示・非表示（Ctrl+R）。右クリックで、見せ方を選ぶ" aria-label="時刻の表示" aria-pressed="true">⏱️</button><button id="new" class="ic" title="新規">➕</button>
+      <button id="stamp-toggle" class="ic" title="行ごとの時刻を表示・非表示（Ctrl+R）。右クリックで、見せ方を選ぶ" aria-label="時刻の表示" aria-pressed="true">⏱️</button><button id="new" class="ic" title="新規">➕</button>
       <button id="imp" hidden></button><button id="vault" hidden></button>
     </div>
     <div id="idbar" hidden></div>

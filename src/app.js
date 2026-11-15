@@ -47,11 +47,11 @@ const kwTopic = k => topics.find(t => t.keyword === k);
 // そのキーワードの索引 があれば赤い点（押すと開く）。IDが2つ以上でまだ無ければ「作る」
 // 左の一覧の並べ替えと表示。ノート（デジタル・紙・未整理）と日記は、並び順をそれぞれ別に覚える
 const prefs = (() => { try { return JSON.parse(localStorage.getItem('pkm-list-prefs') || '{}'); } catch { return {}; } })();
-let paperOnly = !!prefs.paperOnly;   // 全体を紙だけにする（ノート・Index・トピックIndex）
+const paperOnly = false;   // 「全体を紙だけにする」は廃止（ボタンを外した。以前の設定が残っていても使わない。下の条件は、すべて「紙だけではない」として動く）
 const isVisS = sp => !paperOnly || sp === 'p';
 let sortBy = prefs.by || 'fz', sortDir = prefs.dir || 'asc';
 let diarySortDir = prefs.diaryDir || 'asc';   // 日記の並び（ノートの並びとは別。日記は日付順なので、向きだけ）
-const savePrefs = () => { try { localStorage.setItem('pkm-list-prefs', JSON.stringify({ by: sortBy, dir: sortDir, diaryDir: diarySortDir, paperOnly })); } catch { } };
+const savePrefs = () => { try { localStorage.setItem('pkm-list-prefs', JSON.stringify({ by: sortBy, dir: sortDir, diaryDir: diarySortDir })); } catch { } };
 // 「キーワード ID ID(p) …」の 1 行。親の側と違う ID には、(p) か (d) を付ける
 const idsText = (k, v, def) => { const toks = [...v.d.map(x => def === 'd' ? x : x + '(d)'), ...v.p.map(x => def === 'p' ? x : x + '(p)')]; return toks.length ? k + ' ' + toks.join(' ') : ''; };
 const ixRow = ([k, v]) => {
@@ -574,7 +574,6 @@ function renderList() {
   document.querySelectorAll('#tabs > button[data-tab]').forEach(b => { b.classList.toggle('on', b.dataset.tab === tab); b.style.display = !dpu || (paperOnly && (b.dataset.tab === 'd' || b.dataset.tab === 'u')) ? 'none' : ''; });
   if (['d', 'p', 'u'].includes(tab)) lastNotesTab = tab;
   document.querySelectorAll('#rail button').forEach(b => b.classList.toggle('on', b.dataset.tab ? (mode === 'notes' && b.dataset.tab === tab) : b.dataset.mode === 'notes' ? (mode === 'notes' && ['d', 'p', 'u'].includes(tab)) : b.dataset.mode === 'diary' ? (mode === 'diary' && curKind !== 'メモ帳') : b.id === 'memopad' ? (mode === 'diary' && curKind === 'メモ帳') : false));
-  $('#paperonly').classList.toggle('on', paperOnly);
   const onNotes = mode === 'notes';   // 日記・メモの画面では、前に見ていたタブが何でも、検索欄は出さない
   const searchTab = onNotes && tab === 's';   // 検索は、🔍 の画面だけ（Obsidian と同じ）。ほかの画面では、検索欄を出さない
   const fileTab = onNotes && tab === 'f';   // ファイルの画面: 検索欄は、その中の検索
@@ -679,7 +678,6 @@ document.addEventListener('click', e => {
   saveFold(); renderList();
 }, true);
 document.addEventListener('click', onOpenClick);
-$('#paperonly').onclick = () => { paperOnly = !paperOnly; savePrefs(); toast(paperOnly ? '紙だけ表示' : 'すべて表示'); if (cur && cur.k === 'topic') openTopic(cur.name, cur.mode, true); else renderList(); };
 // 🗒️ メモ帳: 日記と同じ、1日ごとの記録。ボタンを押すと、今日のメモ帳がすぐ開く
 // 📔: 今日の日記をすぐ開く
 async function openTodayDiary() {
@@ -2039,15 +2037,16 @@ const startScan = fs => {
   $('#scan').style.display = 'flex'; $('#scan').classList.remove('zoomed'); showScan();
 };
 $('#imp').onclick = () => pick(true, startScan);
-// スマホで撮った紙のカード: 📷 を押すと、取り込み画面で、番号を付けられる
+// スマホで撮った紙のカード: 左下のメニュー（🧰）の「📷 スマホで撮った紙のカード」を押すと、取り込み画面で、番号を付けられる。届いているあいだ、🧰 に赤い点
+let phonePapersN = 0;
 async function refreshPhonePapers() {
-  const n = await api.phonePapersCount().catch(() => 0), b = $('#phone-papers'); if (!b) return;
-  b.hidden = !n; b.textContent = '📷' + (n ? ` ${n}` : ''); b.title = `スマホで撮った紙のカード ${n} 枚（押すと、取り込み画面）`;
+  phonePapersN = await api.phonePapersCount().catch(() => 0); const b = $('#more'); if (!b) return;
+  b.classList.toggle('badge', phonePapersN > 0); b.title = phonePapersN ? `メニュー（スマホで撮った紙のカード ${phonePapersN} 枚）` : 'メニュー';
 }
-$('#phone-papers').onclick = async () => {
+async function openPhonePapers() {
   const list = await api.phonePapers(); if (!list.length) return refreshPhonePapers();
   startScan(list.map(p => { const f = new File([p.bytes], p.name, { type: /png$/i.test(p.name) ? 'image/png' : 'image/jpeg' }); f._phone = true; return f; }));
-};
+}
 refreshPhonePapers();
 const scanNext = from => { for (let i = Math.max(0, from); i < queue.length; i++) if (!scanSt[i]) return i; return -1; };
 const scanPrevious = from => { for (let i = from; i >= 0; i--) if (!scanSt[i]) return i; return -1; };
@@ -2257,10 +2256,12 @@ function loaded(st) {
   } catch { tabs = []; active = -1; }
   show(active);
 }
-// 左下のメニュー: USB取り込みと設定。
-$('#more').onclick = () => {
+// 左下のメニュー: スマホで撮った紙のカード・USB取り込み・設定。
+$('#more').onclick = async () => {
+  await refreshPhonePapers();
   const r = $('#more').getBoundingClientRect();
-  popMenu({ clientX: r.right + 8, clientY: r.top - 80 }, [
+  popMenu({ clientX: r.right + 8, clientY: r.top - (phonePapersN ? 112 : 80) }, [
+    ...(phonePapersN ? [[`📷 スマホで撮った紙のカード（${phonePapersN} 枚）`, openPhonePapers]] : []),
     ['📱 スマホ取り込み', phoneImport],
     ['⚙️ 設定…', settingsDialog]
   ]);
