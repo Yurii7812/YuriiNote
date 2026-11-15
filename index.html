@@ -113,7 +113,7 @@ button:disabled{opacity:.4;cursor:default}
 /* 🎙️ 録音 */
 #rec-pc.rec{color:#fff;background:#c0392b;border-color:#c0392b;font-size:14px;font-variant-numeric:tabular-nums;width:auto;padding:0 10px}
 .rec-view{align-items:center;justify-content:center;padding:20px}
-.rec-panel{width:min(760px,100%);max-height:100%;display:flex;flex-direction:column;background:var(--bg);color:var(--fg);border-radius:14px;box-shadow:0 20px 60px rgba(0,0,0,.35);overflow:hidden}
+.rec-page{max-width:860px;margin:0 auto;padding:6px 24px 48px;color:var(--fg)}.rec-page .rec-list{overflow:visible;padding:4px 0 16px}.rec-page .rec-h{padding:10px 0;font-size:17px}
 .rec-h{display:flex;align-items:center;gap:8px;padding:12px 16px;border-bottom:1px solid var(--line);font-size:15px}.rec-h .grow{flex:1}
 .rec-warn{margin:10px 16px 0;padding:8px 10px;border-radius:8px;background:var(--hl);color:var(--sub);font-size:13px}
 .rec-list{overflow:auto;padding:4px 16px 16px}.rec-it{border-bottom:1px solid var(--line);padding:10px 0}
@@ -764,7 +764,7 @@ body{-webkit-user-select:none;user-select:none}
       <button id="nav-back" class="ic" title="戻る (Ctrl+,)" disabled>⬅️</button><button id="nav-fwd" class="ic" title="進む (Ctrl+.)" disabled>➡️</button>
       <div id="tabbar"></div>
       <button id="save-status" class="ic" aria-live="polite" title="保存済み" hidden>⚠️</button>
-      <button id="rec-pc" class="ic" title="録音して文字にする（ノートを開いていれば、文字はそのノートの末尾へ。開いていなければ録音の一覧へ）。右クリックで、録音の一覧" aria-label="録音">🎙️</button>
+      <button id="rec-pc" class="ic" title="録音して文字にする（押すと録音、もう一度押すと止める）。Ctrl+L: 今開いているノートの末尾へ ／ Ctrl+O: ノートには何もせず一覧へ。右クリック: 録音の一覧" aria-label="録音">🎙️</button>
       <button id="stamp-toggle" class="ic" title="行ごとの時刻を表示・非表示（Ctrl+R）。右クリックで、見せ方を選ぶ" aria-label="時刻の表示" aria-pressed="true">⏱️</button><button id="new" class="ic" title="新規">➕</button>
       <button id="imp" hidden></button><button id="vault" hidden></button>
     </div>

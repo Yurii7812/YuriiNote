@@ -727,16 +727,18 @@ function pmView(list, i, done) {
 
 // ===== 🎙️ 録音して文字にする（PC のマイク）。文字にするのは PC の中（transcriber.js）=====
 //   ノートを開いて録り始めたら、文字はそのノートの末尾へ。開いていなければ、録音の一覧へ。スマホから取り込んだ録音は、自動で文字にして一覧へ
-let recPc = null, recDlg = null, recNow = null;
+let recPc = null, recNow = null;
 const two = n => String(n).padStart(2, '0'), mmss = s => `${two(Math.floor(s / 60))}:${two(Math.floor(s % 60))}`;
 $('#rec-pc').onclick = () => (recPc ? recStop() : recStart());
-$('#rec-pc').oncontextmenu = e => { e.preventDefault(); recDialog(); };
-async function recStart() {
+$('#rec-pc').oncontextmenu = e => { e.preventDefault(); openRecList(false); };
+// mode: 'note' = 今開いているノートの末尾へ（Ctrl+L） / 'list' = ノートには何もせず、録音の一覧へ（Ctrl+O） / 省略 = 右上のボタン（ノートを開いていればその末尾、無ければ一覧）
+async function recStart(how) {
+  if (how === 'note' && !(cur && cur.k === 'note' && get(cur.s, cur.id))) return toast('先に、入れたいノートを開いてください（ノートに入れない録音は Ctrl+O）');
   let stream; try { stream = await navigator.mediaDevices.getUserMedia({ audio: true }); } catch (e) { return toast('マイクを使えません: ' + (e.message || e)); }
   const mime = window.MediaRecorder && MediaRecorder.isTypeSupported('audio/webm;codecs=opus') ? 'audio/webm;codecs=opus' : 'audio/webm';
   const rec = new MediaRecorder(stream, { mimeType: mime }), chunks = [];
   rec.ondataavailable = e => { if (e.data && e.data.size) chunks.push(e.data); };
-  const target = cur && cur.k === 'note' && get(cur.s, cur.id) ? { s: cur.s, id: cur.id } : null;
+  const target = how !== 'list' && cur && cur.k === 'note' && get(cur.s, cur.id) ? { s: cur.s, id: cur.id } : null;
   recPc = { rec, chunks, stream, start: Date.now(), at: Stamp.nowStamp(), target };
   rec.start(1000);
   const b = $('#rec-pc'); b.classList.add('rec');
@@ -755,18 +757,21 @@ async function recStop() {
 }
 const recPlain = x => (x.lines || []).map(l => Stamp.stripLine(l)).join('\n');
 let recWordsOpen = false, recEditing = null;
-async function recDialog() {
-  if (recDlg) return recDraw();
-  const box = document.createElement('div'); box.className = 'pm-view rec-view'; document.body.append(box); recDlg = box;
-  const key = e => { if (e.key === 'Escape') { e.preventDefault(); if (recEditing || recWordsOpen) { recEditing = null; recWordsOpen = false; recDraw(); } else close(); }
-    if (e.key === 'Enter' && e.ctrlKey && recEditing) { e.preventDefault(); recDlg.querySelector('[data-r="esave"]')?.click(); } };
-  const close = () => { box.remove(); recDlg = null; recEditing = null; recWordsOpen = false; document.removeEventListener('keydown', key, true); };
-  document.addEventListener('keydown', key, true);
-  box.onclick = async e => {
-    if (e.target === box) return close();
-    const b = e.target.closest('[data-r]'); if (!b) return;
-    const id = b.dataset.id, list = (await api.recList()).items, x = list.find(y => y.id === id);
-    if (b.dataset.r === 'x') return close();
+// 録音の一覧は、ふつうの画面（タブ）。ポップアップではない
+const recPane = () => (cur && cur.k === 'rec' ? $('#pane') : null);
+function openRecList(keep) {
+  cur = place({ k: 'rec' }, keep); mode = 'notes'; renderTabs(); renderList(); recDraw();
+}
+document.addEventListener('keydown', e => {
+  if (!recPane() || e.isComposing) return;
+  if (e.key === 'Escape' && (recEditing || recWordsOpen)) { e.preventDefault(); e.stopPropagation(); recEditing = null; recWordsOpen = false; recDraw(); }
+  else if (e.key === 'Enter' && e.ctrlKey && recEditing) { e.preventDefault(); recPane().querySelector('[data-r="esave"]')?.click(); }
+}, true);
+$('#pane').addEventListener('click', async e => {
+  const box = recPane(); if (!box) return;
+  const b = e.target.closest('[data-r]'); if (!b) return;
+  const id = b.dataset.id, list = (await api.recList()).items, x = list.find(y => y.id === id);
+  {
     if (b.dataset.r === 'words') { recWordsOpen = !recWordsOpen; return recDraw(); }
     if (b.dataset.r === 'wsave') {
       const w = $('#rec-w').value.split('\n'), f = $('#rec-f').value.split('\n');
@@ -780,7 +785,7 @@ async function recDialog() {
     if (b.dataset.r === 'edit') { recEditing = id; return recDraw(); }
     if (b.dataset.r === 'ecancel') { recEditing = null; return recDraw(); }
     if (b.dataset.r === 'esave') {
-      const got = await api.recEdit(id, recDlg.querySelector('.rec-edit').value); recEditing = null; recDraw();
+      const got = await api.recEdit(id, box.querySelector('.rec-edit').value); recEditing = null; recDraw();
       const k = got ? got.words.length + got.fixes.length : 0;
       toast(k ? `💾 保存して覚えました: ${[...got.words, ...got.fixes.map(f => `${f.from}→${f.to}`)].slice(0, 6).join('、')}` : '💾 保存しました'); return;
     }
@@ -794,21 +799,20 @@ async function recDialog() {
     else if (b.dataset.r === 'retry') { await api.recRetry(id); recDraw(); }
     else if (b.dataset.r === 'audio') { if (confirm('音声のファイルを消しますか？（.trash へ。文字は残ります）')) { await api.recDelete(id, true); recDraw(); } }
     else if (b.dataset.r === 'del') { if (confirm('この録音を一覧から消しますか？（音声は .trash へ。文字も消えます）')) { await api.recDelete(id, false); recDraw(); } }
-  };
-  recDraw();
-}
+  }
+}, true);
 async function recDraw() {
-  if (!recDlg) return;
+  const pane = recPane(); if (!pane) return;
   const r = await api.recList(), items = [...(r.items || [])].reverse(); recNow = r.now;
   const st = x => x.status === 'queued' ? '⏳ 文字にするのを待っています' : x.status === 'running' ? `✍️ 文字にしています ${recNow && recNow.id === x.id ? recNow.pct : 0}%` : x.status === 'error' ? `⚠️ 失敗: ${x.err || ''}` : x.placed ? `✅ 「${esc(x.target.id)}」の末尾に入れました` : '✅ 文字にしました';
   const tname = x => x.target ? ` → ノート ${esc(x.target.id)}` : '';
   const W = recWordsOpen ? await api.recWords() : null;
   if (recEditing && !items.some(x => x.id === recEditing && x.status === 'done')) recEditing = null;
-  if (recEditing && recDlg.querySelector('.rec-edit')) return;   // 直している間は、描き直さない（進み具合の知らせで、書いたものが消えないように）
-  recDlg.innerHTML = `<div class="rec-panel"><div class="rec-h"><b>🎙️ 録音と文字</b><span class="sub">（右上の 🎙️ で録る・止める）</span><span class="grow"></span>`
+  if (recEditing && pane.querySelector('.rec-edit')) return;   // 直している間は、描き直さない（進み具合の知らせで、書いたものが消えないように）
+  pane.innerHTML = `<div class="rec-page"><div class="rec-h"><b>🎙️ 録音と文字</b><span class="sub">（録る・止める: 右上の 🎙️、Ctrl+L = 今のノートの末尾へ、Ctrl+O = ノートには何もしない）</span><span class="grow"></span>`
     + `<button class="chip${recWordsOpen ? ' on' : ''}" data-r="words" title="文字化で使う単語と、覚えた直し">📖 単語</button>`
     + (items.some(x => x.status !== 'running') ? `<button class="chip" data-r="all" title="録音を全部消す（音声は .trash へ）">🗑️ 全部消す</button>` : '')
-    + `<button class="ic" data-r="x" title="閉じる（Esc）">✕</button></div>`
+    + `</div>`
     + (r.tools ? '' : '<div class="rec-warn">文字にする部品（faster-whisper と whisper large-v3 のモデル）が見つかりません。端末で <code>YuriiNote --update</code> を実行すると用意します（~/transcribe があれば、それを使います）。</div>')
     + (W ? `<div class="rec-words"><p class="sub">文字を直して保存すると、直した所と単語を、ここに覚えます。次の文字化では、単語を手がかりに渡し、覚えた直しを自動でかけます。ノートに入れたあと、ノートで直したものも覚えます。</p>`
       + `<div class="rec-wcols"><label><b>単語</b> <small>1 行に 1 つ。よみを付けるなら、スペースのあとに ひらがなで（例: 説一切有部 せついっさいうぶ）</small><textarea id="rec-w" spellcheck="false">${esc((W.words || []).filter(x => !x.off).sort((a, b) => (a.src === 'seed') - (b.src === 'seed')).map(x => x.w + (x.r ? ' ' + x.r : '')).join('\n'))}</textarea></label>`
@@ -821,7 +825,7 @@ async function recDraw() {
       + (x.status !== 'running' && !x.audioGone && x.status === 'done' ? `<button class="chip" data-r="audio" data-id="${esc(x.id)}" title="音声のファイルだけ消す（文字は残る）">🔇 音声を消す</button>` : '')
       + (x.status !== 'running' ? `<button class="chip" data-r="del" data-id="${esc(x.id)}">🗑️</button>` : '')
       + `</div><div class="rec-top st">${st(x)}</div>${x.status === 'running' ? `<div class="rec-bar"><i style="width:${recNow && recNow.id === x.id ? recNow.pct : 0}%"></i></div>` : ''}${recEditing === x.id ? `<textarea class="rec-edit" spellcheck="false">${esc(recPlain(x))}</textarea><div class="row"><small class="sub">1 行が 1 段落。Ctrl+Enter で保存、Esc でやめる</small><span class="grow"></span><button class="chip" data-r="ecancel" data-id="${esc(x.id)}">やめる</button><button class="chip p" data-r="esave" data-id="${esc(x.id)}">💾 保存して覚える</button></div>` : x.lines && x.lines.length ? `<pre class="rec-text">${esc(recPlain(x))}</pre>` : ''}</div>`).join('')
-      : '<div class="none">録音は、まだありません。右上の 🎙️ を押すと録音を始め、もう一度押すと止めて、文字にします。<br>スマホで録った録音も、取り込むと、ここで文字になります。</div>'}</div></div>`;
+      : '<div class="none">録音は、まだありません。<b>Ctrl+L</b>: 録音して、止めたら今開いているノートの末尾へ ／ <b>Ctrl+O</b>: ノートには何もせず、ここへ（右上の 🎙️ も同じ。もう一度押すと止める）。<br>スマホで録った録音も、取り込むと、ここで文字になります。</div>'}</div></div>`;
 }
 api.onRecUpdate(async m => {
   if (m.pct !== undefined) recNow = { id: m.id, pct: m.pct };
@@ -830,8 +834,16 @@ api.onRecUpdate(async m => {
     if (m.state) { try { const since = saves.revision; await flush(); applyState(await api.state(), since); toast('🎙️ 文字にして、ノートの末尾に入れました'); } catch { } }
     else toast(m.ok ? '🎙️ 文字にしました（右上の 🎙️ を右クリックで一覧）' : '⚠️ 文字にできませんでした（右上の 🎙️ を右クリックで、理由とやり直し）');
   }
-  if (recDlg) recDraw();
+  if (recPane()) recDraw();
 });
+
+// Ctrl+L: 録音して、止めたら、今開いているノートの末尾に入れる ／ Ctrl+O: 録音して、ノートには何もしない（録音の一覧に入る）。録音中は、どちらでも止まる。キーの位置で見るので、日本語入力がオンでも効く
+document.addEventListener('keydown', e => {
+  if (!(e.ctrlKey || e.metaKey) || e.altKey || e.shiftKey || (e.code !== 'KeyL' && e.code !== 'KeyO')) return;
+  if ($('#modal').style.display === 'flex' || $('#scan').style.display === 'flex') return;
+  e.preventDefault(); e.stopImmediatePropagation();
+  if (recPc) recStop(); else recStart(e.code === 'KeyL' ? 'note' : 'list');
+}, true);
 
 // 🗒️ メモ帳: 日記と同じ、1日ごとの記録。ボタンを押すと、今日のメモ帳がすぐ開く
 // 📔: 今日の日記をすぐ開く
@@ -1055,7 +1067,7 @@ function show(i) {
   active = Math.max(-1, Math.min(i, tabs.length - 1));
   const t = tabs[active];
   if (!t || t.k === 'empty') { cur = t || null; $('#pane').innerHTML = '<div class="none">左から選ぶか、「＋ 新規」で書き始めます。<br>Ctrl+クリックで新しいタブに開きます。</div>'; renderTabs(); return renderList(); }
-  if (t.k === 'note') openNote(t.s, t.id, null, true); else if (t.k === 'diary') openDiary(t.date, true, t.kind); else if (t.k === 'export') openExport(t, true); else if (t.k === 'similar') openSimilar(t.base, true); else if (t.k === 'tlist') openTopicList(t.s, t.id, true); else openTopic(t.name, t.mode, true);
+  if (t.k === 'note') openNote(t.s, t.id, null, true); else if (t.k === 'diary') openDiary(t.date, true, t.kind); else if (t.k === 'export') openExport(t, true); else if (t.k === 'similar') openSimilar(t.base, true); else if (t.k === 'rec') openRecList(true); else if (t.k === 'tlist') openTopicList(t.s, t.id, true); else openTopic(t.name, t.mode, true);
 }
 function closeTab(i) {
   if (i < 0 || i >= tabs.length) return;
@@ -1065,7 +1077,7 @@ function closeTab(i) {
   show(active < 0 && tabs.length ? 0 : active);
 }
 const tabLabel = t => t.k === 'note' ? (n => `${n && icon(n) ? icon(n) + ' ' : ''}${n ? esc(titleOf(n).slice(0, 16)) : esc(t.id)}<small>${n && n.noid ? 'IDなし' : (t.s === 'p' ? '紙 ' : '') + esc(t.id)}</small>`)(get(t.s, t.id))
-  : t.k === 'topic' ? `📑 ${esc(t.name)}` : t.k === 'diary' ? `${kindIcon(t.kind || '日記')} ${esc(t.date.slice(5))} <small>${esc(t.kind || '日記')}</small>` : t.k === 'similar' ? '🔍 類似' : t.k === 'tlist' ? `📑 ${esc(t.id)}` : t.k === 'export' ? '📤 エクスポート' : '新しいタブ';
+  : t.k === 'topic' ? `📑 ${esc(t.name)}` : t.k === 'diary' ? `${kindIcon(t.kind || '日記')} ${esc(t.date.slice(5))} <small>${esc(t.kind || '日記')}</small>` : t.k === 'similar' ? '🔍 類似' : t.k === 'rec' ? '🎙️ 録音' : t.k === 'tlist' ? `📑 ${esc(t.id)}` : t.k === 'export' ? '📤 エクスポート' : '新しいタブ';
 // 右のパネル（キーワード・索引・つながり）を、試しに、左の一覧の右（ノートの左）に置く。panelLeft を切ると、元の右に戻る
 let panelLeft = (() => { try { return localStorage.getItem('ysimple-panel-left') === '1'; } catch { return false; } })();   // 標準は、右（元の位置）
 function syncLeftPanel() {
@@ -2505,7 +2517,7 @@ $('#more').onclick = async () => {
   popMenu({ clientX: r.right + 8, clientY: r.top - (phonePapersN ? 112 : 80) }, [
     ...(phonePapersN ? [[`📷 スマホで撮った紙のカード（${phonePapersN} 枚）`, openPhonePapers]] : []),
     ['📱 スマホ取り込み', phoneImport],
-    ['🎙️ 録音と文字（一覧）', recDialog],
+    ['🎙️ 録音と文字（一覧）', () => openRecList(false)],
     ['⚙️ 設定…', settingsDialog]
   ]);
 };
