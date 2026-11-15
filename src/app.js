@@ -406,7 +406,7 @@ const chip = (s, raw, dot) => {
 };
 const rowChips = r => [['d', r.d], ['p', r.p]].filter(([s]) => isVisS(s)).map(([s, l]) => l.map(x => chip(s, x, !!(r.dot && r.dot.s === s && L.splitAnchor(x).id === r.dot.id))).join('')).join('') + (r.t || []).map(tnoChip).join('');
 // 行の終わりに書いた 0-1 のような番号: その番号の索引へのリンク（グループIndex など）
-const tnoChip = no => { const t = topics.find(x => topicNo(x) === no); return t ? `<span class="chip t" data-topic="${esc(t.name)}" title="${esc(t.name)}">${esc(no)} ${esc(stripId(t.name))}</span>` : `<span class="chip miss" title="その番号の索引はありません">${esc(no)}</span>`; };
+const tnoChip = no => { const t = topics.find(x => topicNo(x) === no); return t ? `<span class="chip t" data-topic="${esc(t.name)}" title="${esc(t.name)}">${esc(no)}${isAuto(t.name) ? '' : ' ' + esc(stripId(t.name))}</span>` : `<span class="chip miss" title="その番号の索引はありません">${esc(no)}</span>`; };
 const paperRows = rows => paperOnly ? rows.filter(r => r.p.length || (r.t || []).length) : rows;   // 紙だけのとき、紙のIDがない行は出さない
 const topicVisible = t => !paperOnly || !t.entry || t.entry.s === 'p';
 // グローバルIndex の赤点: キーワードごとに「メインの ID」を 1 つ。vault の K_mainDots.json に（別の PC に写しても、同じ）
@@ -427,8 +427,11 @@ function setMainDot(k, s, id) {
 const chips = (v, k) => [['d', v.d], ['p', v.p]].filter(([s]) => isVisS(s)).map(([s, l]) => l.map(x => chip(s, x, !!(k && (d => d && d.s === s && d.id === L.splitAnchor(x).id)(dotOf(k))))).join('')).join('');
 const stripId = name => name.replace(/^[0-9][0-9a-z]*-/, '') || name;
 const topicNo = t => t.entry ? `${t.entry.id}-${t.num || 1}` : '';   // 1-1, 1-2, … グループIndexは 0-1, 0-2
-const topicLabel = t => (topicNo(t) ? topicNo(t) + ' ' : '') + stripId(t.name);
-const tchip = name => `<span class="chip t" data-topic="${esc(name)}">${esc(stripId(name))}</span>`;
+// 索引は、作るときは名前をつけない（無名）。中身が育ってから、名前をつける。無名の索引は、番号（1-1）だけで呼ぶ
+const AUTO = /^無名[0-9][0-9a-z]*-\d+/, isAuto = name => AUTO.test(name), shown = name => isAuto(name) ? name.slice(2) : stripId(name);
+const autoName = (sp, id) => { let n = Math.max(0, ...topicsOf(sp, id).map(t => t.num || 0)) + 1, nm; do nm = `無名${id}-${n++}` + (sp === 'p' ? 'p' : ''); while (topics.find(t => t.name === nm)); return nm; };
+const topicLabel = t => isAuto(t.name) ? (topicNo(t) || shown(t.name)) : (topicNo(t) ? topicNo(t) + ' ' : '') + stripId(t.name);
+const tchip = name => `<span class="chip t" data-topic="${esc(name)}">${esc(shown(name))}</span>`;
 const firstLine = n => (Stamp.strip(n.body).split('\n').find(x => x.trim()) || '').replace(/^#+\s*/, '').trim().slice(0, 40);
 const titleOf = n => (n.title || '').trim() || (firstLine(n) || '（無題）');
 // 検索: 一致した所を mark で囲む（大文字小文字は区別しない）
@@ -1429,8 +1432,8 @@ function renderMeta(note) {
   const bl = backlinks(note);
   el.innerHTML =
     `<div class="sec">${metaLabel('🏷️', 'キーワード', note.keywords.length || '', 'kwadd', 'キーワードを足す')}${note.keywords.length ? `<div class="kwlist">${note.keywords.map(k => `<div class="kwrow" data-kw="${esc(k)}" title="${esc(readings[k] || '')}">${esc(k)}</div>`).join('')}</div>` : '<div class="msub">まだありません</div>'}</div>` +
-    (topicsOf(note.s, note.id).length ? `<div class="sec">${metaLabel('📑', '自トピック')}${topicsOf(note.s, note.id).map(o => `<div class="mt topic-index-entry" data-town="${esc(o.name)}"><a class="tl" data-topic="${esc(o.name)}">${esc(stripId(o.name))}</a></div>`).join('')}</div>` : '') +
-    `<div class="sec">${metaLabel('🗂️', 'トピック', tops.length || '', 'tadd', '索引に入れる・作る')}${tops.length ? tops.map(x => `<div class="mt topic-index-entry" data-tin="${esc(x.t.name)}"><a class="tl" data-topic="${esc(x.t.name)}">${esc(stripId(x.t.name))}</a><div class="topic-index-keys">${x.kws.map(kw => `<span>${esc(kw)}</span>`).join('、')}</div></div>`).join('') : '<div class="msub">どの索引にも入っていません</div>'}</div>` +
+    (topicsOf(note.s, note.id).length ? `<div class="sec">${metaLabel('📑', '自トピック')}${topicsOf(note.s, note.id).map(o => `<div class="mt topic-index-entry" data-town="${esc(o.name)}"><a class="tl" data-topic="${esc(o.name)}">${esc(shown(o.name))}</a></div>`).join('')}</div>` : '') +
+    `<div class="sec">${metaLabel('🗂️', 'トピック', tops.length || '', 'tadd', '索引に入れる・作る')}${tops.length ? tops.map(x => `<div class="mt topic-index-entry" data-tin="${esc(x.t.name)}"><a class="tl" data-topic="${esc(x.t.name)}">${esc(shown(x.t.name))}</a><div class="topic-index-keys">${x.kws.map(kw => `<span>${esc(kw)}</span>`).join('、')}</div></div>`).join('') : '<div class="msub">どの索引にも入っていません</div>'}</div>` +
     parentHtml(note) +
     childrenHtml(note) +
     (bl.length || bundles.length ? `<div class="sec">${metaLabel('🔗', 'バックリンク', bl.length + bundles.length)}${bl.map(x => x.m
@@ -1669,7 +1672,7 @@ function topicAddDialog(note) {
     const list = topics.filter(t => L.defOf(t) === note.s).filter(hit).sort((a, b) => TopicRanking.compare(rank, a, b));   // 紙のノートは紙のIndexへ、デジタルはデジタルへ（交わらない）
     if (sel && !list.includes(sel)) sel = null;
     if (!sel && list.length) choose(list[0], false);
-    const row = t => { const r = rank.get(t.name); return `<div class="ta-row${t === sel ? ' on' : ''}" data-name="${esc(t.name)}">${esc(stripId(t.name))}${t.entry ? `<small> ${t.entry.s === 'p' ? '紙' : ''}${esc(t.entry.id)}</small>` : ''}${r ? r.why.map(w => `<em>${esc(w)}</em>`).join('') : ''}</div>`; };
+    const row = t => { const r = rank.get(t.name); return `<div class="ta-row${t === sel ? ' on' : ''}" data-name="${esc(t.name)}">${esc(shown(t.name))}${t.entry ? `<small> ${t.entry.s === 'p' ? '紙' : ''}${esc(t.entry.id)}</small>` : ''}${r ? r.why.map(w => `<em>${esc(w)}</em>`).join('') : ''}</div>`; };
     const near = list.filter(t => sc(t) > 0), rest = list.filter(t => sc(t) <= 0);
     $('#ta-list').innerHTML = (near.length ? `<div class="ta-h">近いもの</div>${near.map(row).join('')}` : '') + (rest.length ? `${near.length ? '<div class="ta-h">そのほか</div>' : ''}${rest.map(row).join('')}` : '')
       || '<div class="sub" style="padding:6px">ありません</div>';
@@ -1743,8 +1746,8 @@ function topicNewDialog(kw = '') {
     <div class="da-lab">🌳 親のノート。無いIDなら、新しいノートを作ります</div>
     <div class="row"><select id="tn-s"><option value="d">デジタル</option><option value="p">紙</option></select><input id="tn-id" style="width:100px"><span id="tn-note" class="sub"></span></div>
     <label class="rad" id="tn-laterw" style="display:none"><input type="checkbox" id="tn-later" checked> 紙のノートは、まだ作らない（取り込む前の番号。取り込んだら、つながります）</label>
-    <div class="da-lab">📝 名前</div>
-    <input id="tn-name">
+    <div class="da-lab">📝 名前（空のままで。育ってから、つけます）</div>
+    <input id="tn-name" placeholder="無名">
     <div id="tn-pre" class="sub"></div>
     <div class="da-bar"><span class="grow"></span><button id="tn-cancel">やめる</button><button id="tn-ok" class="p">➕ 作る</button></div></div>`;
   $('#modal').style.display = 'flex';
@@ -1755,7 +1758,6 @@ function topicNewDialog(kw = '') {
     const exists = !!get(sp, id);
     $('#tn-laterw').style.display = sp === 'p' && id && !exists ? 'flex' : 'none';
     $('#tn-note').textContent = !id ? '' : exists ? `既存のノート ${id} を親にします` : sp === 'p' && $('#tn-later').checked ? `紙 ${id} はまだ取り込んでいません（ノートが無くても作れます）` : `新しいノート ${id} を作ります`;
-    if (!nameTouched) $('#tn-name').value = k || '';
     const v = k ? idsOf(k) : null;
     $('#tn-pre').textContent = v ? (v.d.length + v.p.length >= 2 ? `${k} ${[...v.d, ...v.p.map(x => '紙' + x)].join(' ')}` + (exists && !(sp === 'd' ? v.d : v.p).includes(id) || !exists ? ` ${sp === 'p' ? '紙' : ''}${id}` : '') + `　→ ${sp === 'p' ? '紙' : ''}${id} の上に赤い点が付きます` : 'このキーワードのIDは2つ未満です') : '';
   };
@@ -1764,9 +1766,8 @@ function topicNewDialog(kw = '') {
   $('#tn-kw').oninput = refresh; $('#tn-id').oninput = refresh; $('#tn-later').onchange = refresh;
   $('#tn-name').oninput = () => { nameTouched = true; };
   $('#tn-ok').onclick = async () => {
-    const k = $('#tn-kw').value.trim(), sp = $('#tn-s').value, id = $('#tn-id').value.trim().toLowerCase(), name = $('#tn-name').value.trim();
+    const k = $('#tn-kw').value.trim(), sp = $('#tn-s').value, id = $('#tn-id').value.trim().toLowerCase(), name = $('#tn-name').value.trim() || autoName(sp, id);
     if (!L.isId(id)) return alert('IDの形が違います（例: 12 や 3a）');
-    if (!name) return alert('名前を入れてください');
     if (topics.find(t => t.name === name)) return alert('その名前は既にあります');
     let v = null;
     if (k) {
@@ -1875,7 +1876,7 @@ function openTopic(name, tmode = 'view', keep, focus) {   // focus: ノートか
     const tr = {
       row: r => `<tr data-kw="${esc(r.kw)}"${hit(r) ? ' class="tfocus"' : ''}><td${r.dot ? ` class="dotkw" data-chipish="1" data-s="${r.dot.s}" data-id="${esc(r.dot.id)}" title="赤い点の番号（入口）へ"` : ''}>${r.mark ? `<span class="tmk">${L.TMARK.mark}</span> ` : ''}${esc(r.kw)}</td><td>${rowChips(r)}</td></tr>`,
       mark: x => `<tr class="tmark"><td colspan="2"><span class="tmk">${L.TMARK.mark}</span> ${esc(x)}</td></tr>`,
-      star: x => `<tr><td>${L.TMARK.star} ${esc(stripId(x))}</td><td>${tchip(x)}</td></tr>`,
+      star: x => `<tr><td>${L.TMARK.star} ${esc(shown(x))}</td><td>${tchip(x)}</td></tr>`,
       rel: u => `<tr class="trel"><td>${L.TMARK.star} ${esc(u.kw)}</td><td>${u.ids.map(x => chip(x.s, x.raw)).join('')}${(u.tnos || []).map(tnoChip).join('')}</td></tr>`,
       up: u => `<tr class="trel"><td><span class="tmk">${L.TMARK.up}</span> ${esc(u.kw)}</td><td>${upChip(u)}</td></tr>`,
       down: u => `<tr class="trel"><td><span class="tmk">${L.TMARK.down}</span> ${esc(u.kw)}</td><td>${upChip(u)}</td></tr>`,
@@ -1984,7 +1985,7 @@ document.addEventListener('contextmenu', e => {
 function openTopicList(s, id, keep) {
   cur = place({ k: 'tlist', s, id }, keep); mode = 'notes';
   const ts = topicsOf(s, id), note = get(s, id);
-  const rowOf = t => `<tr><td><span class="chip t" data-topic="${esc(t.name)}">${esc(topicNo(t))} ${esc(stripId(t.name))}</span></td><td class="sub">${esc(L.mergeTopic(t).rows.map(r => r.kw).filter(Boolean).slice(0, 8).join('　'))}</td></tr>`;
+  const rowOf = t => `<tr><td><span class="chip t" data-topic="${esc(t.name)}">${esc(topicLabel(t))}</span></td><td class="sub">${esc(L.mergeTopic(t).rows.map(r => r.kw).filter(Boolean).slice(0, 8).join('　'))}</td></tr>`;
   $('#pane').innerHTML = `<div class="row thead"><span class="ti-ic">📑</span><h2>${esc(SP[s] || '')} ${esc(id)}${note ? ' ' + esc(titleOf(note)) : ''}</h2><span class="grow"></span></div>
     <div class="row tmeta">${note ? `<span class="tm"><span class="sub" title="ノート">🌳</span><span class="chip ${s}" data-s="${s}" data-id="${esc(id)}" data-note="1">${s === 'p' ? '紙' : ''}${esc(id)}</span></span>` : ''}</div>
     <table class="ti">${ts.map(rowOf).join('') || '<tr><td class="none">索引はありません</td></tr>'}</table>`;
@@ -2036,14 +2037,14 @@ function topicIndependDialog(t) {
 function topicUpDialog(t) {
   if (!t.entry) return alert('親のノートがない索引には、上位を作れません（⚙️ で親を決めてください）');
   $('#modal .box').innerHTML = `<div class="dlg-a"><h3>⬆️ 上位トピックを作る</h3>
-    <div class="da-lab">「${esc(topicLabel(t))}」の、上位になる索引の名前</div>
-    <input id="tu-name" placeholder="例: 数学">
+    <div class="da-lab">「${esc(topicLabel(t))}」の、上位になる索引（名前は、空のままで）</div>
+    <input id="tu-name" placeholder="無名">
     <div class="da-bar"><span class="grow"></span><button id="tu-cancel">やめる</button><button id="tu-ok" class="p">⬆️ 作る</button></div></div>`;
   $('#modal').style.display = 'flex'; $('#tu-name').focus();
   const close = () => { $('#modal').style.display = 'none'; };
   $('#tu-cancel').onclick = close;
   $('#tu-ok').onclick = async () => {
-    const name = $('#tu-name').value.trim();
+    const name = $('#tu-name').value.trim() || (t.entry ? autoName(t.entry.s, t.entry.id) : '');
     if (!name) return alert('名前を入れてください');
     if (topics.find(x => x.name === name)) return alert('その名前は既にあります');
     const g = { name, entry: t.entry ? { ...t.entry } : null, keyword: '', text: `_${t.name} ${topicNo(t)}` }, sv = await api.saveTopic(g);
@@ -2382,10 +2383,9 @@ function scanIndexOpen(on = true) {
 }
 async function scanIndexOk() {
   if (scanBusy) return;
-  const id = $('#si-id').value.trim().toLowerCase(), name = $('#si-name').value.trim(), text = $('#si-text').value.replace(/\s+$/, '');
+  const id = $('#si-id').value.trim().toLowerCase(), name = $('#si-name').value.trim() || autoName('p', $('#si-id').value.trim().toLowerCase()), text = $('#si-text').value.replace(/\s+$/, '');
   const bad = m => { scanFlash(m); $('#sc-msg').className = 'bad'; };
   if (!L.isId(id)) { bad('入口の紙IDの形が違います（例: 2a1）'); return $('#si-id').focus(); }
-  if (!name) { bad('Index の名前を入れてください'); return $('#si-name').focus(); }
   if (topics.find(t => t.name === name)) { bad('その名前の Index は、もうあります'); return $('#si-name').focus(); }
   scanBusy = true;
   try {
