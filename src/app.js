@@ -1893,7 +1893,6 @@ function openTopic(name, tmode = 'view', keep, focus) {   // focus: ノートか
       <span class="ti-ic">📑</span><h2>${esc(topicLabel(t))}</h2>
       <span class="grow"></span>
       ${tmode === 'conf' ? '' : `<button class="tbtn" data-act="tconf" title="名前・親・点のキーワードを変える">⚙️ 名前・親</button>
-      ${tmode === 'conf' ? '' : '<button class="tbtn" data-act="tup" title="この索引の、上位トピックを、新しく作る">⬆️ 上位を作る</button>'}
       ${tmode === 'conf' ? '' : '<button class="tbtn" data-act="tind" title="キーワードを、新しいIDの索引として、独立させる">↪️ 独立させる</button>'}
       <button class="tbtn ${tmode === 'edit' ? 'p' : ''}" data-act="tedit">${tmode === 'edit' ? '✅ 完了' : '✏️ 編集'}</button>`}
     </div>
@@ -2033,33 +2032,10 @@ function topicIndependDialog(t) {
     rowDots = null; close(); renderList(); openTopic(name, 'view');
   };
 }
-// ⬆️ 上位を作る: 新しいトピック Index（この索引と同じ親ノートの、次の番号。1-1 の次は 1-2）を作り、この索引に「^名前 番号」、新しい方に「_この名前 番号」を書く
-function topicUpDialog(t) {
-  if (!t.entry) return alert('親のノートがない索引には、上位を作れません（⚙️ で親を決めてください）');
-  $('#modal .box').innerHTML = `<div class="dlg-a"><h3>⬆️ 上位トピックを作る</h3>
-    <div class="da-lab">「${esc(topicLabel(t))}」の、上位になる索引（名前は、空のままで）</div>
-    <input id="tu-name" placeholder="無名">
-    <div class="da-bar"><span class="grow"></span><button id="tu-cancel">やめる</button><button id="tu-ok" class="p">⬆️ 作る</button></div></div>`;
-  $('#modal').style.display = 'flex'; $('#tu-name').focus();
-  const close = () => { $('#modal').style.display = 'none'; };
-  $('#tu-cancel').onclick = close;
-  $('#tu-ok').onclick = async () => {
-    const name = $('#tu-name').value.trim() || (t.entry ? autoName(t.entry.s, t.entry.id) : '');
-    if (!name) return alert('名前を入れてください');
-    if (topics.find(x => x.name === name)) return alert('その名前は既にあります');
-    const g = { name, entry: t.entry ? { ...t.entry } : null, keyword: '', text: `_${t.name} ${topicNo(t)}` }, sv = await api.saveTopic(g);
-    if (!sv) return alert('保存できませんでした');
-    g.num = sv === true ? 0 : sv; topics.push(g);
-    t.text = L.topicText(t).replace(/\s*$/, '') + `\n^${name} ${topicNo(g)}\n`; saveTopic(t);
-    close(); renderList(); openTopic(name, 'view');
-  };
-  $('#tu-name').onkeydown = e => { if (e.key === 'Enter') $('#tu-ok').click(); };
-}
 async function topicAct(act) {
   const t = topics.find(x => x.name === cur.name); if (!t) return;
   if (act === 'tedit') return openTopic(t.name, cur.mode === 'edit' ? 'view' : 'edit', true);
   if (act === 'tconf') return openTopic(t.name, 'conf', true);
-  if (act === 'tup') return topicUpDialog(t);
   if (act === 'tind') return topicIndependDialog(t);
   if (act === 'tcancel') return openTopic(t.name, 'view', true);
   if (act === 'tdel') return deleteTopicNamed(t.name);
