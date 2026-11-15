@@ -1,4 +1,4 @@
-# YuriiNote（Simple 版）
+# YuriiNote
 
 紙のPKM（ツェッテルカステン）をデジタルでやるアプリ。ノート・日記・紙のIndexを、1つのフォルダに平らに保存します。
 元の [YuriiNote](https://github.com/Yurii7812/YuriiNote) から、チャットメモ・なりきりチャット・グラフ・キャンバス・曼荼羅・類似ノートを外し、ここから少しずつシンプルにしていく作業用のコピーです。
@@ -7,10 +7,10 @@
 1行で入ります（git と Node.js が無ければ用意します）。
 
 ```sh
-curl -fsSL https://raw.githubusercontent.com/Yurii7812/YuriiNote-simple/main/install/bootstrap.sh | sh
+curl -fsSL https://raw.githubusercontent.com/Yurii7812/YuriiNote/main/install/bootstrap.sh | sh
 ```
 
-入れたあとは、`YuriiNote-Simple` で起動、`YuriiNote-Simple --update` で最新に更新、`YuriiNote-Simple --version` でバージョン表示。メニューとデスクトップにも登録されます。更新が失敗したときは、前の状態のまま残ります。
+入れたあとは、`YuriiNote` で起動、`YuriiNote --update` で最新に更新、`YuriiNote --version` でバージョン表示。メニューとデスクトップにも登録されます。更新が失敗したときは、前の状態のまま残ります。
 
 ## 含まれるもの
 - ノート（Folgezettel ID）・日記・紙のノート／紙のIndex・トピックIndex（1-1, 1-2）・グループIndex（0-1, 0-2）

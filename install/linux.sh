@@ -1,16 +1,16 @@
 #!/bin/sh
-# YuriiNote Simple を入れる・最新にする（Linux）。何度実行しても同じ結果になる
-#   はじめて:  curl -fsSL https://raw.githubusercontent.com/Yurii7812/YuriiNote-simple/main/install/bootstrap.sh | sh
-#   あとから:  YuriiNote-Simple --update
+# YuriiNote を入れる・最新にする（Linux）。何度実行しても同じ結果になる
+#   はじめて:  curl -fsSL https://raw.githubusercontent.com/Yurii7812/YuriiNote/main/install/bootstrap.sh | sh
+#   あとから:  YuriiNote --update
 # やること: git と Node.js の用意 → 最新の取得 → 部品とビルド → 起動コマンド・メニュー・アイコン。失敗したら、前の状態のまま
 set -eu
 # 実行中に、このファイルのある場所を入れ替えるので、一時ファイルに写して、そこから続ける
 if [ -z "${YN_REEXEC:-}" ]; then T=$(mktemp); cp "$0" "$T"; YN_REEXEC=1 exec sh "$T" "$@"; fi
 ROOT="${YURIINOTE_SIMPLE_ROOT:-$HOME/.local/share/YuriiNote-simple}"
 APP="$ROOT/src"
-REPO="${YURIINOTE_SIMPLE_REPO:-https://github.com/Yurii7812/YuriiNote-simple.git}"
-RAW="${YURIINOTE_SIMPLE_RAW:-https://raw.githubusercontent.com/Yurii7812/YuriiNote-simple/main}"
-BIN="$HOME/.local/bin"; LAUNCH="$BIN/YuriiNote-Simple"
+REPO="${YURIINOTE_SIMPLE_REPO:-https://github.com/Yurii7812/YuriiNote.git}"
+RAW="${YURIINOTE_SIMPLE_RAW:-https://raw.githubusercontent.com/Yurii7812/YuriiNote/main}"
+BIN="$HOME/.local/bin"; LAUNCH="$BIN/YuriiNote"
 say() { printf '%s\n' "$*"; }
 have() { command -v "$1" >/dev/null 2>&1; }
 SUDO=""; [ "$(id -u)" = 0 ] || { have sudo && SUDO=sudo; }
@@ -42,7 +42,7 @@ if ! nodeok; then
 fi
 export PATH
 # ---- 動いていたら、閉じてもらう
-if pgrep -f "$APP/node_modules/electron" >/dev/null 2>&1; then say "YuriiNote-Simple が動いています。閉じてから、もう一度実行してください"; exit 1; fi
+if pgrep -f "$APP/node_modules/electron" >/dev/null 2>&1; then say "YuriiNote が動いています。閉じてから、もう一度実行してください"; exit 1; fi
 
 # ---- 取得・組み立て（入れ替えは、最後に一度だけ）
 NEW="$ROOT/src-new"; OLD="$ROOT/src-old"
@@ -72,21 +72,21 @@ if [ "$#" -gt 0 ]; then ARG="$1"; fi
 case "$ARG" in
   --update)
     if [ -f "$APP/install/linux.sh" ]; then exec sh "$APP/install/linux.sh"; fi
-    exec sh -c 'curl -fsSL https://raw.githubusercontent.com/Yurii7812/YuriiNote-simple/main/install/bootstrap.sh | sh'
+    exec sh -c 'curl -fsSL https://raw.githubusercontent.com/Yurii7812/YuriiNote/main/install/bootstrap.sh | sh'
     ;;
   --version)
     exec node -p 'require(process.argv[1]).version' "$APP/package.json"
     ;;
   --help|-h)
-    printf '%s\n' 'YuriiNote-Simple             アプリを起動' \
-       'YuriiNote-Simple --update    最新版に更新' \
-       'YuriiNote-Simple --version   バージョンを表示'
+    printf '%s\n' 'YuriiNote             アプリを起動' \
+       'YuriiNote --update    最新版に更新' \
+       'YuriiNote --version   バージョンを表示'
     exit 0
     ;;
 esac
 [ -x "$APP/node_modules/.bin/electron" ] || {
   echo "アプリが見つかりません。次の1行で、入れ直してください:" >&2
-  echo "  curl -fsSL https://raw.githubusercontent.com/Yurii7812/YuriiNote-simple/main/install/bootstrap.sh | sh" >&2
+  echo "  curl -fsSL https://raw.githubusercontent.com/Yurii7812/YuriiNote/main/install/bootstrap.sh | sh" >&2
   exit 1
 }
 exec "$APP/node_modules/.bin/electron" "$APP" "$@"
@@ -98,24 +98,29 @@ ICON="$APP/build/icon.png"
 if [ -f "$ICON" ]; then
   for s in 16 24 32 48 64 128 256 512; do
     d="$HOME/.local/share/icons/hicolor/${s}x${s}/apps"; mkdir -p "$d"
-    if have convert; then convert "$ICON" -resize "${s}x${s}" "$d/yuriinote-simple.png"
-    elif [ "$s" = 512 ]; then cp "$ICON" "$d/yuriinote-simple.png"; fi
+    if have convert; then convert "$ICON" -resize "${s}x${s}" "$d/yuriinote.png"
+    elif [ "$s" = 512 ]; then cp "$ICON" "$d/yuriinote.png"; fi
   done
   if have gtk-update-icon-cache; then gtk-update-icon-cache -f -t "$HOME/.local/share/icons/hicolor" >/dev/null 2>&1 || true; fi
 fi
 ENTRY="[Desktop Entry]
 Type=Application
-Name=YuriiNote Simple
+Name=YuriiNote
 Comment=Minimal paper-style PKM
 Exec=\"$LAUNCH\"
-Icon=yuriinote-simple
+Icon=yuriinote
 Terminal=false
 Categories=Office;Utility;
 StartupNotify=true"
-mkdir -p "$HOME/.local/share/applications"; printf '%s\n' "$ENTRY" > "$HOME/.local/share/applications/yuriinote-simple.desktop"
-if [ -d "$HOME/Desktop" ]; then printf '%s\n' "$ENTRY" > "$HOME/Desktop/YuriiNote Simple.desktop"; chmod +x "$HOME/Desktop/YuriiNote Simple.desktop"; fi
+mkdir -p "$HOME/.local/share/applications"; printf '%s\n' "$ENTRY" > "$HOME/.local/share/applications/YuriiNote.desktop"
+if [ -d "$HOME/Desktop" ]; then printf '%s\n' "$ENTRY" > "$HOME/Desktop/YuriiNote.desktop"; chmod +x "$HOME/Desktop/YuriiNote.desktop"; fi
+# ---- 旧い名前（YuriiNote Simple）で作ったものを片づける（この版が作ったものだけ。設定・ノートは触らない）
+[ -L "$BIN/YuriiNote-simple" ] && rm -f "$BIN/YuriiNote-simple"
+[ -f "$BIN/YuriiNote-Simple" ] && rm -f "$BIN/YuriiNote-Simple"
+rm -f "$HOME/.local/share/applications/yuriinote-simple.desktop" "$HOME/Desktop/YuriiNote Simple.desktop"
+for s in 16 24 32 48 64 128 256 512; do rm -f "$HOME/.local/share/icons/hicolor/${s}x${s}/apps/yuriinote-simple.png"; done
 if have kbuildsycoca6; then kbuildsycoca6 --noincremental >/dev/null 2>&1 || true; fi
 
 say "入れました: バージョン $(node -p "require('./package.json').version")"
-case ":$PATH:" in *":$BIN:"*) say "ターミナルで YuriiNote-Simple と打つと開きます。更新は YuriiNote-Simple --update" ;;
+case ":$PATH:" in *":$BIN:"*) say "ターミナルで YuriiNote と打つと開きます。更新は YuriiNote --update" ;;
   *) say "$BIN が PATH に無いので、ターミナルでは $LAUNCH と打ってください（メニューからも開けます）" ;; esac
