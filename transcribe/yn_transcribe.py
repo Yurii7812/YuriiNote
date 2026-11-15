@@ -16,6 +16,7 @@ import os
 import subprocess
 import sys
 import tempfile
+import wave
 
 
 def say(**o):
@@ -45,8 +46,12 @@ def main() -> int:
             wav = os.path.join(tmp, "audio.wav")
             # どんな形式でも 16kHz モノラル WAV に
             subprocess.run(["ffmpeg", "-y", "-loglevel", "error", "-i", a.audio, "-ar", "16000", "-ac", "1", wav], check=True)
+            # WAV を自分で読んで、数値の配列で渡す（PyAV を通さない。av の版の違いで読めなくなるのを避ける）
+            import numpy as np
+            with wave.open(wav, "rb") as w:
+                audio = np.frombuffer(w.readframes(w.getnframes()), dtype=np.int16).astype(np.float32) / 32768.0
             segments, info = model.transcribe(
-                wav, language="ja", beam_size=5, initial_prompt=prompt,
+                audio, language="ja", beam_size=5, initial_prompt=prompt,
                 vad_filter=True, vad_parameters={"min_silence_duration_ms": 500},
                 condition_on_previous_text=True,
             )

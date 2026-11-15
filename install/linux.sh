@@ -132,10 +132,10 @@ if have kbuildsycoca6; then kbuildsycoca6 --noincremental >/dev/null 2>&1 || tru
 
 # ---- 録音を文字にする部品（faster-whisper と kotoba-whisper のモデル）。PC の中だけで動く。失敗しても、アプリは使える
 W="$ROOT/whisper"
-if [ ! -x "$W/venv/bin/python" ] || ! "$W/venv/bin/python" -c 'import faster_whisper' >/dev/null 2>&1; then
+if [ ! -x "$W/venv/bin/python" ] || ! "$W/venv/bin/python" -c 'import faster_whisper, av; assert int(av.__version__.split(".")[0]) < 14' >/dev/null 2>&1; then   # av 14 以降は faster-whisper 1.2 と合わない
   if have python3 && python3 -m venv "$W/venv" >/dev/null 2>&1; then
     say "録音を文字にする部品を入れています（初めは数分）…"
-    "$W/venv/bin/pip" install -q faster-whisper huggingface_hub || say "文字にする部品を入れられませんでした（録音の文字化は使えません）"
+    "$W/venv/bin/pip" install -q faster-whisper "av<14" huggingface_hub || say "文字にする部品を入れられませんでした（録音の文字化は使えません）"
   else say "python3 の venv が使えないので、録音を文字にする部品は入れません（sudo apt install python3-venv のあと、もう一度）"; fi
 fi
 M="$W/models/kotoba-v2.0-faster"
