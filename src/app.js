@@ -1313,7 +1313,7 @@ function drawIdBar() {
   const [fc, fmsg] = free ? idFreeCheck(idPick.free) : ['', ''];
   const tt = esc(titleOf(subject) || '無題');
   bar.hidden = false;
-  bar.innerHTML = `<div class="idb-head"><span class="idb-k">🆔 IDをつける</span><span class="idb-subj" data-user title="${tt}">${tt}</span><button class="idb-x" data-idcancel title="やめる（Esc）" aria-label="やめる">✖️</button></div>`
+  bar.innerHTML = `<div class="idb-head"><span class="idb-k">🆔 IDをつける</span><button class="idb-subj" data-idgo data-user title="このノートを開く（${tt}）">${tt}</button><button class="idb-x" data-idcancel title="やめる（Esc）" aria-label="やめる">✖️</button></div>`
     + `<div class="idb-body">`
     + `<button class="idb-base${base ? '' : ' empty'}${idPick.pop ? ' open' : ''}" data-idbase title="基準にするノートを選ぶ（ほかのノートを開いても、それが基準になります）" aria-haspopup="listbox" aria-expanded="${!!idPick.pop}">`
     + (base ? `<small>基準</small><span class="em">📍</span><b>${esc(base.id)}</b><span class="idb-bt" data-user>${bt}</span>` : '<span>基準のノートを選ぶ</span>') + '<i>▾</i></button>'
@@ -1346,6 +1346,7 @@ document.addEventListener('click', e => {
   if (!idPick) return;
   const bar = $('#idbar');
   if (e.target.closest('[data-idcancel]')) return endIdPick();
+  if (e.target.closest('[data-idgo]')) { const sub = idSubject(); if (sub) { idPick.pop = false; openNote(sub.s, sub.id); } return; }   // 付けるノートの題名を押したら、そのノートへ
   if (e.target.closest('[data-idbase]')) { idPick.pop = !idPick.pop; idPick.q = ''; idPick.sel = 0; idPick.free = null; return drawIdBar(); }
   const r = e.target.closest('[data-idbstem]'); if (r) { idPick.base = r.dataset.idbstem; idPick.pop = false; return drawIdBar(); }
   if (e.target.closest('[data-idfree]')) { idPick.free = ''; idPick.pop = false; return drawIdBar(); }
