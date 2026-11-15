@@ -6,10 +6,11 @@
 set -eu
 # 実行中に、このファイルのある場所を入れ替えるので、一時ファイルに写して、そこから続ける
 if [ -z "${YN_REEXEC:-}" ]; then T=$(mktemp); cp "$0" "$T"; YN_REEXEC=1 exec sh "$T" "$@"; fi
-ROOT="${YURIINOTE_SIMPLE_ROOT:-$HOME/.local/share/YuriiNote-simple}"
+ROOT="${YURIINOTE_ROOT:-${YURIINOTE_SIMPLE_ROOT:-$HOME/.local/share/YuriiNote}}"   # 旧い環境変数名（YURIINOTE_SIMPLE_*）も読む
+OLDROOT="$HOME/.local/share/YuriiNote-simple"   # 旧い名前の置き場。あれば、ROOT へ移す
 APP="$ROOT/src"
-REPO="${YURIINOTE_SIMPLE_REPO:-https://github.com/Yurii7812/YuriiNote.git}"
-RAW="${YURIINOTE_SIMPLE_RAW:-https://raw.githubusercontent.com/Yurii7812/YuriiNote/main}"
+REPO="${YURIINOTE_REPO:-${YURIINOTE_SIMPLE_REPO:-https://github.com/Yurii7812/YuriiNote.git}}"
+RAW="${YURIINOTE_RAW:-${YURIINOTE_SIMPLE_RAW:-https://raw.githubusercontent.com/Yurii7812/YuriiNote/main}}"
 BIN="$HOME/.local/bin"; LAUNCH="$BIN/YuriiNote"
 say() { printf '%s\n' "$*"; }
 have() { command -v "$1" >/dev/null 2>&1; }
@@ -17,6 +18,16 @@ SUDO=""; [ "$(id -u)" = 0 ] || { have sudo && SUDO=sudo; }
 OS=$(uname -s); ARCH=$(uname -m)
 [ "$OS" = Linux ] || { say "Linux だけに対応しています"; exit 1; }
 mkdir -p "$ROOT" "$BIN"
+# ---- 動いていたら、閉じてもらう（新旧どちらの置き場のアプリも）
+if pgrep -f "$APP/node_modules/electron" >/dev/null 2>&1 || pgrep -f "$OLDROOT/src/node_modules/electron" >/dev/null 2>&1; then say "YuriiNote が動いています。閉じてから、もう一度実行してください"; exit 1; fi
+# ---- 旧い置き場（YuriiNote-simple）があれば、中身を ROOT へ移す（同じ場所への名前の付け替えなので、すぐ終わる）。
+#      途中で失敗しても旧い起動コマンドが動くよう、旧い名前のパスは、最後まで ROOT を指すリンクにして残す
+if [ -z "${YURIINOTE_ROOT:-}${YURIINOTE_SIMPLE_ROOT:-}" ] && [ -d "$OLDROOT" ] && [ ! -L "$OLDROOT" ] && [ ! -e "$ROOT/src" ]; then   # 置き場を指定していないときだけ
+  say "置き場を $OLDROOT から $ROOT へ移します"
+  for f in "$OLDROOT"/* "$OLDROOT"/.[!.]*; do [ -e "$f" ] || continue; b=$(basename "$f"); [ -e "$ROOT/$b" ] || mv "$f" "$ROOT/$b"; done
+  rmdir "$OLDROOT" 2>/dev/null || true
+  [ -e "$OLDROOT" ] || ln -s "$ROOT" "$OLDROOT"
+fi
 
 # ---- git
 if ! have git; then
@@ -41,9 +52,6 @@ if ! nodeok; then
   PATH="$ROOT/node/bin:$PATH"
 fi
 export PATH
-# ---- 動いていたら、閉じてもらう
-if pgrep -f "$APP/node_modules/electron" >/dev/null 2>&1; then say "YuriiNote が動いています。閉じてから、もう一度実行してください"; exit 1; fi
-
 # ---- 取得・組み立て（入れ替えは、最後に一度だけ）
 NEW="$ROOT/src-new"; OLD="$ROOT/src-old"
 rm -rf "$NEW" "$OLD"
@@ -64,7 +72,7 @@ mv "$NEW" "$APP"; rm -rf "$OLD"; cd "$APP"
 cat > "$LAUNCH" <<'LAUNCHER'
 #!/bin/sh
 set -eu
-ROOT="${YURIINOTE_SIMPLE_ROOT:-$HOME/.local/share/YuriiNote-simple}"
+ROOT="${YURIINOTE_ROOT:-${YURIINOTE_SIMPLE_ROOT:-$HOME/.local/share/YuriiNote}}"
 APP="$ROOT/src"
 if [ -d "$ROOT/node/bin" ]; then PATH="$ROOT/node/bin:$PATH"; export PATH; fi
 ARG=""
@@ -117,6 +125,7 @@ if [ -d "$HOME/Desktop" ]; then printf '%s\n' "$ENTRY" > "$HOME/Desktop/YuriiNot
 # ---- 旧い名前（YuriiNote Simple）で作ったものを片づける（この版が作ったものだけ。設定・ノートは触らない）
 [ -L "$BIN/YuriiNote-simple" ] && rm -f "$BIN/YuriiNote-simple"
 [ -f "$BIN/YuriiNote-Simple" ] && rm -f "$BIN/YuriiNote-Simple"
+[ -L "$OLDROOT" ] && rm -f "$OLDROOT"   # 移し終えたので、旧い名前のリンクは外す
 rm -f "$HOME/.local/share/applications/yuriinote-simple.desktop" "$HOME/Desktop/YuriiNote Simple.desktop"
 for s in 16 24 32 48 64 128 256 512; do rm -f "$HOME/.local/share/icons/hicolor/${s}x${s}/apps/yuriinote-simple.png"; done
 if have kbuildsycoca6; then kbuildsycoca6 --noincremental >/dev/null 2>&1 || true; fi
