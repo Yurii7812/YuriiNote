@@ -468,7 +468,7 @@ longPress('.entry[data-n]', row => {
   const it = items.find(x => x.name === row.dataset.n); if (!it) return;
   actions(String(it.d.text).slice(0, 40), [
     ['↪️ メンション（この吹き出しを指す）', () => mention(it)],
-    ...(isSent(it) ? [] : [['🗑️ 消す（まだ PC に送っていない）', () => { if (confirm('この 1 件を消しますか？')) { Native.remove(it.name); load(); draw(); } }, true]])
+    ['🗑️ ' + (isSent(it) ? '消す（スマホから。PC には残ります）' : '消す（まだ PC に送っていない）'), () => { if (confirm('この 1 件を消しますか？')) { Native.remove(it.name); load(); draw(); } }, true]
   ]);
 });
 // 操作のシート
@@ -783,6 +783,7 @@ async function spSave() {
       const c = document.createElement('canvas'); c.width = H ? W : s1 - s0; c.height = H ? s1 - s0 : Ht;
       c.getContext('2d').drawImage(im, H ? 0 : s0, H ? s0 : 0, c.width, c.height, 0, 0, c.width, c.height);
       const name = `pm-${t}-${k}.jpg`, had = pageTaken(g.book, page);
+      try { levels(c); } catch (_) {}
       if (!Native.writeB64(name, c.toDataURL('image/jpeg', 0.93).split(',')[1])) throw new Error('write');
       if (had && g.replace) for (const old of pmemos().filter(i => i.d.book === g.book && +i.d.page === page)) trashItem(old);
       save(name.replace(/\.jpg$/, '.json'), { type: 'pmemo', at, book: g.book, page, image: name, ...(had && g.replace ? { replace: true } : {}) });
@@ -817,6 +818,19 @@ $('#v-del').onclick = () => {
   if (!confirm(sent ? 'この写真を、スマホから消しますか？（PC には取り込み済みです。ごみ箱から戻せます）' : 'この写真を、ごみ箱へ移しますか？（あとで戻せます）')) return;
   trashItem(viewing); $('#viewer').hidden = true; viewing = null; load(); drawPaper(); toast('🗑️ ごみ箱へ移しました');
 };
+// 紙の写真の補正: 明るさを引き伸ばし（影・暗さを持ち上げる）、文字を濃くする
+function levels(c) {
+  const x = c.getContext('2d'), d = x.getImageData(0, 0, c.width, c.height), p = d.data, h = new Uint32Array(256);
+  for (let i = 0; i < p.length; i += 16) h[(p[i] * 77 + p[i + 1] * 150 + p[i + 2] * 29) >> 8]++;
+  const tot = Array.from(h).reduce((a, b) => a + b, 0); let lo = 0, hi = 255, a = 0;
+  for (let i = 0; i < 256; i++) { a += h[i]; if (a > tot * 0.01) { lo = i; break; } }
+  a = 0; for (let i = 255; i >= 0; i--) { a += h[i]; if (a > tot * 0.35) { hi = i; break; } }   // 紙の白を、上位の山に合わせる
+  if (hi - lo < 40) return;
+  const k = 255 / (hi - lo), lut = new Uint8Array(256);
+  for (let i = 0; i < 256; i++) lut[i] = Math.max(0, Math.min(255, Math.pow(Math.max(0, i - lo) * k / 255, 1.15) * 255));
+  for (let i = 0; i < p.length; i += 4) { p[i] = lut[p[i]]; p[i + 1] = lut[p[i + 1]]; p[i + 2] = lut[p[i + 2]]; }
+  x.putImageData(d, 0, 0);
+}
 function trashItem(it) { const t = Native.toTrash || Native.remove; t(it.name); for (const f of [it.d.image, it.d.file]) if (f) t(f); }
 
 // ---- 名前を付ける（PC の紙の取り込みと同じ: ID とキーワード。途中でやめても、付けなくてもよい）
@@ -899,7 +913,7 @@ function drawRec() {
   $('#rec-btn').classList.toggle('on', on); $('#rec-time').textContent = mmss(+st.sec || 0);
   $('#rec-msg').innerHTML = on ? `🔴 録音中（${esc(st.at || '')} から）。押すと止めます。` : '押すと録音を始めます。画面を消しても続きます。<br>PC に取り込むと、PC で文字にします。';
   const recs = items.filter(i => i.d.type === 'audio').sort((a, b) => (b.d.at || '').localeCompare(a.d.at || ''));
-  $('#rec-list').innerHTML = recs.length ? recs.map(it => `<div class="row"><span class="t">🎙️ ${esc(showAt(it.d.at))}<br><small style="color:var(--sub)">${mmss(+it.d.sec || 0)}</small></span><audio controls preload="none" src="${esc(imgUrl(it.d.file))}"></audio><span class="badge${isSent(it) ? ' ok' : ''}">${isSent(it) ? '✔ 取り込み済み' : '未送信'}</span>${isSent(it) ? '' : `<button class="ib" data-rdel="${esc(it.name)}" aria-label="ごみ箱へ">🗑️</button>`}</div>`).join('') : '<div class="none">録ったものが、ここに並びます</div>';
+  $('#rec-list').innerHTML = recs.length ? recs.map(it => `<div class="row"><span class="t">🎙️ ${esc(showAt(it.d.at))}<br><small style="color:var(--sub)">${mmss(+it.d.sec || 0)}</small></span><audio controls preload="none" src="${esc(imgUrl(it.d.file))}"></audio><span class="badge${isSent(it) ? ' ok' : ''}">${isSent(it) ? '✔ 取り込み済み' : '未送信'}</span><button class="ib" data-rdel="${esc(it.name)}" aria-label="ごみ箱へ">🗑️</button></div>`).join('') : '<div class="none">録ったものが、ここに並びます</div>';
   $('#rec-hint').innerHTML = hintFor(recs.map(x => x.name), 'rec');
   clearTimeout(recTimer); if (on && tab === 'rec') recTimer = setTimeout(drawRecLive, 1000);
 }
