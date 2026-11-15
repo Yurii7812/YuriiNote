@@ -94,6 +94,10 @@ function pmemoBooks() { const b = {}; for (const p of pmemoDoc().pages || []) b[
 function pmemoAdd(list) {
   const doc = pmemoDoc(); doc.pages = doc.pages || [];
   for (const { d, buf } of list) {
+    if (d.replace) {   // 撮り直し: 同じ記号・番号の古いページは、ごみ箱へ
+      for (const old of doc.pages.filter(y => y.book === d.book && y.page === +d.page)) { try { const t = path.join(vault, '.trash'); fs.mkdirSync(t, { recursive: true }); fs.renameSync(path.join(vault, old.image), path.join(t, `${Date.now()}-${old.image}`)); } catch { } }
+      doc.pages = doc.pages.filter(y => !(y.book === d.book && y.page === +d.page));
+    }
     let name = `P_memo-${d.book}-${+d.page}.jpg`, i = 2; while (fs.existsSync(path.join(vault, name))) name = `P_memo-${d.book}-${+d.page}_${i++}.jpg`;
     fs.writeFileSync(path.join(vault, name), buf);
     doc.pages.push({ book: d.book, page: +d.page, image: name, at: require('./stamp').full(d.at || '') });
@@ -254,8 +258,8 @@ async function runPhoneImport() {
   fs.writeFileSync(seenFile, JSON.stringify({ names: keep }));
   const m1 = await P.markInbox(keep);
   const st = v.state();
-  // スマホへ: ノートの一覧（チャット形式で見せるので、本文の頭も）・紙のキーワード・紙のメモ帳の最後のページ
-  const m2 = await P.sendMeta({ kinds: v.records().map(x => x.name), notes: st.notes.filter(n => (!n.kind || n.kind === 'text') && !n.noid).map(n => ({ s: n.s, id: n.id, title: n.title || '', body: n.s === 'd' ? String(n.body || '').slice(0, 1500) : '', kw: n.s === 'p' ? n.keywords || [] : undefined })), pmemo: pmemoBooks() });
+  // PC のノート・記録の種類・メモ帳の最後のページは、スマホへは送らない（スマホに映さない）。返すのは、取り込み済みの印だけ
+  const m2 = { ok: true };
   recPump();
   const sum = { ...out.sum, chats: out.sum.memos, days: out.sum.diaries, scans: out.sum.papers };
   const msg = I.summary(out.sum) ? 'スマホから取り込みました: ' + I.summary(out.sum) : 'スマホに、新しいものはありませんでした';

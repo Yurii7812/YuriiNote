@@ -123,10 +123,41 @@ main{flex:1;min-height:0;display:flex;flex-direction:column;position:relative}
 .sheet select,.row select{padding:7px 8px;border:1px solid var(--line);border-radius:9px;background:var(--bg)}
 .toast{position:fixed;left:50%;top:calc(env(safe-area-inset-top) + 60px);transform:translateX(-50%);background:var(--fg);color:var(--bg);border-radius:999px;padding:8px 16px;font-size:13px;opacity:0;transition:opacity .2s;pointer-events:none;z-index:9;white-space:nowrap;max-width:92vw;overflow:hidden;text-overflow:ellipsis}
 .toast.on{opacity:.93}
+/* メモ帳・日記: チャットの吹き出し。時刻は、吹き出しの左となり */
+#memo-list,#diary-list{display:flex;flex-direction:column;gap:6px;padding:10px 12px 12px}
+.entry{border:0;padding:0;gap:8px;align-items:flex-end;justify-content:flex-end}
+.entry time{padding:0 0 4px;min-width:0;max-width:96px;text-align:right}
+.entry .bb{max-width:80%;min-width:0;background:var(--mine);border-radius:18px 18px 4px 18px;padding:8px 13px}
+.entry .t{flex:none;white-space:pre-wrap;word-break:break-word}
+.entry .st{display:block;text-align:right;padding:2px 0 0;font-size:11px}
+.entry.sel,.entry.hold{background:none}.entry.sel .bb,.entry.hold .bb{background:var(--acc-bg);outline:2px solid var(--acc)}
+#memo-list .none,#diary-list .none{align-self:center}
+/* ノートの検索（上） */
+.nsearch{flex:none;padding:8px 10px 0}.nsearch input{width:100%;box-sizing:border-box;height:42px;border:1px solid var(--line);border-radius:12px;padding:0 14px;font-size:16px;background:var(--bg);color:var(--fg)}.nsearch input:focus{outline:none;border-color:var(--acc)}
+/* 選んで消す */
+.thumb .sel{position:absolute;left:5px;top:4px;width:22px;height:22px;border-radius:50%;border:2px solid #fff;background:rgba(0,0,0,.35);color:#fff;font-size:13px;text-align:center;line-height:18px;display:none}
+.selmode .thumb .sel{display:block}.thumb.pick{outline:3px solid var(--acc);outline-offset:-3px}.thumb.pick .sel{background:var(--acc)}
+.selbar{position:fixed;left:0;right:0;bottom:0;z-index:6;display:flex;gap:8px;align-items:center;padding:10px 12px max(10px,env(safe-area-inset-bottom));background:var(--bg);border-top:1px solid var(--line);box-shadow:0 -4px 16px rgba(0,0,0,.12)}
+.selbar[hidden]{display:none}.selbar #sel-n{font-size:13px;color:var(--sub)}.selbar .chip.danger{color:var(--red);border-color:var(--red)}.selbar .chip:disabled{opacity:.4}
+#b-select.on{background:var(--acc-bg);border-color:var(--acc)}
+/* 見開きを分ける */
+.splitbox{flex:1;min-height:0;background:#0f1013;display:flex;align-items:center;justify-content:center;overflow:hidden}
+.splitwrap{position:relative;display:inline-block;line-height:0;touch-action:none;user-select:none;-webkit-user-select:none}
+.splitwrap img{display:block;max-width:100vw;max-height:48vh;pointer-events:none}
+.splitline{position:absolute;top:0;bottom:0;width:44px;margin-left:-22px;touch-action:none;pointer-events:none}
+.splitline::after{content:"";position:absolute;left:21px;top:0;bottom:0;width:3px;background:#ffd43b;box-shadow:0 0 0 1px rgba(0,0,0,.55)}
+.splitline i{position:absolute;left:8px;top:50%;width:28px;height:28px;margin-top:-14px;border-radius:50%;background:#ffd43b;box-shadow:0 0 0 2px rgba(0,0,0,.55)}
+.splitline.h{left:0;right:0;top:0;bottom:auto;width:auto;height:44px;margin:-22px 0 0}
+.splitline.h::after{left:0;right:0;top:21px;bottom:auto;width:auto;height:3px}.splitline.h i{left:50%;top:8px;margin:0 0 0 -14px}
+.splitlab{position:absolute;padding:2px 9px;border-radius:8px;background:rgba(0,0,0,.62);color:#fff;font:700 13px/1.5 ui-monospace,monospace;pointer-events:none}.splitlab.off{opacity:.5;text-decoration:line-through}
+.splitform{flex:none;padding:8px 12px max(10px,env(safe-area-inset-bottom));border-top:1px solid var(--line);display:flex;flex-direction:column;gap:8px}
+.spl-row{display:flex;gap:8px;align-items:center;flex-wrap:wrap}.spl-t{flex:none;width:2.6em;font-size:12px;color:var(--sub)}.spl-help{font-size:11px;color:var(--sub)}
+.ib.sm{width:38px;height:38px;font-size:16px}
+.sp-in{height:40px;border:1px solid var(--line);border-radius:10px;padding:0 6px;font-size:17px;background:var(--bg);color:var(--fg)}
 </style>
 </head>
 <body>
-<div class="top"><h1 id="ttl">メモ帳</h1><button class="ib" id="b-alarm" aria-label="定期の通知（アラーム）">⏰</button><button class="ib" id="b-stamp" aria-label="行ごとの時刻を表示・非表示">⏱️</button></div>
+<div class="top"><h1 id="ttl">メモ帳</h1><button class="ib" id="b-stamp" aria-label="行ごとの時刻を表示・非表示">⏱️</button><button class="ib" id="b-alarm" aria-label="定期の通知（アラーム）">⏰</button></div>
 <main>
   <section class="pane on" id="p-memo">
     <div class="datebar"><button class="ib" data-day="-1" data-for="memo" aria-label="前の日">◀</button><label class="datebtn"><b id="memo-date"></b><input type="date" id="memo-pick" aria-label="日付を選ぶ"></label><button class="chip" data-today="memo" id="memo-today" hidden>今日へ</button><button class="ib" data-day="1" data-for="memo" aria-label="次の日">▶</button></div>
@@ -142,6 +173,7 @@ main{flex:1;min-height:0;display:flex;flex-direction:column;position:relative}
     <div class="compose"><textarea id="diary-in" rows="1" placeholder="今日のこと"></textarea><button class="send" id="diary-send" aria-label="追加">⬆️</button></div>
   </section>
   <section class="pane" id="p-notes">
+    <div class="nsearch"><input id="note-q" type="search" placeholder="🔎 ノートを検索" autocomplete="off" enterkeyhint="search"></div>
     <div class="nav" id="nav"></div>
     <div id="note-hint"></div>
     <div class="bubs" id="bubs"></div>
@@ -154,9 +186,9 @@ main{flex:1;min-height:0;display:flex;flex-direction:column;position:relative}
     <div class="edtools"><button id="t-arrow" title="ほかのノートへのリンク（->ID）">→ リンク</button><button id="t-n" title="次の (n)">(n)</button><button id="t-hash">#</button><button id="t-list">・</button></div>
   </section>
   <section class="pane" id="p-paper">
-    <div class="seg"><button class="chip on" data-pm="card">🗂️ カード</button><button class="chip" data-pm="memo">📓 メモ帳</button><span class="grow"></span><button class="ib" id="b-trash" aria-label="ごみ箱">🗑️</button></div>
+    <div class="seg"><button class="chip on" data-pm="card">🗂️ ノート</button><button class="chip" data-pm="memo">📓 メモ帳</button><span class="grow"></span><button class="ib" id="b-select" aria-label="選んで消す">☑️</button><button class="ib" id="b-trash" aria-label="ごみ箱">🗑️</button></div>
     <div id="pc-card" class="pane on" style="display:flex">
-      <button class="bigbtn" id="scan-card">📷 カードを撮る</button>
+      <button class="bigbtn" id="scan-card">📷 ノートを撮る</button>
       <div class="chips" id="pfilter"></div>
       <div id="paper-hint"></div>
       <div class="grid" id="pgrid"></div>
@@ -181,17 +213,30 @@ main{flex:1;min-height:0;display:flex;flex-direction:column;position:relative}
       <div class="nmbtns"><button id="nm-skip">飛ばす</button><button id="nm-clear" hidden>名前を外す</button><button class="primary" id="nm-save">保存して次へ</button></div>
     </div>
   </section>
+  <section class="pane" id="p-split">
+    <div class="datebar" style="padding-bottom:6px"><button class="ib" id="sp-back" aria-label="やめる">◀</button><b id="sp-pos"></b><button class="ib" id="sp-drop" aria-label="この見開きを捨てる">🗑️</button></div>
+    <div class="splitbox"><div class="splitwrap" id="sp-wrap"><img id="sp-img" alt="" draggable="false"><span class="splitlab" id="sp-la"></span><span class="splitlab" id="sp-lb"></span><div class="splitline" id="sp-line"><i></i></div></div></div>
+    <div class="splitform">
+      <div class="spl-row"><span class="spl-t">折り目</span><button class="ib sm" id="sp-n-minus" aria-label="少し戻す">◀</button><button class="ib sm" id="sp-n-plus" aria-label="少し進める">▶</button><button class="chip" id="sp-auto">自動の位置に戻す</button><span class="grow"></span><span class="spl-help">黄色い線を指で動かせます</span></div>
+      <div class="spl-row"><span class="spl-t">使う</span><button class="chip on" id="sp-ta"></button><button class="chip on" id="sp-tb"></button></div>
+      <div class="spl-row"><span class="spl-t">番号</span><span>📓</span><input id="sp-book" class="sp-in" style="width:64px;text-align:center" autocapitalize="characters" autocomplete="off"><span>p.</span><button class="ib sm" id="sp-dec" aria-label="1 つ戻す">−</button><input id="sp-start" class="sp-in" type="number" inputmode="numeric" min="1" style="width:70px;text-align:center"><button class="ib sm" id="sp-inc" aria-label="1 つ進める">＋</button></div>
+      <div class="spl-row"><button class="chip" id="sp-rep" hidden></button></div>
+      <div class="nmmsg" id="sp-msg"></div>
+      <div class="nmbtns"><button class="primary" id="sp-save">分けて保存する</button></div>
+    </div>
+  </section>
   <section class="pane" id="p-rec">
     <div class="recbox"><div class="rectime" id="rec-time">00:00</div><button class="recbtn" id="rec-btn" aria-label="録音"></button><div class="recmsg" id="rec-msg">押すと録音を始めます。画面を消しても続きます。<br>PC に取り込むと、PC で文字にします。</div></div>
     <div id="rec-hint"></div>
     <div class="list" id="rec-list"></div>
   </section>
 </main>
+<div class="selbar" id="selbar" hidden><button class="chip" id="sel-all">全部</button><span id="sel-n"></span><span class="grow"></span><button class="chip danger" id="sel-del">🗑️ ごみ箱へ</button><button class="chip" id="sel-x">やめる</button></div>
 <nav class="tabs"><button data-t="memo" class="on"><span>📒</span>メモ帳</button><button data-t="diary"><span>📔</span>日記</button><button data-t="notes"><span>📝</span>ノート</button><button data-t="paper"><span>📷</span>紙</button><button data-t="rec"><span>🎙️</span>録音</button></nav>
 <div class="sheet" id="sheet" hidden><div class="bar"><input id="sheet-q" placeholder="🔎 リンクするノートを探す（ID・題）" autocomplete="off"><button class="ib" id="sheet-x" aria-label="やめる">✖️</button></div><div class="help">押すと、<b>->ID</b> が入ります</div><div class="res" id="sheet-res"></div></div>
 <div class="sheet act" id="act" hidden><div class="ah" id="act-h"></div><div id="act-b"></div><button class="ai" id="act-x">やめる</button></div>
 <div class="sheet" id="trashsheet" hidden><div class="bar"><b style="flex:1;font-size:16px;line-height:44px">🗑️ ごみ箱（スマホ）</b><button class="chip" id="trash-empty">空にする</button><button class="ib" id="trash-x" aria-label="閉じる">✖️</button></div><div class="help">消した写真・録音です。「戻す」で元に戻せます。</div><div class="res" id="trash-res"></div></div>
-<div class="viewer" id="viewer" hidden><div class="vimg"><img id="v-img" alt=""></div><div class="vbar"><button class="ib" id="v-x" aria-label="閉じる">◀</button><span>メモ帳</span><input id="v-book" autocapitalize="characters"><span>ページ</span><input id="v-page" type="number" inputmode="numeric"><span class="grow"></span><button class="ib" id="v-del" aria-label="捨てる">🗑️</button><button class="chip on" id="v-ok">保存</button></div></div>
+<div class="viewer" id="viewer" hidden><div class="vimg"><img id="v-img" alt=""></div><div class="vbar"><button class="ib" id="v-x" aria-label="閉じる">◀</button><span>メモ帳</span><input id="v-book" autocapitalize="characters"><span>ページ</span><input id="v-page" type="number" inputmode="numeric"><span class="grow"></span><button class="ib" id="v-re" aria-label="撮り直す">📷</button><button class="ib" id="v-del" aria-label="捨てる">🗑️</button><button class="chip on" id="v-ok">保存</button></div></div>
 <div class="sheet" id="fmtsheet" hidden style="top:auto;border-radius:18px 18px 0 0;max-height:86vh;overflow:auto;padding-bottom:max(12px,env(safe-area-inset-bottom))">
   <div class="bar" style="padding-bottom:0"><b style="flex:1;font-size:16px;line-height:44px">⏱️ 時刻の見せ方</b><button class="ib" id="fmt-x" aria-label="閉じる">✖️</button></div>
   <div class="help" style="padding:4px 14px 8px">保存は、いつも「年月日 時:分:秒」です。ここでは、見せ方だけを変えます（PC と同じ選び方）。</div>
@@ -268,8 +313,8 @@ const bookOf = n => { let s = ''; while (n > 0) { const r = (n - 1) % 26; s = St
 const isBook = s => /^[A-Z]+$/.test(String(s || ''));
 
 // ---- 状態: 受信箱のファイルを全部読む
-let items = [], imported = new Set(), kindsPc = [], notesPc = [], pmemoPc = {}, showStamp = Native.pref('stamp') !== '0';
-const META = /^(imported|kinds|notes|pmemo)\.json$/;
+let items = [], imported = new Set(), kindsPc = [], showStamp = Native.pref('stamp') !== '0';
+const META = /^(imported|kinds|notes|pmemo)\.json$/;   // 前の版が置いたものも、読まない
 function load() {
   let list = []; try { list = JSON.parse(Native.list() || '[]'); } catch { }
   items = [];
@@ -279,9 +324,7 @@ function load() {
   }
   const meta = n => { try { return JSON.parse(Native.meta(n) || 'null'); } catch { return null; } };
   imported = new Set((meta('imported.json') || {}).names || []);
-  kindsPc = ((meta('kinds.json') || {}).kinds || []);
-  notesPc = ((meta('notes.json') || {}).notes || []);
-  pmemoPc = ((meta('pmemo.json') || {}).books || {});
+  kindsPc = jget('myKinds', []);   // 時系列記録の種類は、スマホで作ったものだけ（PC のものは映さない）
 }
 const isSent = it => imported.has(it.name);
 const save = (name, d) => Native.write(name, JSON.stringify(d));
@@ -328,13 +371,13 @@ $('#fmt-x').onclick = () => { $('#fmtsheet').hidden = true; };
 
 // ---- タブ
 let tab = 'memo', memoDay = today(), diaryDay = today(), kind = Native.pref('kind') || '日記', editing = null;
-const TITLES = { memo: 'メモ帳', diary: '日記', notes: 'ノート', paper: '紙', edit: 'ノート', name: '紙に名前を付ける', rec: '録音' };
-const FULL = new Set(['edit', 'name']);   // 下のタブを隠す画面
+const TITLES = { memo: 'メモ帳', diary: '日記', notes: 'ノート', paper: '紙', edit: 'ノート', name: '紙に名前を付ける', split: '見開きを分ける', rec: '録音' };
+const FULL = new Set(['edit', 'name', 'split']);   // 下のタブを隠す画面
 function show(t) {
   if (t === 'memo' && tab !== 'memo') memoDay = today();    // メモ帳・日記は、いつも今日を開く（日付を選ぶと、その日を開く）
   if (t === 'diary' && tab !== 'diary') diaryDay = today();
   tab = t; $$('.pane').forEach(p => { if (p.parentElement.tagName === 'MAIN') p.classList.toggle('on', p.id === 'p-' + t); });
-  const tb = t === 'edit' ? 'notes' : t === 'name' ? 'paper' : t;
+  const tb = t === 'edit' ? 'notes' : t === 'name' || t === 'split' ? 'paper' : t;
   $$('.tabs button').forEach(b => b.classList.toggle('on', b.dataset.t === tb));
   $('.tabs').style.display = FULL.has(t) ? 'none' : ''; $('#ttl').textContent = TITLES[t];
   $('#b-stamp').style.visibility = t === 'memo' || t === 'diary' ? '' : 'hidden';
@@ -361,6 +404,7 @@ function draw() {
   else if (tab === 'notes') drawNotes();
   else if (tab === 'paper') drawPaper();
   else if (tab === 'name') drawName();
+  else if (tab === 'split') drawSplit();
   else if (tab === 'rec') drawRec();
 }
 
@@ -369,7 +413,7 @@ function draw() {
 const chatItems = (type, day, k) => items.filter(i => i.d.type === type && (type === 'memo' ? String(i.d.at).slice(0, 10) === day : (i.d.kind || '日記') === k && i.d.date === day)).sort((a, b) => (a.d.at || '').localeCompare(b.d.at || '') || a.name.localeCompare(b.name));
 function chatList(sel, hintSel, arr) {
   const box = $(sel);
-  box.innerHTML = arr.length ? arr.map(it => `<div class="entry" data-n="${esc(it.name)}">${showStamp ? `<time>${esc(showAt(it.d.at))}</time>` : ''}<div class="t">${esc(it.d.text)}</div><span class="st ${isSent(it) ? 'sent' : ''}">${isSent(it) ? '✔' : '未送信'}</span></div>`).join('') : '<div class="none">まだありません。下の欄に書くと、時刻つきで並びます。<br>吹き出しを長押しすると、メンションできます。</div>';
+  box.innerHTML = arr.length ? arr.map(it => `<div class="entry" data-n="${esc(it.name)}">${showStamp ? `<time>${esc(showAt(it.d.at))}</time>` : ''}<div class="bb"><div class="t">${esc(it.d.text)}</div><span class="st ${isSent(it) ? 'sent' : ''}">${isSent(it) ? '✔ PC' : '未送信'}</span></div></div>`).join('') : '<div class="none">まだありません。下の欄に書くと、時刻つきで並びます。<br>吹き出しを長押しすると、メンションできます。</div>';
   $(hintSel).innerHTML = hintFor(arr.map(x => x.name), 'chat'); box.scrollTop = box.scrollHeight;
 }
 function drawMemo() {
@@ -437,7 +481,7 @@ $('#act-x').onclick = () => { $('#act').hidden = true; };
 document.addEventListener('click', e => {
   const d = e.target.closest('[data-day]'); if (d) { const n = +d.dataset.day; if (d.dataset.for === 'memo') memoDay = shiftDay(memoDay, n); else diaryDay = shiftDay(diaryDay, n); draw(); return; }
   const k = e.target.closest('[data-kind]'); if (k) { kind = k.dataset.kind; Native.setPref('kind', kind); draw(); return; }
-  if (e.target.id === 'kind-add') { const name = (prompt && prompt('新しい時系列記録の名前') || '').trim(); if (name && !/[\\/:*?"<>|()（）]/.test(name)) { kind = name; Native.setPref('kind', kind); draw(); } return; }
+  if (e.target.id === 'kind-add') { const name = (prompt && prompt('新しい時系列記録の名前') || '').trim(); if (name && !/[\\/:*?"<>|()（）]/.test(name)) { kind = name; Native.setPref('kind', kind); Native.setPref('myKinds', JSON.stringify([...new Set([...jget('myKinds', []), name])])); draw(); } return; }
   const td = e.target.closest('[data-today]'); if (td) { if (td.dataset.today === 'memo') memoDay = today(); else diaryDay = today(); draw(); return; }
   const c = e.target.closest('[data-clear]'); if (c) { clearImported(c); return; }
 });
@@ -450,56 +494,51 @@ function clearImported(btn) {
   load(); draw(); toast(`🗑️ 取り込み済みの ${n} 件を、スマホから消しました`);
 }
 
-// ==== ノート（チャット形式。1 吹き出し = 1 ノート。並びは Folgezettel の順）====
-// PC のノート（notes.json）と、スマホで書いたノートを、ひとつの並びに。スマホで書いた分岐・並列には、PC と同じ計算で「仮の ID」を見せる（PC で取り込むと決まる）
-let focusKey = Native.pref('focus') || '', nMode = null;   // nMode: { rel: 'child'|'sibling', base: ノート }
+// ==== ノート（チャット形式。1 吹き出し = 1 ノート）====
+// スマホで書いたノートだけが並ぶ（PC のノートは、スマホには映さない）。子・並列は、元のノートのすぐ下に並ぶ。ID は、PC に取り込むと付く
+let focusKey = Native.pref('focus') || '', nMode = null, nSearch = '';
 function noteModel() {
-  const pc = notesPc.filter(n => (n.s || 'd') === 'd' && isId(n.id)).map(n => ({ key: 'pc:' + n.id, id: n.id, title: n.title || firstLine(n.body), body: n.body || '', pc: true }));
-  const taken = new Set(pc.map(n => n.id)), byName = new Map(), out = [...pc], loose = [];
-  for (const it of items.filter(i => i.d.type === 'note').sort((a, b) => a.name.localeCompare(b.name))) {
-    const base = it.d.parentName ? (byName.get(it.d.parentName) || {}).id : it.d.parent;
-    let id = null;
-    if (base && taken.has(base) && (it.d.rel === 'child' || it.d.rel === 'sibling')) { id = it.d.rel === 'child' ? child(base) : sibling(base); while (taken.has(id)) id = sibling(id); taken.add(id); }
-    const m = { key: 'ph:' + it.name, id, prov: !!id, title: firstLine(it.d.body), body: it.d.body, it, mine: true, sent: isSent(it) };
-    byName.set(it.name, m);
-    if (m.sent) continue;   // PC に取り込んだものは、PC のノートとして出る
-    (id ? out : loose).push(m);
-  }
-  out.sort((a, b) => cmpId(a.id, b.id));
-  return { list: out, loose, all: [...out, ...loose] };
+  const nodes = items.filter(i => i.d.type === 'note').sort((a, b) => a.name.localeCompare(b.name)).map(it => ({ key: 'ph:' + it.name, it, title: firstLine(it.d.body), body: it.d.body, sent: isSent(it), rel: it.d.rel || '', pn: it.d.parentName || '', kids: [], parent: null }));
+  const by = new Map(nodes.map(n => [n.it.name, n]));
+  const baseOf = n => (n.pn && by.get(n.pn)) || null;
+  const parentOf = (n, seen = new Set()) => { if (seen.has(n)) return null; seen.add(n); const b = baseOf(n); return !b ? null : n.rel === 'child' ? b : n.rel === 'sibling' ? parentOf(b, seen) : null; };
+  for (const n of nodes) { n.parent = parentOf(n); if (n.parent) n.parent.kids.push(n); }
+  const key = n => { let c = n, k = 0; while (c.rel === 'sibling' && baseOf(c) && k++ < 50) c = baseOf(c); return c; };   // 並列のつながりのいちばん元
+  const sibOf = (n, x) => x !== n && (n.parent ? x.parent === n.parent : (!x.parent && key(x) === key(n)));
+  const q = nSearch.trim().toLowerCase();
+  if (q) return { all: nodes.filter(n => (n.body || '').toLowerCase().includes(q)).reverse(), sibOf, flat: true };
+  const out = [], walk = (n, d) => { n.depth = d; out.push(n); for (const k of n.kids) walk(k, d + 1); };
+  for (const n of nodes) if (!n.parent) walk(n, 0);
+  return { all: out, sibOf };
 }
-function navOf(model, m) {
-  if (!m || !m.id) return { parent: null, sibs: [], kids: [] };
-  const has = id => model.list.some(x => x.id === id), p = parentIn(m.id, has);
-  const pOf = x => parentIn(x.id, has);
-  return { parent: p ? model.list.find(x => x.id === p) : null, sibs: model.list.filter(x => x !== m && pOf(x) === p && tokId(x.id).length === tokId(m.id).length), kids: model.list.filter(x => pOf(x) === m.id) };
-}
-const depthOf = id => Math.max(0, tokId(id).length - 1);
 const bubHtml = m => {
   const body = stripStamps(m.body || '').replace(/^#\s+.*\n?/, '').trim(), long = body.split('\n').length > 5 || body.length > 240;
-  return `<div class="bub${m.mine ? ' mine' : ''}${m.key === focusKey ? ' sel' : ''}" data-k="${esc(m.key)}" style="margin-left:${Math.min(depthOf(m.id || ''), 6) * 10}px">`
-    + `<div class="bh"><span class="bid">${m.id ? esc(m.id) : 'ID なし'}${m.prov ? '<small>仮</small>' : ''}${m.mine ? '<small>📱未送信</small>' : ''}</span><span class="bt">${esc(m.title || '（無題）')}</span></div>`
+  return `<div class="bub mine${m.key === focusKey ? ' sel' : ''}" data-k="${esc(m.key)}" style="margin-left:${Math.min(m.depth || 0, 6) * 12}px">`
+    + `<div class="bh"><span class="bid">${m.sent ? '✔ PC' : '📱 未送信'}</span><span class="bt">${esc(m.title || '（無題）')}</span></div>`
     + (body && body !== m.title ? `<div class="bx">${esc(body)}</div>${long ? '<button class="more" data-more>続きを見る</button>' : ''}` : '') + '</div>';
 };
 function drawNotes(scroll = true) {
-  const model = noteModel(), m = model.all.find(x => x.key === focusKey) || null, nv = navOf(model, m);
-  const nb = (x, lab) => `<button class="nb" data-go="${esc(x.key)}">${x.id ? `<b>${esc(x.id)}</b>` : ''}${esc(lab || x.title || '（無題）')}</button>`;
-  $('#nav').innerHTML = m ? `<div class="nrow"><span class="lab">今</span><span class="cur">${m.id ? esc(m.id) + '　' : ''}${esc(m.title || '（無題）')}</span></div>`
-    + (nv.parent ? `<div class="nrow"><span class="lab">親</span>${nb(nv.parent)}</div>` : '')
-    + (nv.sibs.length ? `<div class="nrow"><span class="lab">並列</span>${nv.sibs.map(x => nb(x)).join('')}</div>` : '')
-    + (nv.kids.length ? `<div class="nrow"><span class="lab">子</span>${nv.kids.map(x => nb(x)).join('')}</div>` : '')
+  const model = noteModel(), m = nSearch ? null : (model.all.find(x => x.key === focusKey) || null);
+  const nb = x => `<button class="nb" data-go="${esc(x.key)}">${esc(x.title || '（無題）')}</button>`;
+  const sibs = m ? model.all.filter(x => model.sibOf(m, x)) : [];
+  $('#nav').innerHTML = m ? `<div class="nrow"><span class="lab">今</span><span class="cur">${esc(m.title || '（無題）')}</span></div>`
+    + (m.parent ? `<div class="nrow"><span class="lab">親</span>${nb(m.parent)}</div>` : '')
+    + (sibs.length ? `<div class="nrow"><span class="lab">並列</span>${sibs.map(nb).join('')}</div>` : '')
+    + (m.kids.length ? `<div class="nrow"><span class="lab">子</span>${m.kids.map(nb).join('')}</div>` : '')
     : `<div class="nrow"><span class="lab"></span><span class="cur" style="font-weight:400;color:var(--sub)">吹き出しを押すと、親・並列・子へすぐ移れます</span></div>`;
-  $('#nav').hidden = !model.all.length;
-  $('#bubs').innerHTML = model.all.length ? model.list.map(bubHtml).join('') + (model.loose.length ? '<div class="sec-h">ID なし（PC で ID を付けます）</div>' + model.loose.map(bubHtml).join('') : '')
-    : '<div class="none">PC につなぐと、PC のノートが Folgezettel の順に並びます。<br>下の欄で、新しいノートを書けます。<br>吹き出しを押すと選べて、長押しで「子を書く」「並列を書く」「引用」ができます。</div>';
+  $('#nav').hidden = !model.all.length || !!nSearch;
+  const done = items.filter(i => i.d.type === 'note').length;
+  $('#bubs').innerHTML = model.all.length ? model.all.map(bubHtml).join('')
+    : `<div class="none">${nSearch ? '見つかりません' : done ? '' : '下の欄で、ノートを書けます。<br>吹き出しを押すと選べて、長押しで「子を書く」「並列を書く」ができます。<br>ID は、PC に取り込むと付きます。'}</div>`;
   $('#note-hint').innerHTML = hintFor(items.filter(i => i.d.type === 'note').map(x => x.name), 'note');
   drawNMode();
   if (scroll) { const el = $('#bubs .bub.sel'); if (el) el.scrollIntoView({ block: 'center' }); }
 }
+$('#note-q').oninput = e => { nSearch = e.target.value; drawNotes(false); };
 function drawNMode() {
   const m = nMode && nMode.base;
-  $('#nmode').innerHTML = m ? `${nMode.rel === 'child' ? '🌱' : '↔️'} <b>${esc(m.id || m.title)}</b> ${nMode.rel === 'child' ? 'の子（分岐）' : 'と並列'}として書く<button id="nmode-x" aria-label="やめる">✕</button>` : '';
-  $('#nmode').hidden = !m; $('#note-in').placeholder = m ? '書いて ⬆️' : '新しいノート（ID なし）';
+  $('#nmode').innerHTML = m ? `${nMode.rel === 'child' ? '🌱' : '↔️'} 「<b>${esc(String(m.title || '').slice(0, 14))}</b>」${nMode.rel === 'child' ? 'の子（分岐）' : 'と並列'}として書く<button id="nmode-x" aria-label="やめる">✕</button>` : '';
+  $('#nmode').hidden = !m; $('#note-in').placeholder = m ? '書いて ⬆️' : '新しいノート';
 }
 $('#nmode').addEventListener('click', e => { if (e.target.id === 'nmode-x') { nMode = null; drawNMode(); } });
 const focusOn = key => { focusKey = key; Native.setPref('focus', key); drawNotes(); };
@@ -513,29 +552,27 @@ $('#bubs').addEventListener('click', e => {
 });
 longPress('.bub[data-k]', b => noteActions(b.dataset.k));
 function noteActions(key) {
-  const model = noteModel(), m = model.all.find(x => x.key === key); if (!m) return;
-  const canRel = !!m.id;
-  actions(`${m.id || 'ID なし'}　${m.title || ''}`, [
-    ...(canRel ? [['🌱 子を書く（分岐）', () => startReply(m, 'child')], ['↔️ 並列を書く', () => startReply(m, 'sibling')]] : []),
-    ...(m.pc ? [['↪️ 引用（->' + m.id + ' を入れる）', () => insertTo($('#note-in'), '->' + m.id + ' ')]] : []),
-    ...(m.mine && !m.sent ? [['✏️ 直す', () => openEditor(m.it.name)], ['🗑️ 消す（まだ PC に送っていない）', () => { if (confirm('このノートを消しますか？（ごみ箱へ）')) { (Native.toTrash || Native.remove)(m.it.name); load(); draw(); } }, true]] : []),
-    ...(!canRel ? [['（ID が無いノートには、子・並列を付けられません）', () => { }]] : [])
+  const m = noteModel().all.find(x => x.key === key); if (!m) return;
+  actions(m.title || '（無題）', [
+    ['🌱 子を書く（分岐）', () => startReply(m, 'child')], ['↔️ 並列を書く', () => startReply(m, 'sibling')],
+    ...(m.sent ? [] : [['✏️ 直す', () => openEditor(m.it.name)]]),
+    [m.sent ? '🗑️ スマホから消す（PC には取り込み済み）' : '🗑️ 消す（まだ PC に送っていない）', () => { if (confirm(m.sent ? 'スマホから、このノートを消しますか？（PC には取り込み済みです。ごみ箱から戻せます）' : 'このノートを消しますか？（ごみ箱へ）')) { trashItem(m.it); load(); draw(); toast('🗑️ ごみ箱へ移しました'); } }, true]
   ]);
 }
 function startReply(m, rel) { nMode = { rel, base: m }; focusKey = m.key; Native.setPref('focus', m.key); drawNotes(false); $('#note-in').focus(); }
 const insertTo = (el, text) => { el.focus(); el.setRangeText(text, el.selectionStart, el.selectionEnd, 'end'); el.dispatchEvent(new Event('input')); };
 function noteRec(body) {
   const d = { type: 'note', created: nowAt(), updated: nowAt(), body };
-  if (nMode && nMode.base) { d.rel = nMode.rel; if (nMode.base.pc) d.parent = nMode.base.id; else d.parentName = nMode.base.it.name; }
+  if (nMode && nMode.base) { d.rel = nMode.rel; d.parentName = nMode.base.it.name; }
   return d;
 }
 $('#note-send').onclick = () => {
   const el = $('#note-in'), body = el.value.replace(/\s+$/, ''); if (!body.trim()) return;
   const name = 'note-' + rid() + '.json'; save(name, noteRec(body)); el.value = ''; el.style.height = '';
-  nMode = null; load(); focusKey = 'ph:' + name; Native.setPref('focus', focusKey); drawNotes(); toast('📝 ノートを書きました（PC に取り込むと ID が付きます）');
+  nMode = null; nSearch = ''; $('#note-q').value = ''; load(); focusKey = 'ph:' + name; Native.setPref('focus', focusKey); drawNotes(); toast('📝 ノートを書きました（PC に取り込むと ID が付きます）');
 };
 autoGrow($('#note-in'));
-$('#n-arrow').onclick = () => openSheet($('#note-in'));
+$('#n-arrow').onclick = () => insertTo($('#note-in'), '->');   // ほかのノートへのリンク。ID は、自分で続けて打つ
 $('#n-expand').onclick = () => { const body = $('#note-in').value; editing = null; draftMode = nMode; $('#note-in').value = ''; openEditor(null, body); };
 // 大きく書く（スマホで書いたノートを直す・長いノートを書く）
 let draftMode = null;
@@ -543,7 +580,7 @@ function openEditor(name, initial = '') {
   editing = name ? items.find(i => i.name === name) : null;
   const ta = $('#edit-body'); ta.value = editing ? editing.d.body : initial; ta.readOnly = !!(editing && isSent(editing));
   const m = draftMode && draftMode.base;
-  $('#edit-state').textContent = editing && isSent(editing) ? '✔ PC に取り込み済み（ここでは直せません）' : editing ? 'ノートを直す' : m ? `${m.id} ${draftMode.rel === 'child' ? 'の子' : 'と並列'}` : '新しいノート（ID なし）';
+  $('#edit-state').textContent = editing && isSent(editing) ? '✔ PC に取り込み済み（ここでは直せません）' : editing ? 'ノートを直す' : m ? `「${String(m.title || '').slice(0, 12)}」${draftMode.rel === 'child' ? 'の子' : 'と並列'}` : '新しいノート（ID なし）';
   show('edit'); if (!ta.readOnly) ta.focus();
 }
 let saveTimer = null;
@@ -556,56 +593,81 @@ $('#edit-body').addEventListener('input', () => { clearTimeout(saveTimer); saveT
 $('#edit-back').onclick = () => { clearTimeout(saveTimer); saveNote(); load(); nMode = null; draftMode = null; show('notes'); };
 const ins = text => { const ta = $('#edit-body'); if (ta.readOnly) return; insertTo(ta, text); };
 $('#t-n').onclick = () => { const nums = [...$('#edit-body').value.matchAll(/\((\d+)\)/g)].map(m => +m[1]); ins(`(${(nums.length ? Math.max(...nums) : 0) + 1})`); };
-$('#t-arrow').onclick = () => { if (!$('#edit-body').readOnly) openSheet($('#edit-body')); };
+$('#t-arrow').onclick = () => { if (!$('#edit-body').readOnly) insertTo($('#edit-body'), '->'); };
 const lineHead = mark => { const ta = $('#edit-body'), at = ta.value.lastIndexOf('\n', ta.selectionStart - 1) + 1; if (!ta.readOnly) { ta.setRangeText(mark, at, at, 'preserve'); ta.dispatchEvent(new Event('input')); ta.focus(); } };
 $('#t-hash').onclick = () => lineHead('# '); $('#t-list').onclick = () => lineHead('- ');
-// ノートの検索（矢印のボタン）。押すと ->ID が入る
-let sheetTarget = null;
-function openSheet(target) { sheetTarget = target; $('#sheet').hidden = false; $('#sheet-q').value = ''; drawSheet(); $('#sheet-q').focus(); }
-function drawSheet() {
-  const q = $('#sheet-q').value.trim().toLowerCase();
-  const list = notesPc.filter(n => (n.s || 'd') === 'd' && isId(n.id)).filter(n => !q || n.id.toLowerCase().startsWith(q) || (n.title || '').toLowerCase().includes(q) || (n.body || '').toLowerCase().includes(q)).sort((a, b) => cmpId(a.id, b.id)).slice(0, 200);
-  $('#sheet-res').innerHTML = list.length ? list.map(n => `<div class="row" data-id="${esc(n.id)}"><span class="id">${esc(n.id)}</span><span class="t">${esc(n.title || firstLine(n.body) || '')}</span></div>`).join('') : `<div class="none">${notesPc.length ? 'ありません' : 'PC につなぐと、PC のノートの一覧が入ります'}</div>`;
-}
-$('#sheet-q').oninput = drawSheet; $('#sheet-x').onclick = () => { $('#sheet').hidden = true; if (sheetTarget) sheetTarget.focus(); };
-$('#sheet-res').onclick = e => { const r = e.target.closest('[data-id]'); if (!r) return; $('#sheet').hidden = true; if (sheetTarget && !sheetTarget.readOnly) insertTo(sheetTarget, '->' + r.dataset.id + ' '); };
 
-// ==== 紙（カード・メモ帳）。縁は文書スキャナーで選ぶ ====
-let pmode = Native.pref('pmode') || 'card', pfilter = Native.pref('pfilter') || 'todo', scanCtx = 'card';
+// ==== 紙（ノート・メモ帳）。縁は文書スキャナーで選ぶ ====
+let pmode = Native.pref('pmode') === 'memo' ? 'memo' : 'card', pfilter = Native.pref('pfilter') || 'todo', scanCtx = 'card', rescanOf = null;
 let book = isBook(Native.pref('book')) ? Native.pref('book') : 'A';
 const papers = () => items.filter(i => i.d.type === 'paper').sort((a, b) => a.name.localeCompare(b.name));
 const pmemos = () => items.filter(i => i.d.type === 'pmemo');
-const lastPage = b => Math.max(0, +(pmemoPc[b] || 0), ...pmemos().filter(i => i.d.book === b).map(i => +i.d.page || 0));
+// メモ帳の「最後のページ」は、スマホの中だけで数える（PC の情報は使わない）。スマホから取り込み済みを消しても、続きの番号が続く
+const jget = (k, d) => { try { const v = JSON.parse(Native.pref(k) || 'null'); return v == null ? d : v; } catch { return d; } };
+const bookLastMap = () => jget('bookLast', {});
+const bumpBook = (b, p) => { const m = bookLastMap(); m[b] = Math.max(+m[b] || 0, +p || 0); Native.setPref('bookLast', JSON.stringify(m)); };
+const lastPage = b => Math.max(0, +(bookLastMap()[b] || 0), ...pmemos().filter(i => i.d.book === b).map(i => +i.d.page || 0));
+const nextOverride = () => { const o = jget('pmNext', null); return o && o.book === book ? +o.n || 0 : 0; };
+const nextPage = () => nextOverride() || lastPage(book) + 1;
+const pageTaken = (b, p, self) => pmemos().some(i => i.d.book === b && +i.d.page === p && i.name !== self);
+// 選んで消す（ごみ箱へ。戻せる。PC に取り込み済みのものも、スマホの写真だけ消える）
+let selMode = false, selSet = new Set();
+const visibleNames = () => (pmode === 'card' ? (pfilter === 'todo' ? papers().filter(i => !i.d.name && !isSent(i)) : pfilter === 'named' ? papers().filter(i => i.d.name) : papers()) : pmemos().filter(i => i.d.book === book)).map(i => i.name);
+function setSel(on, first) { selMode = on; selSet = new Set(first ? [first] : []); drawPaper(); }
+function drawSelBar() {
+  const bar = $('#selbar'); bar.hidden = !selMode || tab !== 'paper'; if (bar.hidden) return;
+  $('#sel-n').textContent = selSet.size ? `${selSet.size} 件を選んでいます` : '消すものを押して選びます';
+  $('#sel-del').disabled = !selSet.size; $('#b-select').classList.toggle('on', selMode);
+}
+const thumbHtml = (it, key, label) => `<div class="thumb${selSet.has(it.name) ? ' pick' : ''}" ${key}="${esc(it.name)}"><img loading="lazy" src="${esc(imgUrl(it.d.image))}" alt=""><span class="sel">✓</span><span class="ck">${isSent(it) ? '✔' : ''}</span><div class="tl">${label}</div></div>`;
 function drawPaper() {
   $$('[data-pm]').forEach(b => b.classList.toggle('on', b.dataset.pm === pmode));
   $('#pc-card').style.display = pmode === 'card' ? 'flex' : 'none'; $('#pc-memo').style.display = pmode === 'memo' ? 'flex' : 'none';
+  $('#p-paper').classList.toggle('selmode', selMode);
   if (pmode === 'card') {
     const all = papers(), todo = all.filter(i => !i.d.name && !isSent(i)), named = all.filter(i => i.d.name);
     $('#pfilter').innerHTML = [['todo', '名前なし', todo.length], ['named', '名前あり', named.length], ['all', '全部', all.length]].map(([k, l, n]) => `<button class="chip${pfilter === k ? ' on' : ''}" data-pf="${k}">${l}<small>${n}</small></button>`).join('')
       + (todo.length ? `<button class="chip" id="name-run">✍️ 名前を付ける</button>` : '');
     const list = pfilter === 'todo' ? todo : pfilter === 'named' ? named : all;
-    $('#pgrid').innerHTML = list.length ? list.map(it => `<div class="thumb" data-pn="${esc(it.name)}"><img loading="lazy" src="${esc(imgUrl(it.d.image))}" alt=""><span class="ck">${isSent(it) ? '✔' : ''}</span><div class="tl">${it.d.name ? `<b>${esc(it.d.name.id)}</b> ${esc((it.d.name.kws || []).join('、'))}` : '名前なし'}</div></div>`).join('')
-      : `<div class="none" style="grid-column:1/-1">${pfilter === 'todo' ? '名前を付けていないカードはありません' : 'カードは、まだありません'}。<br>上の「📷 カードを撮る」で、縁を自動で選んで撮れます。<br>名前（ID・キーワード）は、ここでも PC でも付けられます。付けなくてもかまいません。</div>`;
+    $('#pgrid').innerHTML = list.length ? list.map(it => thumbHtml(it, 'data-pn', it.d.name ? `<b>${esc(it.d.name.id)}</b> ${esc((it.d.name.kws || []).join('、'))}` : '名前なし')).join('')
+      : `<div class="none" style="grid-column:1/-1">${pfilter === 'todo' ? '名前を付けていないノートはありません' : 'ノートは、まだありません'}。<br>上の「📷 ノートを撮る」で、縁を自動で選んで撮れます。<br>名前（ID・キーワード）は、あとから付けても、付けなくてもかまいません。</div>`;
     $('#paper-hint').innerHTML = hintFor(all.map(x => x.name), 'paper');
   } else {
-    const books = [...new Set([...Object.keys(pmemoPc), ...pmemos().map(i => i.d.book), book].filter(isBook))].sort((a, b) => bookNo(a) - bookNo(b));
+    const books = [...new Set([...Object.keys(bookLastMap()), ...pmemos().map(i => i.d.book), book].filter(isBook))].sort((a, b) => bookNo(a) - bookNo(b));
     const nextBook = bookOf(Math.max(...books.map(bookNo)) + 1);
     $('#books').innerHTML = books.map(b => `<button class="chip${b === book ? ' on' : ''}" data-book="${b}">📓 ${b}<small>${lastPage(b) ? 'p.' + lastPage(b) + ' まで' : '新しい'}</small></button>`).join('') + `<button class="chip" data-book="${nextBook}">＋ ${nextBook}</button>`;
-    if (document.activeElement !== $('#pm-next')) $('#pm-next').value = String(lastPage(book) + 1);
+    if (document.activeElement !== $('#pm-next')) $('#pm-next').value = String(nextPage());
     const pages = pmemos().filter(i => i.d.book === book).sort((a, b) => (+a.d.page || 0) - (+b.d.page || 0) || a.name.localeCompare(b.name));
-    $('#pmgrid').innerHTML = pages.length ? pages.map(it => `<div class="thumb" data-pmn="${esc(it.name)}"><img loading="lazy" src="${esc(imgUrl(it.d.image))}" alt=""><span class="ck">${isSent(it) ? '✔' : ''}</span><div class="tl"><b>${esc(it.d.book)}-${esc(it.d.page)}</b></div></div>`).join('')
-      : `<div class="none" style="grid-column:1/-1">メモ帳 ${book} の写真は、スマホにはありません。<br>「📖 見開きを撮る」で、見開きを 1 枚撮ると、左右の 2 ページに分かれて、番号が続きで付きます。${lastPage(book) ? `<br>（PC には p.${lastPage(book)} まであります）` : ''}</div>`;
+    $('#pmgrid').innerHTML = pages.length ? pages.map(it => thumbHtml(it, 'data-pmn', `<b>${esc(it.d.book)}-${esc(it.d.page)}</b>`)).join('')
+      : `<div class="none" style="grid-column:1/-1">メモ帳 ${book} の写真は、スマホにはありません。<br>「📖 見開きを撮る」で、見開きを 1 枚撮ると、折り目で左右 2 ページに分けて、番号が続きで付きます。<br>表紙の裏のような白いページは、分ける画面で「使わない」にできます。</div>`;
     $('#pm-hint').innerHTML = hintFor(pmemos().map(x => x.name), 'pmemo');
   }
+  drawSelBar();
 }
 $('#p-paper').addEventListener('click', e => {
-  const pm = e.target.closest('[data-pm]'); if (pm) { pmode = pm.dataset.pm; Native.setPref('pmode', pmode); drawPaper(); return; }
-  const pf = e.target.closest('[data-pf]'); if (pf) { pfilter = pf.dataset.pf; Native.setPref('pfilter', pfilter); drawPaper(); return; }
-  const bk = e.target.closest('[data-book]'); if (bk) { book = bk.dataset.book; Native.setPref('book', book); $('#pm-next').value = String(lastPage(book) + 1); drawPaper(); return; }
+  if (holdFired) { holdFired = false; return; }
+  const pm = e.target.closest('[data-pm]'); if (pm) { pmode = pm.dataset.pm; Native.setPref('pmode', pmode); selMode = false; drawPaper(); return; }
+  const pf = e.target.closest('[data-pf]'); if (pf) { pfilter = pf.dataset.pf; Native.setPref('pfilter', pfilter); selMode = false; drawPaper(); return; }
+  const bk = e.target.closest('[data-book]'); if (bk) { book = bk.dataset.book; Native.setPref('book', book); Native.setPref('pmNext', ''); selMode = false; $('#pm-next').value = String(nextPage()); drawPaper(); return; }
+  if (e.target.closest('#b-select')) { setSel(!selMode); return; }
   if (e.target.id === 'name-run') { startNaming(papers().filter(i => !i.d.name && !isSent(i)).map(i => i.name), 0); return; }
-  const t = e.target.closest('[data-pn]'); if (t) { const list = (pfilter === 'todo' ? papers().filter(i => !i.d.name && !isSent(i)) : pfilter === 'named' ? papers().filter(i => i.d.name) : papers()).map(i => i.name); startNaming(list, list.indexOf(t.dataset.pn)); return; }
-  const pmn = e.target.closest('[data-pmn]'); if (pmn) { openViewer(pmn.dataset.pmn); return; }
+  const t = e.target.closest('[data-pn],[data-pmn]'); if (!t) return;
+  const nm = t.dataset.pn || t.dataset.pmn;
+  if (selMode) { if (selSet.has(nm)) selSet.delete(nm); else selSet.add(nm); t.classList.toggle('pick', selSet.has(nm)); drawSelBar(); return; }
+  if (t.dataset.pn) { const list = (pfilter === 'todo' ? papers().filter(i => !i.d.name && !isSent(i)) : pfilter === 'named' ? papers().filter(i => i.d.name) : papers()).map(i => i.name); startNaming(list, list.indexOf(nm)); return; }
+  openViewer(nm);
 });
+longPress('.thumb[data-pn],.thumb[data-pmn]', el => { const nm = el.dataset.pn || el.dataset.pmn; if (!selMode) setSel(true, nm); });
+$('#sel-all').onclick = () => { const all = visibleNames(); if (selSet.size === all.length) selSet = new Set(); else selSet = new Set(all); drawPaper(); };
+$('#sel-x').onclick = () => setSel(false);
+$('#sel-del').onclick = () => {
+  const list = items.filter(i => selSet.has(i.name)); if (!list.length) return;
+  const sent = list.filter(isSent).length;
+  if (!confirm(`${list.length} 件を、ごみ箱へ移しますか？（あとで戻せます）${sent ? `\n（うち ${sent} 件は、PC に取り込み済み。スマホの写真だけ消えます）` : ''}`)) return;
+  for (const it of list) trashItem(it);
+  selMode = false; selSet = new Set(); load(); drawPaper(); toast(`🗑️ ${list.length} 件を、ごみ箱へ移しました`);
+};
+$('#pm-next').onchange = () => { const n = parseInt($('#pm-next').value, 10); Native.setPref('pmNext', n > 0 ? JSON.stringify({ book, n }) : ''); };
 const canScan = () => typeof Native.scan === 'function';
 function scan(ctx) {
   scanCtx = ctx;
@@ -615,9 +677,13 @@ function scan(ctx) {
 function pickFiles(ctx) {
   const f = document.createElement('input'); f.type = 'file'; f.accept = 'image/*'; f.multiple = true;
   f.onchange = async () => {
-    const names = [];
-    for (const file of f.files) { const b64 = await new Promise(r => { const fr = new FileReader(); fr.onload = () => r(String(fr.result).split(',')[1]); fr.readAsDataURL(file); }); const n = `paper-${rid()}.jpg`; Native.writeB64(n, b64); names.push([n]); }
-    window.onScanned(JSON.stringify(ctx === 'spread' ? names.map(x => [x[0], x[0]]) : names));
+    const out = [];
+    for (const file of f.files) {
+      const b64 = await new Promise(r => { const fr = new FileReader(); fr.onload = () => r(String(fr.result).split(',')[1]); fr.readAsDataURL(file); });
+      const n = `${ctx === 'spread' ? 'pmfull' : 'paper'}-${rid()}.jpg`; Native.writeB64(n, b64);
+      out.push(ctx === 'spread' ? { full: n, ratio: 0.5, w: 2, h: 1 } : [n]);
+    }
+    window.onScanned(JSON.stringify(out));
   };
   f.click();
 }
@@ -627,47 +693,144 @@ $('#scan-page').onclick = () => scan('page');
 window.onScanFail = msg => { toast('文書スキャナーを使えません。写真を選んでください'); void msg; pickFiles(scanCtx); };
 window.onScanned = json => {
   let groups = []; try { groups = JSON.parse(json) || []; } catch { }
-  if (!groups.length) return;
+  if (!groups.length) { rescanOf = null; return; }
   const at = nowAt();
+  if (scanCtx === 'spread') { startSplit(groups); return; }
   if (scanCtx === 'card') {
     for (const g of groups) for (const img of g) save(img.replace(/\.jpg$/, '.json'), { type: 'paper', at, image: img });
     load(); pfilter = 'todo'; Native.setPref('pfilter', pfilter); drawPaper(); if (navigator.vibrate) navigator.vibrate(20);
     toast(`📷 ${groups.length} 枚を撮りました。名前は、付けても付けなくてもよい`);
     return;
   }
-  let p = Math.max(1, parseInt($('#pm-next').value, 10) || lastPage(book) + 1), n = 0;
-  for (const g of groups) for (const img of (scanCtx === 'spread' ? g : g.slice(0, 1))) { save(img.replace(/\.jpg$/, '.json'), { type: 'pmemo', at, book, page: p, image: img }); p++; n++; }
-  load(); $('#pm-next').value = String(p); drawPaper(); if (navigator.vibrate) navigator.vibrate(20);
-  toast(`📓 メモ帳 ${book}: ${n} ページを足しました（次は p.${p}）`);
+  // 1 ページ。撮り直しなら、同じ記号・番号の写真を入れ替える（PC へは「置き換え」で渡る）
+  if (rescanOf) {
+    const old = rescanOf; rescanOf = null; const img = groups[0][0];
+    trashItem(old); save(img.replace(/\.jpg$/, '.json'), { type: 'pmemo', at, book: old.d.book, page: old.d.page, image: img, replace: true });
+    load(); drawPaper(); toast(`📓 ${old.d.book}-${old.d.page} を撮り直しました`); return;
+  }
+  let p = nextPage(), n = 0;
+  for (const g of groups) { while (pageTaken(book, p)) p++; save(g[0].replace(/\.jpg$/, '.json'), { type: 'pmemo', at, book, page: p, image: g[0] }); bumpBook(book, p); p++; n++; }
+  Native.setPref('pmNext', ''); load(); $('#pm-next').value = String(nextPage()); drawPaper(); if (navigator.vibrate) navigator.vibrate(20);
+  toast(`📓 メモ帳 ${book}: ${n} ページを足しました（次は p.${nextPage()}）`);
 };
-// 写真を見る・番号を直す（メモ帳）
+
+// ---- 見開きを分ける。折り目の位置は、写真から見つけた所に出す（指で動かせる）。表紙の裏などの白いページは「使わない」。番号は、続きから。すでにある番号なら、置き換えるか、番号を変える
+let spQ = [], spI = 0, spNext = 1, spDrag = false;
+const spHoriz = g => g.h > g.w;
+function startSplit(groups) {
+  spQ = groups.filter(g => g && g.full).map(g => ({ ...g, ratio: Math.min(.85, Math.max(.15, +g.ratio || .5)), auto: Math.min(.85, Math.max(.15, +g.ratio || .5)) }));
+  spI = 0; if (!spQ.length) return; spNext = nextPage(); show('split');
+}
+function spNums(g) { let p = g.start; const a = g.useA ? p++ : null, b = g.useB ? p++ : null; return { a, b, after: p }; }
+function spPosLine(g) {
+  const H = spHoriz(g), ln = $('#sp-line'); ln.classList.toggle('h', H);
+  ln.style.left = H ? '0' : g.ratio * 100 + '%'; ln.style.top = H ? g.ratio * 100 + '%' : '0';
+  const la = $('#sp-la'), lb = $('#sp-lb');
+  if (H) { la.style.cssText = `top:6px;left:6px;`; lb.style.cssText = `bottom:6px;left:6px;`; } else { la.style.cssText = `top:6px;left:6px;`; lb.style.cssText = `top:6px;right:6px;`; }
+}
+function drawSplit() {
+  const g = spQ[spI]; if (!g) { show('paper'); return; }
+  if (g.start == null) { g.start = spNext; g.book = book; g.useA = !(g.start === 1 && !pageTaken(g.book, 1) && lastPage(g.book) === 0); g.useB = true; g.replace = false; }
+  const H = spHoriz(g), [na, nb] = H ? ['上', '下'] : ['左', '右'], n = spNums(g);
+  $('#sp-pos').textContent = `${spI + 1} / ${spQ.length}`;
+  const img = $('#sp-img'); if (img.dataset.n !== g.full) { img.dataset.n = g.full; img.src = imgUrl(g.full); }
+  $('#sp-book').value = g.book; if (document.activeElement !== $('#sp-start')) $('#sp-start').value = String(g.start);
+  $('#sp-ta').className = 'chip' + (g.useA ? ' on' : ''); $('#sp-tb').className = 'chip' + (g.useB ? ' on' : '');
+  $('#sp-ta').textContent = `${na} ${g.useA ? g.book + '-' + n.a : '使わない'}`; $('#sp-tb').textContent = `${nb} ${g.useB ? g.book + '-' + n.b : '使わない'}`;
+  $('#sp-la').textContent = `${na} ${g.useA ? g.book + '-' + n.a : '×'}`; $('#sp-lb').textContent = `${nb} ${g.useB ? g.book + '-' + n.b : '×'}`;
+  $('#sp-la').classList.toggle('off', !g.useA); $('#sp-lb').classList.toggle('off', !g.useB);
+  const clash = [g.useA ? n.a : null, g.useB ? n.b : null].filter(x => x != null && pageTaken(g.book, x));
+  $('#sp-rep').hidden = !clash.length; $('#sp-rep').className = 'chip' + (g.replace ? ' on' : ''); $('#sp-rep').textContent = '🔁 撮り直し（古いページを置き換える）';
+  const none = !g.useA && !g.useB, bad = !isBook(g.book) || !(g.start > 0);
+  const msg = $('#sp-msg'); msg.className = 'nmmsg';
+  if (bad) { msg.className += ' bad'; msg.textContent = 'メモ帳は A〜Z・AA…、ページは 1 以上の数です'; }
+  else if (none) { msg.className += ' bad'; msg.textContent = '左も右も使わないと、保存するものがありません'; }
+  else if (clash.length) { msg.className += g.replace ? '' : ' bad'; msg.textContent = g.replace ? `🔁 ${clash.map(x => g.book + '-' + x).join('、')} を、この写真で置き換えます（古いほうは、ごみ箱へ）` : `⚠️ ${clash.map(x => g.book + '-' + x).join('、')} は、もうあります。撮り直しなら「置き換える」、違うなら番号を変えてください`; }
+  else msg.textContent = `✅ ${[g.useA ? na + ' ' + g.book + '-' + n.a : '', g.useB ? nb + ' ' + g.book + '-' + n.b : ''].filter(Boolean).join('　')}　に分けます`;
+  $('#sp-save').disabled = bad || none || (clash.length > 0 && !g.replace);
+  $('#sp-save').textContent = spI + 1 < spQ.length ? '分けて保存して次へ' : '分けて保存する';
+  $('#sp-wrap').classList.toggle('h', H); spPosLine(g);
+}
+function spMove(e) {
+  const g = spQ[spI]; if (!g) return; const r = $('#sp-img').getBoundingClientRect(), H = spHoriz(g);
+  g.ratio = Math.min(.85, Math.max(.15, H ? (e.clientY - r.top) / r.height : (e.clientX - r.left) / r.width)); spPosLine(g);
+}
+$('#sp-wrap').addEventListener('pointerdown', e => { spDrag = true; $('#sp-wrap').setPointerCapture(e.pointerId); spMove(e); e.preventDefault(); });
+$('#sp-wrap').addEventListener('pointermove', e => { if (spDrag) spMove(e); });
+for (const ev of ['pointerup', 'pointercancel']) $('#sp-wrap').addEventListener(ev, () => { spDrag = false; });
+$('#sp-img').addEventListener('load', () => { const g = spQ[spI]; if (g) spPosLine(g); });
+const spNudge = d => { const g = spQ[spI]; if (!g) return; g.ratio = Math.min(.85, Math.max(.15, g.ratio + d)); spPosLine(g); };
+$('#sp-n-minus').onclick = () => spNudge(-0.004); $('#sp-n-plus').onclick = () => spNudge(0.004);
+$('#sp-auto').onclick = () => { const g = spQ[spI]; if (g) { g.ratio = g.auto; spPosLine(g); } };
+$('#sp-ta').onclick = () => { const g = spQ[spI]; if (g) { g.useA = !g.useA; drawSplit(); } };
+$('#sp-tb').onclick = () => { const g = spQ[spI]; if (g) { g.useB = !g.useB; drawSplit(); } };
+$('#sp-rep').onclick = () => { const g = spQ[spI]; if (g) { g.replace = !g.replace; drawSplit(); } };
+$('#sp-book').oninput = e => { const g = spQ[spI]; if (g) { g.book = e.target.value.trim().toUpperCase(); drawSplit(); } };
+$('#sp-start').oninput = e => { const g = spQ[spI]; if (g) { g.start = parseInt(e.target.value, 10) || 0; drawSplit(); } };
+$('#sp-dec').onclick = () => { const g = spQ[spI]; if (g) { g.start = Math.max(1, (g.start || 1) - 1); drawSplit(); } };
+$('#sp-inc').onclick = () => { const g = spQ[spI]; if (g) { g.start = (g.start || 0) + 1; drawSplit(); } };
+const loadImg = src => new Promise((ok, ng) => { const i = new Image(); i.onload = () => ok(i); i.onerror = ng; i.src = src; });
+async function spSave() {
+  const g = spQ[spI]; if (!g || $('#sp-save').disabled) return;
+  $('#sp-save').disabled = true;
+  try {
+    const im = await loadImg(imgUrl(g.full)), W = im.naturalWidth, Ht = im.naturalHeight, H = Ht > W, len = H ? Ht : W;
+    const cut = Math.round(g.ratio * len), inset = Math.round(len * 0.004);   // 折り目の影を、少し落とす
+    const n = spNums(g), at = nowAt(), t = rid();
+    let last = 0;
+    for (const [s0, s1, page, k] of [[0, cut - inset, g.useA ? n.a : null, 'a'], [cut + inset, len, g.useB ? n.b : null, 'b']]) {
+      if (page == null) continue;
+      const c = document.createElement('canvas'); c.width = H ? W : s1 - s0; c.height = H ? s1 - s0 : Ht;
+      c.getContext('2d').drawImage(im, H ? 0 : s0, H ? s0 : 0, c.width, c.height, 0, 0, c.width, c.height);
+      const name = `pm-${t}-${k}.jpg`, had = pageTaken(g.book, page);
+      if (!Native.writeB64(name, c.toDataURL('image/jpeg', 0.93).split(',')[1])) throw new Error('write');
+      if (had && g.replace) for (const old of pmemos().filter(i => i.d.book === g.book && +i.d.page === page)) trashItem(old);
+      save(name.replace(/\.jpg$/, '.json'), { type: 'pmemo', at, book: g.book, page, image: name, ...(had && g.replace ? { replace: true } : {}) });
+      bumpBook(g.book, page); last = page;
+    }
+    Native.remove(g.full); book = g.book; Native.setPref('book', book); Native.setPref('pmNext', ''); spNext = n.after; spI++; load();
+    if (spI < spQ.length) drawSplit(); else { show('paper'); toast(`📓 メモ帳 ${g.book}: p.${last} まで分けて保存しました`); }
+  } catch { toast('分けられませんでした（写真が大きすぎるかもしれません）'); $('#sp-save').disabled = false; }
+}
+$('#sp-save').onclick = spSave;
+function spLeave() { for (const g of spQ.slice(spI)) Native.remove(g.full); spQ = []; spI = 0; show('paper'); }
+$('#sp-back').onclick = () => { if (confirm('見開きの写真を、保存せずにやめますか？')) spLeave(); };
+$('#sp-drop').onclick = () => { if (!confirm('この見開きの写真を、保存せずに捨てますか？')) return; Native.remove(spQ[spI].full); spI++; if (spI < spQ.length) drawSplit(); else { spQ = []; show('paper'); } };
+
+// 写真を見る・番号を直す（メモ帳）。撮り直し・消すのは、PC に取り込み済みでもできる
 let viewing = null;
 function openViewer(name) {
   viewing = items.find(i => i.name === name); if (!viewing) return;
   $('#v-img').src = imgUrl(viewing.d.image); $('#v-book').value = viewing.d.book; $('#v-page').value = viewing.d.page;
-  const ro = isSent(viewing); for (const id of ['#v-book', '#v-page', '#v-ok']) $(id).disabled = ro; $('#v-del').hidden = ro; $('#viewer').hidden = false;
+  const ro = isSent(viewing); for (const id of ['#v-book', '#v-page', '#v-ok']) $(id).disabled = ro; $('#v-del').hidden = false; $('#v-re').hidden = false; $('#viewer').hidden = false;
 }
 $('#v-x').onclick = () => { $('#viewer').hidden = true; viewing = null; };
 $('#v-ok').onclick = () => {
   const b = $('#v-book').value.trim().toUpperCase(), p = parseInt($('#v-page').value, 10);
   if (!isBook(b) || !(p > 0)) return toast('メモ帳は A〜Z・AA…、ページは 1 以上の数');
-  viewing.d.book = b; viewing.d.page = p; save(viewing.name, viewing.d); $('#viewer').hidden = true; load(); drawPaper(); toast(`${b}-${p} にしました`);
+  if (pageTaken(b, p, viewing.name)) return toast(`${b}-${p} は、もうあります。ほかの番号にしてください`);
+  viewing.d.book = b; viewing.d.page = p; save(viewing.name, viewing.d); bumpBook(b, p); $('#viewer').hidden = true; load(); drawPaper(); toast(`${b}-${p} にしました`);
 };
-$('#v-del').onclick = () => { if (!viewing || !confirm('この写真を、ごみ箱へ移しますか？（あとで戻せます）')) return; trashItem(viewing); $('#viewer').hidden = true; viewing = null; load(); drawPaper(); };
+$('#v-re').onclick = () => { if (!viewing) return; rescanOf = viewing; $('#viewer').hidden = true; scanCtx = 'page'; scan('page'); };
+$('#v-del').onclick = () => {
+  if (!viewing) return; const sent = isSent(viewing);
+  if (!confirm(sent ? 'この写真を、スマホから消しますか？（PC には取り込み済みです。ごみ箱から戻せます）' : 'この写真を、ごみ箱へ移しますか？（あとで戻せます）')) return;
+  trashItem(viewing); $('#viewer').hidden = true; viewing = null; load(); drawPaper(); toast('🗑️ ごみ箱へ移しました');
+};
 function trashItem(it) { const t = Native.toTrash || Native.remove; t(it.name); for (const f of [it.d.image, it.d.file]) if (f) t(f); }
 
 // ---- 名前を付ける（PC の紙の取り込みと同じ: ID とキーワード。途中でやめても、付けなくてもよい）
 let nq = [], ni = 0, lastId = Native.pref('lastPaperId') || '';
-const paperIdsPc = () => new Set(notesPc.filter(n => n.s === 'p').map(n => n.id));
-const kwPool = () => { const c = new Map(); for (const n of notesPc.filter(n => n.s === 'p')) for (const k of n.kw || []) c.set(k, (c.get(k) || 0) + 1); for (const k of (Native.pref('recentKw') || '').split('、').filter(Boolean)) c.set(k, (c.get(k) || 0) + 1000); return [...c.entries()].sort((a, b) => b[1] - a[1]).map(x => x[0]).slice(0, 30); };
+const paperIdsPc = () => new Set();   // PC の紙の ID は、スマホには映さない。かぶりは、PC に取り込むときに確かめる
+const kwPool = () => { const c = new Map(); for (const k of (Native.pref('recentKw') || '').split('、').filter(Boolean)) c.set(k, (c.get(k) || 0) + 1000); return [...c.entries()].sort((a, b) => b[1] - a[1]).map(x => x[0]).slice(0, 30); };
 function takenBy(id, self) { if (paperIdsPc().has(id)) return 'PC'; const o = papers().find(i => i.name !== self && i.d.name && i.d.name.id === id); return o ? 'スマホ' : ''; }
 const free = id => { let x = id; while (takenBy(x, nq[ni])) x = sibling(x); return x; };
-function startNaming(list, at) { nq = list.filter(Boolean); ni = Math.max(0, at); if (!nq.length) return toast('名前を付けるカードがありません'); show('name'); }
+function startNaming(list, at) { nq = list.filter(Boolean); ni = Math.max(0, at); if (!nq.length) return toast('名前を付けるノートがありません'); show('name'); }
 function drawName() {
   const it = items.find(i => i.name === nq[ni]); if (!it) { show('paper'); return; }
   $('#nm-pos').textContent = `${ni + 1} / ${nq.length}`; $('#nm-img').src = imgUrl(it.d.image); $('#nm-box').classList.remove('zoom');
   const ro = isSent(it); $('#nm-id').value = it.d.name ? it.d.name.id : ''; $('#nm-kw').value = it.d.name ? (it.d.name.kws || []).join('、') : '';
-  for (const id of ['#nm-id', '#nm-kw', '#nm-save']) $(id).disabled = ro; $('#nm-clear').hidden = ro || !it.d.name; $('#nm-del').hidden = ro;
+  for (const id of ['#nm-id', '#nm-kw', '#nm-save']) $(id).disabled = ro; $('#nm-clear').hidden = ro || !it.d.name; $('#nm-del').hidden = false;
   $('#nm-save').textContent = ni + 1 < nq.length ? '保存して次へ' : '保存して終わる';
   const known = [...paperIdsPc(), ...papers().filter(i => i.d.name).map(i => i.d.name.id)].filter(isId).sort(cmpId);   // 前に付けた ID が無ければ、いちばん大きい紙の ID を基準に
   const base = lastId && isId(lastId) ? lastId : known.length ? known[known.length - 1] : '', has = () => false;
@@ -702,7 +865,7 @@ $('#nm-save').onclick = nameSave;
 $('#nm-skip').onclick = nameNext;
 $('#nm-back').onclick = () => show('paper');
 $('#nm-clear').onclick = () => { const it = items.find(i => i.name === nq[ni]); if (!it || isSent(it)) return; delete it.d.name; save(it.name, it.d); load(); drawName(); toast('名前を外しました'); };
-$('#nm-del').onclick = () => { const it = items.find(i => i.name === nq[ni]); if (!it || isSent(it) || !confirm('この写真を、ごみ箱へ移しますか？（あとで戻せます）')) return; trashItem(it); load(); nq.splice(ni, 1); if (!nq.length) { show('paper'); return; } if (ni >= nq.length) ni = nq.length - 1; drawName(); };
+$('#nm-del').onclick = () => { const it = items.find(i => i.name === nq[ni]); if (!it || !confirm(isSent(it) ? 'この写真を、スマホから消しますか？（PC には取り込み済みです。ごみ箱から戻せます）' : 'この写真を、ごみ箱へ移しますか？（あとで戻せます）')) return; trashItem(it); load(); nq.splice(ni, 1); if (!nq.length) { show('paper'); return; } if (ni >= nq.length) ni = nq.length - 1; drawName(); };
 
 // ---- ごみ箱（写真・録音・ノート）
 function drawTrash() {
@@ -711,7 +874,7 @@ function drawTrash() {
   $('#trash-res').innerHTML = jsons.length ? jsons.map(f => {
     let d = {}; try { d = JSON.parse(Native.trashRead(f.name) || '{}'); } catch { }
     const img = d.image ? list.find(x => x.name.replace(/^\d+-/, '') === d.image) : null, when = new Date(+f.name.split('-')[0]);
-    const label = d.type === 'paper' ? '🗂️ カード' + (d.name ? ' ' + d.name.id : '') : d.type === 'pmemo' ? `📓 ${d.book}-${d.page}` : d.type === 'audio' ? '🎙️ 録音 ' + (d.at || '') : d.type === 'note' ? '📝 ' + firstLine(d.body) : d.type || f.name;
+    const label = d.type === 'paper' ? '🗂️ ノート' + (d.name ? ' ' + d.name.id : '') : d.type === 'pmemo' ? `📓 ${d.book}-${d.page}` : d.type === 'audio' ? '🎙️ 録音 ' + (d.at || '') : d.type === 'note' ? '📝 ' + firstLine(d.body) : d.type || f.name;
     return `<div class="row">${img ? `<img src="${esc(Native.trashUrl(img.name))}" style="width:46px;height:58px;object-fit:cover;border-radius:6px" alt="">` : ''}<span class="t">${esc(label)}</span><span class="sub">${pad(when.getMonth() + 1)}/${pad(when.getDate())} ${pad(when.getHours())}:${pad(when.getMinutes())}</span><button class="chip" data-restore="${esc(f.name)}">戻す</button></div>`;
   }).join('') : '<div class="none">ごみ箱は空です</div>';
 }
@@ -776,6 +939,8 @@ window.onBack = () => {
   for (const id of ['#act', '#alarmsheet', '#fmtsheet', '#sheet', '#trashsheet', '#viewer']) if (!$(id).hidden) { $(id).hidden = true; return true; }
   if (tab === 'edit') { $('#edit-back').click(); return true; }
   if (tab === 'name') { show('paper'); return true; }
+  if (tab === 'split') { $('#sp-back').click(); return true; }
+  if (selMode) { setSel(false); return true; }
   if (tab === 'notes' && nMode) { nMode = null; drawNMode(); return true; }
   return false;
 };
@@ -789,7 +954,7 @@ window.resumeToday = () => {
 };
 window.openPrompt = () => { lastActive = Date.now(); for (const id of ['#alarmsheet', '#fmtsheet', '#sheet', '#act', '#trashsheet', '#viewer']) $(id).hidden = true; load(); memoDay = today(); if (tab === 'edit') { clearTimeout(saveTimer); saveNote(); load(); } show('memo'); setTimeout(() => $('#memo-in').focus(), 150); };
 ['pointerdown', 'keydown'].forEach(ev => document.addEventListener(ev, () => { lastActive = Date.now(); }, true));
-document.addEventListener('visibilitychange', () => { if (!document.hidden && tab !== 'edit' && tab !== 'name') { load(); draw(); } });
+document.addEventListener('visibilitychange', () => { if (!document.hidden && tab !== 'edit' && tab !== 'name' && tab !== 'split') { load(); draw(); } });
 load(); show(recState().on ? 'rec' : 'memo');
 })();
 </script>

@@ -41,6 +41,8 @@ class MainActivity : Activity() {
     @SuppressLint("SetJavaScriptEnabled", "JavascriptInterface")
     override fun onCreate(b: Bundle?) {
         super.onCreate(b)
+        // PC のノート・記録の種類・メモ帳の最後のページは、スマホには映さない（前の版が置いたものは、消す）
+        for (n in listOf("notes.json", "kinds.json", "pmemo.json", "pc_memos.json")) File(root, n).delete()
         web = WebView(this)
         setContentView(web)
         web.settings.apply {
@@ -115,7 +117,7 @@ class MainActivity : Activity() {
         if (result == RESULT_OK && data != null) { data.clipData?.let { c -> for (i in 0 until c.itemCount) uris.add(c.getItemAt(i).uri) } ?: data.data?.let { uris.add(it) } }
         cb.onReceiveValue(if (uris.isEmpty()) null else uris.toTypedArray())
     }
-    // 文書スキャナーの結果: 縁で切り取った写真を受信箱に置き、画面に名前を渡す。見開き（spread）は、長い辺の半分で 2 ページに分ける
+    // 文書スキャナーの結果: 縁で切り取った写真を受信箱に置き、画面に名前を渡す。見開き（spread）は、1 枚のまま渡し、折り目の位置も教える（分けるのは画面）
     private fun onScanned(result: Int, data: Intent?) {
         val r = if (result == RESULT_OK && data != null) GmsDocumentScanningResult.fromActivityResultIntent(data) else null
         val pages = r?.pages ?: emptyList()
@@ -127,19 +129,10 @@ class MainActivity : Activity() {
                 try {
                     val bytes = contentResolver.openInputStream(pg.imageUri)?.use { it.readBytes() } ?: return@forEachIndexed
                     if (mode == "spread") {
+                        // 見開きは、1 枚のまま受信箱に置き、折り目（背骨）の位置を画像から探して、画面に渡す。分けるのは、画面で位置を確かめてから
                         val o = BitmapFactory.Options().apply { inJustDecodeBounds = true }; BitmapFactory.decodeByteArray(bytes, 0, bytes.size, o)
-                        var sample = 1; while (maxOf(o.outWidth, o.outHeight) / sample > 4200) sample *= 2
-                        val bmp = BitmapFactory.decodeByteArray(bytes, 0, bytes.size, BitmapFactory.Options().apply { inSampleSize = sample }) ?: return@forEachIndexed
-                        val w = bmp.width; val h = bmp.height
-                        val a = if (w >= h) Bitmap.createBitmap(bmp, 0, 0, w / 2, h) else Bitmap.createBitmap(bmp, 0, 0, w, h / 2)
-                        val b = if (w >= h) Bitmap.createBitmap(bmp, w / 2, 0, w - w / 2, h) else Bitmap.createBitmap(bmp, 0, h / 2, w, h - h / 2)
-                        val pair = JSONArray()
-                        for ((k, part) in listOf("l" to a, "r" to b)) {
-                            val name = "pm-$t-$i-$k.jpg"; val tmp = File(inbox, "$name.tmp")
-                            tmp.outputStream().use { part.compress(Bitmap.CompressFormat.JPEG, 90, it) }; tmp.renameTo(File(inbox, name)); pair.put(name)
-                            if (part !== bmp) part.recycle()
-                        }
-                        bmp.recycle(); out.put(pair)
+                        val name = "pmfull-$t-$i.jpg"; val tmp = File(inbox, "$name.tmp"); tmp.writeBytes(bytes); tmp.renameTo(File(inbox, name))
+                        out.put(JSONObject().put("full", name).put("ratio", gutter(bytes, o.outWidth, o.outHeight)).put("w", o.outWidth).put("h", o.outHeight))
                     } else {
                         val name = "paper-$t-$i.jpg"; val tmp = File(inbox, "$name.tmp"); tmp.writeBytes(bytes); tmp.renameTo(File(inbox, name)); out.put(JSONArray().put(name))
                     }
@@ -147,6 +140,33 @@ class MainActivity : Activity() {
             }
             js("window.onScanned&&window.onScanned(" + JSONObject.quote(out.toString()) + ")")
         }.start()
+    }
+
+    // 見開きの折り目: 長い辺の方向に、明るさの「谷」（背骨の影・縫い目）を探す。見つからなければ、真ん中
+    private fun gutter(bytes: ByteArray, w: Int, h: Int): Double {
+        try {
+            var s = 1; while (maxOf(w, h) / s > 900) s *= 2
+            val bmp = BitmapFactory.decodeByteArray(bytes, 0, bytes.size, BitmapFactory.Options().apply { inSampleSize = s }) ?: return 0.5
+            val bw = bmp.width; val bh = bmp.height; val landscape = bw >= bh
+            val px = IntArray(bw * bh); bmp.getPixels(px, 0, bw, 0, 0, bw, bh); bmp.recycle()
+            val len = if (landscape) bw else bh; val cross = if (landscape) bh else bw
+            val lo = (cross * 0.12).toInt(); val hi = (cross * 0.88).toInt()
+            val prof = DoubleArray(len)
+            for (a in 0 until len) {
+                var sum = 0.0
+                for (c in lo until hi) { val p = if (landscape) px[c * bw + a] else px[a * bw + c]; sum += 0.299 * ((p shr 16) and 255) + 0.587 * ((p shr 8) and 255) + 0.114 * (p and 255) }
+                prof[a] = sum / (hi - lo)
+            }
+            val win = maxOf(2, (len * 0.012).toInt()); val sm = DoubleArray(len)
+            for (a in 0 until len) { var t = 0.0; var n = 0; for (k in -win..win) { val j = a + k; if (j in 0 until len) { t += prof[j]; n++ } }; sm[a] = t / n }
+            val far = maxOf(win * 3, (len * 0.05).toInt()); var best = -1; var bestScore = 0.0
+            for (a in (len * 0.36).toInt()..(len * 0.64).toInt()) {
+                val l = sm.getOrNull(a - far) ?: continue; val r = sm.getOrNull(a + far) ?: continue
+                val score = (l + r) / 2 - sm[a]   // 両わきより、どれだけ暗いか
+                if (score > bestScore) { bestScore = score; best = a }
+            }
+            return if (best >= 0 && bestScore >= 5.0) best.toDouble() / len else 0.5
+        } catch (e: Exception) { return 0.5 }
     }
 
     @Deprecated("Deprecated in Java")
@@ -172,8 +192,8 @@ class MainActivity : Activity() {
         @JavascriptInterface fun write(name: String, text: String): Boolean = put(name, text.toByteArray(Charsets.UTF_8))
         @JavascriptInterface fun writeB64(name: String, b64: String): Boolean = put(name, Base64.decode(b64, Base64.DEFAULT))
         @JavascriptInterface fun remove(name: String): Boolean = safe(name) && File(inbox, name).delete()
-        // PC が置いたもの（取り込み済みの印・記録の種類・PC のノートの一覧）
-        @JavascriptInterface fun meta(name: String): String = if (name in listOf("imported.json", "kinds.json", "notes.json", "pmemo.json")) File(root, name).takeIf { it.isFile }?.readText() ?: "" else ""
+        // PC が置いたもの（取り込み済みの印だけ）
+        @JavascriptInterface fun meta(name: String): String = if (name == "imported.json") File(root, name).takeIf { it.isFile }?.readText() ?: "" else ""
         @JavascriptInterface fun url(name: String): String = if (safe(name)) "https://$host/inbox/$name" else ""
         // 紙の写真: 文書スキャナー（縁を見つけて切り取る。四隅は指で直せる）。mode: card（カード）／spread（メモ帳の見開き → 2 ページ）
         @JavascriptInterface fun scan(mode: String) = runOnUiThread {

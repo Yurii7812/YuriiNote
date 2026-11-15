@@ -64,3 +64,13 @@ test('スマホの受信箱: 時刻の順に入る・分岐/並列の ID・名�
   assert.deepStrictEqual(ids, { 'note-10.json': '1a1', 'note-11.json': '1a1a', 'note-12.json': '1b' });
   assert.deepStrictEqual(named, ['7b']); assert.deepStrictEqual(pm, [['A', 13]]); assert.deepStrictEqual(au, [['2026-11-15 10:05:00', 30]]);
 });
+
+test('スマホの受信箱: メモ帳のページの「撮り直し（replace）」は、そのまま PC へ渡る', () => {
+  const v = openVault(tmp()), got = [];
+  const files = [
+    J('pm-60.json', { type: 'pmemo', at: '2026-11-15 12:00:00', book: 'A', page: 14, image: 'pm-60.jpg', replace: true }), { name: 'pm-60.jpg', buf: Buffer.from([1]) },
+    J('pm-61.json', { type: 'pmemo', at: '2026-11-15 12:00:01', book: 'A', page: 15, image: 'pm-61.jpg' }), { name: 'pm-61.jpg', buf: Buffer.from([2]) }
+  ];
+  const r = importInbox(v, files, { pmemo: d => got.push([d.book, d.page, !!d.replace]) });
+  assert.strictEqual(r.sum.pmemos, 2); assert.deepStrictEqual(got, [['A', 14, true], ['A', 15, false]]);
+});
