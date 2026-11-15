@@ -120,7 +120,7 @@ function links(mode, space) {
     if (mode === 'note') {
       const items = [], syms = [];
       for (const t of L.tokens(text)) {
-        if (t.k === 'day') { const dd = diaries.find(x => x.date === t.date && (x.kind || '日記') === t.kind); if (dd) items.push([t.from, t.to, { t: 'day', date: dd.date, kind: dd.kind || '日記' }, true, 'ref']); else items.push([t.from, t.to, 'mk']); }   // クラス 'file' は、](パス) を隠す処理に入るので使わない
+        if (t.k === 'day') { const dd = diaries.find(x => x.date === t.date && (x.kind || '日記') === t.kind); if (dd) items.push([t.from, t.to, { t: 'day', date: dd.date, kind: dd.kind || '日記', n: t.n }, true, 'ref']); else items.push([t.from, t.to, 'mk']); }   // クラス 'file' は、](パス) を隠す処理に入るので使わない
         else if (t.k === 'ref') items.push([t.from, t.to, { t: 'ref', s: t.sp || space, id: t.id, n: t.n }, !!get(t.sp || space, t.id)]);   // (p) 紙・(d) デジタル。書かなければ、いまのノートと同じ側
         else if (t.bare) items.push([t.from, t.to, 'mk']); // 素の (1) は赤いだけ
         else items.push([t.from, t.to, { t: 'self', n: t.n, bare: t.bare }, L.selfTarget(text, t.n, t.bare) >= 0]);
@@ -374,7 +374,11 @@ function openLink(rel) {
 async function follow(l, view) {
   if (l.t === 'self') { const p = L.selfTarget(view.state.doc.toString(), l.n, l.bare); if (p >= 0) jump(view, p); return; }
   if (l.t === 'file') return openLink(l.rel);
-  if (l.t === 'day') return openDiary(l.date, false, l.kind);   // ->2026-10-11 / ->2026-10-21-夢
+  if (l.t === 'day') {   // ->2026-10-11 / ->2026-10-21-夢 / ->2026-11-14(3)（その日の (3) へ）
+    await openDiary(l.date, false, l.kind);
+    if (l.n && lastView && lastView.dom.isConnected) { const p = L.selfTarget(lastView.state.doc.toString(), l.n, false); if (p >= 0) jump(lastView, p); }
+    return;
+  }
   if (l.t === 'topic') { if (topics.find(t => t.name === l.name)) openTopic(l.name); return; }
   if (get(l.s, l.id)) return openNote(l.s, l.id, l.n);
   if (confirm(`${SP[l.s]} ${l.id} はまだありません。作りますか？`)) create(l.s, l.id);
@@ -678,6 +682,127 @@ document.addEventListener('click', e => {
   saveFold(); renderList();
 }, true);
 document.addEventListener('click', onOpenClick);
+// ===== 📓 紙のメモ帳（スマホで撮った見開き → 左右のページ）。メモ帳の画面で、切り替えて見る =====
+let pmemoShown = (() => { try { return localStorage.getItem('pkm-pmemo') === '1'; } catch { return false; } })(), pmBook = '';
+const pmUrls = new Map();   // 画像 → 表示用の URL（一度読んだら使い回す）
+async function pmUrl(name) { if (!pmUrls.has(name)) { const b = await api.pmemoImage(name); pmUrls.set(name, b ? URL.createObjectURL(new Blob([b], { type: 'image/jpeg' })) : ''); } return pmUrls.get(name); }
+const bookCmp = (a, b) => a.length - b.length || a.localeCompare(b);
+async function renderPaperMemo(el) {
+  const pages = await api.pmemoList(), books = [...new Set(pages.map(p => p.book))].sort(bookCmp);
+  if (!books.includes(pmBook)) pmBook = books[books.length - 1] || '';
+  const list = pages.filter(p => p.book === pmBook).sort((a, b) => a.page - b.page || a.image.localeCompare(b.image));
+  el.innerHTML = `<div class="pm-wrap"><div class="pm-books">${books.map(b => `<button class="chip${b === pmBook ? ' on' : ''}" data-pmb="${esc(b)}">📓 ${esc(b)} <small>${pages.filter(p => p.book === b).length} ページ</small></button>`).join('')}<span class="grow"></span><button class="chip" data-pmback title="文字のメモ帳に戻る">🗒️ 文字のメモ帳に戻る</button></div>`
+    + (list.length ? `<div class="pm-grid">${list.map((p, i) => `<figure class="pm-pg" data-pmi="${i}"><img alt="" data-pmsrc="${esc(p.image)}"><figcaption>${esc(p.book)}-${p.page}${p.at ? `<small>${esc(p.at.slice(0, 10))}</small>` : ''}</figcaption></figure>`).join('')}</div>`
+      : '<div class="none">紙のメモ帳の写真は、まだありません。<br>スマホの「📷 紙 → 📓 メモ帳」で見開きを撮ると、左右のページに分かれて、ここに並びます。</div>') + '</div>';
+  el.onclick = e => {
+    const b = e.target.closest('[data-pmb]'); if (b) { pmBook = b.dataset.pmb; return renderPaperMemo(el); }
+    if (e.target.closest('[data-pmback]')) return diaryAct('pmemo');
+    const f = e.target.closest('[data-pmi]'); if (f) pmView(list, +f.dataset.pmi, () => renderPaperMemo(el));
+  };
+  for (const img of el.querySelectorAll('img[data-pmsrc]')) pmUrl(img.dataset.pmsrc).then(u => { img.src = u; });
+}
+// 大きく見る（← → で前後のページ）。番号を直す・ごみ箱へ
+function pmView(list, i, done) {
+  const box = document.createElement('div'); box.className = 'pm-view'; document.body.append(box);
+  const close = () => { box.remove(); document.removeEventListener('keydown', key, true); };
+  const draw = async () => {
+    const p = list[i];
+    box.innerHTML = `<div class="pm-vimg"><img alt=""></div><div class="pm-vbar"><button class="ic" data-v="prev" title="前のページ（←）"${i ? '' : ' disabled'}>⬅️</button><button class="ic" data-v="next" title="次のページ（→）"${i < list.length - 1 ? '' : ' disabled'}>➡️</button>`
+      + `<span>メモ帳</span><input class="pm-in" id="pmv-book" value="${esc(p.book)}" size="3"><span>ページ</span><input class="pm-in" id="pmv-page" type="number" min="1" value="${p.page}"><button class="chip" data-v="save">番号を保存</button><span class="grow"></span>`
+      + `<button class="ic" data-v="del" title="ごみ箱へ（.trash）">🗑️</button><button class="ic" data-v="x" title="閉じる（Esc）">✕</button></div>`;
+    box.querySelector('img').src = await pmUrl(p.image);
+  };
+  const go = d => { const j = i + d; if (j >= 0 && j < list.length) { i = j; draw(); } };
+  const key = e => { if (e.target.closest && e.target.closest('input')) { if (e.key === 'Escape') close(); return; } if (e.key === 'ArrowLeft') { e.preventDefault(); go(-1); } else if (e.key === 'ArrowRight') { e.preventDefault(); go(1); } else if (e.key === 'Escape') { e.preventDefault(); close(); } };
+  document.addEventListener('keydown', key, true);
+  box.onclick = async e => {
+    const b = e.target.closest('[data-v]'); if (!b) { if (e.target === box) close(); return; }
+    const p = list[i];
+    if (b.dataset.v === 'prev') go(-1); else if (b.dataset.v === 'next') go(1); else if (b.dataset.v === 'x') close();
+    else if (b.dataset.v === 'save') { const bk = $('#pmv-book').value.trim().toUpperCase(), pg = +$('#pmv-page').value; if (!/^[A-Z]+$/.test(bk) || !(pg > 0)) return toast('メモ帳は A〜Z・AA…、ページは 1 以上'); await api.pmemoEdit(p.image, { book: bk, page: pg }); p.book = bk; p.page = pg; toast(`${bk}-${pg} にしました`); close(); done(); }
+    else if (b.dataset.v === 'del') { if (!confirm(`${p.book}-${p.page} の写真を、ごみ箱（.trash）へ移しますか？`)) return; await api.pmemoEdit(p.image, { remove: true }); close(); done(); }
+  };
+  draw();
+}
+
+// ===== 🎙️ 録音して文字にする（PC のマイク）。文字にするのは PC の中（transcriber.js）=====
+//   ノートを開いて録り始めたら、文字はそのノートの末尾へ。開いていなければ、録音の一覧へ。スマホから取り込んだ録音は、自動で文字にして一覧へ
+let recPc = null, recDlg = null, recNow = null;
+const two = n => String(n).padStart(2, '0'), mmss = s => `${two(Math.floor(s / 60))}:${two(Math.floor(s % 60))}`;
+$('#rec-pc').onclick = () => (recPc ? recStop() : recStart());
+$('#rec-pc').oncontextmenu = e => { e.preventDefault(); recDialog(); };
+async function recStart() {
+  let stream; try { stream = await navigator.mediaDevices.getUserMedia({ audio: true }); } catch (e) { return toast('マイクを使えません: ' + (e.message || e)); }
+  const mime = window.MediaRecorder && MediaRecorder.isTypeSupported('audio/webm;codecs=opus') ? 'audio/webm;codecs=opus' : 'audio/webm';
+  const rec = new MediaRecorder(stream, { mimeType: mime }), chunks = [];
+  rec.ondataavailable = e => { if (e.data && e.data.size) chunks.push(e.data); };
+  const target = cur && cur.k === 'note' && get(cur.s, cur.id) ? { s: cur.s, id: cur.id } : null;
+  recPc = { rec, chunks, stream, start: Date.now(), at: Stamp.nowStamp(), target };
+  rec.start(1000);
+  const b = $('#rec-pc'); b.classList.add('rec');
+  const tick = () => { if (!recPc) return; b.textContent = '● ' + mmss((Date.now() - recPc.start) / 1000); recPc.timer = setTimeout(tick, 500); }; tick();
+  toast(target ? `🎙️ 録音を始めました。止めると文字にして「${titleOf(get(target.s, target.id)) || target.id}」の末尾に入れます` : '🎙️ 録音を始めました。止めると文字にして、録音の一覧に入れます');
+}
+async function recStop() {
+  const r = recPc; if (!r) return; recPc = null; clearTimeout(r.timer);
+  const b = $('#rec-pc'); b.classList.remove('rec'); b.textContent = '🎙️';
+  await new Promise(res => { r.rec.onstop = res; r.rec.stop(); });
+  r.stream.getTracks().forEach(t => t.stop());
+  const blob = new Blob(r.chunks, { type: 'audio/webm' }), sec = Math.round((Date.now() - r.start) / 1000);
+  if (sec < 1 || !blob.size) return toast('短すぎるので、保存しませんでした');
+  await api.recSave(new Uint8Array(await blob.arrayBuffer()), { at: r.at, sec, target: r.target });
+  toast('🎙️ 保存しました。文字にしています…（右クリックで一覧）');
+}
+const recPlain = x => (x.lines || []).map(l => Stamp.stripLine(l)).join('\n');
+async function recDialog() {
+  if (recDlg) return recDraw();
+  const box = document.createElement('div'); box.className = 'pm-view rec-view'; document.body.append(box); recDlg = box;
+  const key = e => { if (e.key === 'Escape') { e.preventDefault(); close(); } };
+  const close = () => { box.remove(); recDlg = null; document.removeEventListener('keydown', key, true); };
+  document.addEventListener('keydown', key, true);
+  box.onclick = async e => {
+    if (e.target === box) return close();
+    const b = e.target.closest('[data-r]'); if (!b) return;
+    const id = b.dataset.id, list = (await api.recList()).items, x = list.find(y => y.id === id);
+    if (b.dataset.r === 'x') return close();
+    if (!x) return;
+    if (b.dataset.r === 'copy') { await navigator.clipboard.writeText(recPlain(x)); toast('📋 写しました'); }
+    else if (b.dataset.r === 'ins') {
+      if (!(cur && cur.k === 'note') || !lastView || !lastView.dom.isConnected) return toast('先に、入れたいノートを開いてください');
+      const doc = lastView.state.doc, pre = doc.length && !/\n\n$/.test(doc.toString()) ? (doc.toString().endsWith('\n') ? '\n' : '\n\n') : '';
+      lastView.dispatch({ changes: { from: doc.length, insert: pre + x.lines.join('\n') } }); toast('↪️ 今のノートの末尾に入れました'); close();
+    }
+    else if (b.dataset.r === 'retry') { await api.recRetry(id); recDraw(); }
+    else if (b.dataset.r === 'audio') { if (confirm('音声のファイルを消しますか？（.trash へ。文字は残ります）')) { await api.recDelete(id, true); recDraw(); } }
+    else if (b.dataset.r === 'del') { if (confirm('この録音を一覧から消しますか？（音声は .trash へ。文字も消えます）')) { await api.recDelete(id, false); recDraw(); } }
+  };
+  recDraw();
+}
+async function recDraw() {
+  if (!recDlg) return;
+  const r = await api.recList(), items = [...(r.items || [])].reverse(); recNow = r.now;
+  const st = x => x.status === 'queued' ? '⏳ 文字にするのを待っています' : x.status === 'running' ? `✍️ 文字にしています ${recNow && recNow.id === x.id ? recNow.pct : 0}%` : x.status === 'error' ? `⚠️ 失敗: ${x.err || ''}` : x.placed ? `✅ 「${esc(x.target.id)}」の末尾に入れました` : '✅ 文字にしました';
+  const tname = x => x.target ? ` → ノート ${esc(x.target.id)}` : '';
+  recDlg.innerHTML = `<div class="rec-panel"><div class="rec-h"><b>🎙️ 録音と文字</b><span class="sub">（右上の 🎙️ で録る・止める）</span><span class="grow"></span><button class="ic" data-r="x" title="閉じる（Esc）">✕</button></div>`
+    + (r.tools ? '' : '<div class="rec-warn">文字にする部品（faster-whisper と kotoba-whisper のモデル）が見つかりません。端末で <code>YuriiNote --update</code> を実行すると用意します（~/transcribe があれば、それを使います）。</div>')
+    + `<div class="rec-list">${items.length ? items.map(x => `<div class="rec-it"><div class="rec-top"><span>${x.src === 'phone' ? '📱' : '💻'} ${esc(x.at)}</span><span class="st">${mmss(x.sec || 0)}${tname(x)}</span><span class="grow"></span>`
+      + (x.status === 'done' ? `<button class="chip" data-r="copy" data-id="${esc(x.id)}">📋 写す</button><button class="chip" data-r="ins" data-id="${esc(x.id)}" title="いま開いているノートの末尾に入れる">↪️ 今のノートへ</button>` : '')
+      + (x.status === 'error' && !x.audioGone ? `<button class="chip" data-r="retry" data-id="${esc(x.id)}">🔁 やり直す</button>` : '')
+      + (x.status !== 'running' && !x.audioGone && x.status === 'done' ? `<button class="chip" data-r="audio" data-id="${esc(x.id)}" title="音声のファイルだけ消す（文字は残る）">🔇 音声を消す</button>` : '')
+      + (x.status !== 'running' ? `<button class="chip" data-r="del" data-id="${esc(x.id)}">🗑️</button>` : '')
+      + `</div><div class="rec-top st">${st(x)}</div>${x.status === 'running' ? `<div class="rec-bar"><i style="width:${recNow && recNow.id === x.id ? recNow.pct : 0}%"></i></div>` : ''}${x.lines && x.lines.length ? `<pre class="rec-text">${esc(recPlain(x))}</pre>` : ''}</div>`).join('')
+      : '<div class="none">録音は、まだありません。右上の 🎙️ を押すと録音を始め、もう一度押すと止めて、文字にします。<br>スマホで録った録音も、取り込むと、ここで文字になります。</div>'}</div></div>`;
+}
+api.onRecUpdate(async m => {
+  if (m.pct !== undefined) recNow = { id: m.id, pct: m.pct };
+  if (m.done) {
+    recNow = null;
+    if (m.state) { try { const since = saves.revision; await flush(); applyState(await api.state(), since); toast('🎙️ 文字にして、ノートの末尾に入れました'); } catch { } }
+    else toast(m.ok ? '🎙️ 文字にしました（右上の 🎙️ を右クリックで一覧）' : '⚠️ 文字にできませんでした（右上の 🎙️ を右クリックで、理由とやり直し）');
+  }
+  if (recDlg) recDraw();
+});
+
 // 🗒️ メモ帳: 日記と同じ、1日ごとの記録。ボタンを押すと、今日のメモ帳がすぐ開く
 // 📔: 今日の日記をすぐ開く
 async function openTodayDiary() {
@@ -1966,10 +2091,12 @@ async function openDiary(date, keep, kind) {
       <button data-act="dprev" class="ic dj" title="前の${esc(kind)}" aria-label="前">⬅️</button><button data-act="dnext" class="ic dj" title="次の${esc(kind)}" aria-label="次">➡️</button>
       <button data-act="table" class="ic dj" title="表を入れる" aria-label="表">📊</button><button data-act="board" class="ic dj" title="ボードを入れる（Ctrl+G）文字と線を、紙のように書ける" aria-label="ボード">🖍️</button>
       <button data-act="attach" class="ic dj" title="ファイルを添付（ドラッグや貼り付けでも）" aria-label="添付">📎</button>
+      ${kind === 'メモ帳' ? `<button data-act="pmemo" class="ic dj${pmemoShown ? ' on' : ''}" title="紙のメモ帳（スマホで撮った写真）と、切り替える" aria-label="紙のメモ帳">📓</button>` : ''}
       <button data-act="ddel" class="ic dj" title="この日の記録を削除" aria-label="削除">🗑️</button>
     </div>
     ${kind !== '日記' && kind !== 'メモ帳' ? `<div class="row sub" title="上位の時系列記録（選ぶと変えられる）"><span class="dh-upl" aria-hidden="true">↑</span>${(d.parents && d.parents.length ? d.parents : ['日記']).map(r => `<span class="rchip on" data-dparpick>${esc(r)}</span>`).join('')}<button class="dh-pen" data-dparpick title="上位を選ぶ" aria-label="上位を選ぶ">✏️</button></div>` : ''}
     <div class="ed" id="ed"></div>`;
+  if (kind === 'メモ帳' && pmemoShown) { $('#d-title').oninput = e => { d.title = e.target.value; saveDiary(d); renderList(); }; renderTabs(); renderList(); return renderPaperMemo($('#ed')); }   // 📓 紙のメモ帳に切り替えてあるとき
   const view = editor($('#ed'), d.body, 'note', 'd', v => { d.body = v; saveDiary(d); },
     `今日の${kind}`, () => d.body, true);
   $('#d-title').oninput = e => { d.title = e.target.value; saveDiary(d); renderList(); };
@@ -1986,6 +2113,7 @@ async function openDiary(date, keep, kind) {
 }
 $('#pane').addEventListener('click', e => { const k = e.target.closest('[data-dkind]'); if (k && cur && cur.k === 'diary') openDiary(cur.date, false, k.dataset.dkind); });
 async function diaryAct(act) {
+  if (act === 'pmemo') { pmemoShown = !pmemoShown; try { localStorage.setItem('pkm-pmemo', pmemoShown ? '1' : ''); } catch { } return openDiary(cur.date, true, 'メモ帳'); }
   const kind = cur.kind || '日記', d = getDiary(cur.date, kind), dates = diaries.filter(x => (x.kind || '日記') === kind).map(x => x.date).sort(), i = dates.indexOf(cur.date);
   if (act === 'dprev' && i > 0) openDiary(dates[i - 1], false, kind);
   if (act === 'dnext' && i < dates.length - 1) openDiary(dates[i + 1], false, kind);
@@ -2053,10 +2181,12 @@ async function openPhonePapers() {
 refreshPhonePapers();
 const scanNext = from => { for (let i = Math.max(0, from); i < queue.length; i++) if (!scanSt[i]) return i; return -1; };
 const scanPrevious = from => { for (let i = from; i >= 0; i--) if (!scanSt[i]) return i; return -1; };
+// 候補の基準: 直前に付けた ID。無ければ（最初の 1 枚）、いちばん大きい紙の ID
+const scanBase = () => lastId || notes.filter(n => n.s === 'p' && !n.noid && L.isId(n.id)).map(n => n.id).sort(L.cmpId).pop() || '';
 const scanSuggest = {
-  sib: () => free('p', lastId ? L.sibling(lastId) : '1'),
-  chi: () => lastId ? free('p', L.child(lastId)) : '1',
-  up: () => { if (!lastId) return '1'; const p = L.parentIn(lastId, () => true); return free('p', L.sibling(p || lastId)); }
+  sib: () => { const b = scanBase(); return free('p', b ? L.sibling(b) : '1'); },
+  chi: () => { const b = scanBase(); return b ? free('p', L.child(b)) : '1'; },
+  up: () => { const b = scanBase(); if (!b) return '1'; const p = L.parentIn(b, () => true); return free('p', L.sibling(p || b)); }
 };
 function scanFlash(text) { const m = $('#sc-msg'); m.textContent = text; m.className = 'ok'; clearTimeout(scanTimer); scanTimer = setTimeout(() => { m.textContent = ''; }, 2500); }
 function scanCheck() {   // ID が使えるか。✅ / ❌ と、枠の色で見せる
@@ -2065,7 +2195,7 @@ function scanCheck() {   // ID が使えるか。✅ / ❌ と、枠の色で見
   const ok = !!id && !bad;
   $('#sc-mark').textContent = !id ? '' : ok ? '✅' : '❌';
   box.classList.toggle('good', ok); box.classList.toggle('bad', !!id && !ok);
-  $('#sc-hint').textContent = bad || (lastId ? `直前 紙 ${lastId}` : '最初の1枚');
+  $('#sc-hint').textContent = bad || (lastId ? `直前 紙 ${lastId}` : scanBase() ? `最初の1枚（いちばん大きい紙 ${scanBase()} を基準に）` : '最初の1枚');
   $('#sc-hint').classList.toggle('bad', !!bad);
   return ok;
 }
@@ -2082,7 +2212,9 @@ function showScan() {
   $('#sc-img').src = scanThumbs[qi]; $('#scan').classList.remove('zoomed');
   $('#sc-iform').hidden = true; $('#sc-date').hidden = !lastDiary;
   $('#sc-id').value = scanSuggest.sib(); $('#sc-id').dataset.touched = ''; $('#sc-kw').value = '';
-  $('#q-sib').textContent = scanSuggest.sib(); $('#q-chi').textContent = scanSuggest.chi(); $('#q-up').textContent = scanSuggest.up();
+  const qs = scanSuggest.sib(), qc = scanSuggest.chi(), qu = scanSuggest.up();
+  $('#q-sib').textContent = qs; $('#q-chi').textContent = qc; $('#q-up').textContent = qu;
+  $('#q-chi').closest('button').hidden = qc === qs; $('#q-up').closest('button').hidden = qu === qs || qu === qc;   // 同じ候補は、一つだけ
   if (!$('#sc-date').value && lastDiary) $('#sc-date').value = lastDiary;   // 同じ日の紙の日記が続くときだけ、前の日付が残る。今日には、勝手にしない
   const recent = [...new Set([...L.splitKw(lastKws), ...allKeywords().slice(0, 40)])].slice(0, 12);
   $('#sc-kwchips').innerHTML = recent.map(k => `<span class="sc-kc" data-sc-kw="${esc(k)}" tabindex="-1">${esc(k)}</span>`).join('');
@@ -2266,6 +2398,7 @@ $('#more').onclick = async () => {
   popMenu({ clientX: r.right + 8, clientY: r.top - (phonePapersN ? 112 : 80) }, [
     ...(phonePapersN ? [[`📷 スマホで撮った紙のカード（${phonePapersN} 枚）`, openPhonePapers]] : []),
     ['📱 スマホ取り込み', phoneImport],
+    ['🎙️ 録音と文字（一覧）', recDialog],
     ['⚙️ 設定…', settingsDialog]
   ]);
 };

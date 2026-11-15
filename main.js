@@ -134,7 +134,7 @@ async function recPump() {
     } else { x.status = 'error'; x.err = r.error; }
     recSave(d2);
   }
-  recBusy = false; recNow = null; recSend({ id: it.id, done: true, state });
+  recBusy = false; recNow = null; recSend({ id: it.id, done: true, ok: !!r.ok, state });
   if (!r.ok && !t.ok) return;   // 部品が無ければ、ほかも同じなので続けない
   recPump();
 }

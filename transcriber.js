@@ -11,7 +11,8 @@ function tools(env = process.env, home = os.homedir()) {
   const py = first([env.YURIINOTE_WHISPER_PY, path.join(root, 'whisper/venv/bin/python'), path.join(home, 'transcribe/.venv/bin/python')]);
   const model = [env.YURIINOTE_WHISPER_MODEL, path.join(root, 'whisper/models/kotoba-v2.0-faster'), path.join(home, 'transcribe/models/kotoba-v2.0-faster')]
     .filter(Boolean).find(d => fs.existsSync(path.join(d, 'model.bin'))) || null;
-  const glossary = first([path.join(root, 'whisper/glossary.txt'), path.join(home, 'transcribe/glossary.txt')]);
+  // 用語集は YuriiNote 用のもの（whisper/glossary.txt）だけ。~/transcribe の用語集は別の用途（歯科）で、渡すと何も出なくなることがある
+  const glossary = first([path.join(root, 'whisper/glossary.txt')]);
   return { py, model, glossary, script: path.join(__dirname, 'transcribe', 'yn_transcribe.py'), ok: !!(py && model) };
 }
 
@@ -23,6 +24,7 @@ function paragraphs(segs, at) {
   for (const s of segs) {
     const t = String(s.text || '').trim(); if (!t) continue;
     if (!cur || s.start - prevEnd > 1.5 || cur.text.length > 160) { cur = { start: s.start, text: '' }; out.push(cur); }
+    if (cur.text && !/[。、，,．.！？!?…」』)）]$/.test(cur.text)) cur.text += '、';   // 区切りに句読点が無いと、つながって読みにくい
     cur.text += t; prevEnd = s.end;
   }
   return out.map(p => `${Stamp.nowStamp(new Date(base + Math.floor(p.start) * 1000))} ${p.text}`);

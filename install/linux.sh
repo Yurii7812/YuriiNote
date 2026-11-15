@@ -130,6 +130,22 @@ rm -f "$HOME/.local/share/applications/yuriinote-simple.desktop" "$HOME/Desktop/
 for s in 16 24 32 48 64 128 256 512; do rm -f "$HOME/.local/share/icons/hicolor/${s}x${s}/apps/yuriinote-simple.png"; done
 if have kbuildsycoca6; then kbuildsycoca6 --noincremental >/dev/null 2>&1 || true; fi
 
+# ---- 録音を文字にする部品（faster-whisper と kotoba-whisper のモデル）。PC の中だけで動く。失敗しても、アプリは使える
+W="$ROOT/whisper"
+if [ ! -x "$W/venv/bin/python" ] || ! "$W/venv/bin/python" -c 'import faster_whisper' >/dev/null 2>&1; then
+  if have python3 && python3 -m venv "$W/venv" >/dev/null 2>&1; then
+    say "録音を文字にする部品を入れています（初めは数分）…"
+    "$W/venv/bin/pip" install -q faster-whisper huggingface_hub || say "文字にする部品を入れられませんでした（録音の文字化は使えません）"
+  else say "python3 の venv が使えないので、録音を文字にする部品は入れません（sudo apt install python3-venv のあと、もう一度）"; fi
+fi
+M="$W/models/kotoba-v2.0-faster"
+if [ ! -f "$M/model.bin" ]; then
+  mkdir -p "$W/models"
+  if [ -f "$HOME/transcribe/models/kotoba-v2.0-faster/model.bin" ]; then ln -sfn "$HOME/transcribe/models/kotoba-v2.0-faster" "$M"; say "文字にするモデルは ~/transcribe のものを使います"
+  elif [ -x "$W/venv/bin/python" ]; then say "文字にするモデルを取得しています（約 1.5GB）…"; "$W/venv/bin/python" -c "from huggingface_hub import snapshot_download; snapshot_download('kotoba-tech/kotoba-whisper-v2.0-faster', local_dir='$M')" || say "モデルを用意できませんでした（録音の文字化は使えません）"; fi
+fi
+have ffmpeg || say "ffmpeg が無いので、録音の文字化は使えません（sudo apt install ffmpeg）"
+
 say "入れました: バージョン $(node -p "require('./package.json').version")"
 case ":$PATH:" in *":$BIN:"*) say "ターミナルで YuriiNote と打つと開きます。更新は YuriiNote --update" ;;
   *) say "$BIN が PATH に無いので、ターミナルでは $LAUNCH と打ってください（メニューからも開けます）" ;; esac

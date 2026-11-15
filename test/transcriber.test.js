@@ -9,6 +9,10 @@ test('文字化: 区切りを段落にし、行頭に「録音を始めた時刻
   assert.deepStrictEqual(T.paragraphs(segs.slice(0, 1), '2026-11-15 10:30'), ['2026-11-15 10:30:00 こんにちは。']);   // 秒の無い時刻も、秒まで
 });
 
+test('文字化: 句読点の無い区切りは「、」でつなぐ', () => {
+  assert.deepStrictEqual(T.paragraphs([{ start: 0, end: 1, text: '表札ないわ' }, { start: 1, end: 2, text: '探してます' }], '2026-11-15 10:30:00'), ['2026-11-15 10:30:00 表札ないわ、探してます']);
+});
+
 test('文字化: 部品が無ければ、分かる言葉で失敗する（何も動かさない）', async () => {
   const r = await T.run({ py: null, model: null }, '/nonexistent.m4a');
   assert.strictEqual(r.ok, false); assert.match(r.error, /部品/);

@@ -99,6 +99,27 @@ button:disabled{opacity:.4;cursor:default}
 
 .grpbar{display:flex;flex-wrap:nowrap;align-items:center;gap:6px;padding:6px 10px}.grpbar .tbtn{height:34px;min-height:34px;padding:0;font-size:16px}.grpbar #ix-mode{flex:1 1 auto;min-width:0}.grpbar #ix-add{flex:none;width:34px}.chip.g.on{background:var(--acc-bg);color:var(--acc);border-color:transparent}
 #searchbox{padding:8px 10px 2px;flex:none;display:flex;align-items:center;gap:4px;justify-content:flex-end}#searchbox #q{flex:1 1 auto;min-width:0}#searchbox .ic{flex:none;width:32px;height:32px;font-size:15px;background:#f4f5f8;border-radius:8px;color:var(--sub);padding:0}#searchbox .ic:hover{background:var(--hl)}#searchbox #q{margin:0;box-sizing:border-box;padding:6px 12px;border:1px solid transparent;border-radius:8px;font:inherit;font-size:14px;background:#f4f5f8;outline:none}#searchbox #q:focus{background:#fff;border-color:var(--line)}
+/* 📓 紙のメモ帳 */
+.pm-wrap{padding:6px 0 30px}.pm-books{display:flex;flex-wrap:wrap;gap:6px;align-items:center;margin:4px 0 14px}.pm-books .grow{flex:1}
+.pm-books .chip small{color:var(--sub);margin-left:4px;font-weight:400}
+.pm-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:12px}
+.pm-pg{margin:0;cursor:pointer;border:1px solid var(--line);border-radius:10px;overflow:hidden;background:var(--bg)}.pm-pg:hover{border-color:var(--acc)}
+.pm-pg img{display:block;width:100%;aspect-ratio:3/4;object-fit:cover;background:var(--hl)}
+.pm-pg figcaption{padding:5px 8px;font:600 13px ui-monospace,monospace;display:flex;justify-content:space-between;gap:6px}.pm-pg figcaption small{font:400 11px var(--font,system-ui);color:var(--sub)}
+.pm-view{position:fixed;inset:0;z-index:60;background:rgba(10,11,14,.88);display:flex;flex-direction:column}
+.pm-vimg{flex:1;min-height:0;display:flex;align-items:center;justify-content:center;padding:14px;overflow:auto}.pm-vimg img{max-width:100%;max-height:100%;border-radius:4px;background:#fff}
+.pm-vbar{flex:none;display:flex;align-items:center;gap:8px;padding:10px 14px;background:var(--bg);color:var(--fg);flex-wrap:wrap}.pm-vbar .grow{flex:1}
+.pm-in{width:64px;height:32px;border:1px solid var(--line);border-radius:8px;padding:0 8px;background:var(--bg);color:var(--fg);font:inherit}
+/* 🎙️ 録音 */
+#rec-pc.rec{color:#fff;background:#c0392b;border-color:#c0392b;font-size:14px;font-variant-numeric:tabular-nums;width:auto;padding:0 10px}
+.rec-view{align-items:center;justify-content:center;padding:20px}
+.rec-panel{width:min(760px,100%);max-height:100%;display:flex;flex-direction:column;background:var(--bg);color:var(--fg);border-radius:14px;box-shadow:0 20px 60px rgba(0,0,0,.35);overflow:hidden}
+.rec-h{display:flex;align-items:center;gap:8px;padding:12px 16px;border-bottom:1px solid var(--line);font-size:15px}.rec-h .grow{flex:1}
+.rec-warn{margin:10px 16px 0;padding:8px 10px;border-radius:8px;background:var(--hl);color:var(--sub);font-size:13px}
+.rec-list{overflow:auto;padding:4px 16px 16px}.rec-it{border-bottom:1px solid var(--line);padding:10px 0}
+.rec-top{display:flex;align-items:center;gap:8px;flex-wrap:wrap;font-size:13px}.rec-top .st{color:var(--sub)}.rec-top .grow{flex:1}
+.rec-top button{font-size:12.5px}.rec-text{white-space:pre-wrap;word-break:break-word;margin:6px 0 0;font:inherit;font-size:14px;line-height:1.7;max-height:12em;overflow:auto;background:var(--hl);border-radius:8px;padding:8px 10px}
+.rec-bar{height:4px;border-radius:2px;background:var(--line);margin-top:6px;overflow:hidden}.rec-bar i{display:block;height:100%;background:var(--acc)}
 #idbar[hidden]{display:none}#idbar{display:flex;align-items:center;gap:8px;flex-wrap:wrap;padding:8px 14px;background:var(--acc-bg);border-bottom:1px solid var(--line);font-size:13.5px}#idbar .idb-t{font-weight:600;display:inline-flex;gap:6px;min-width:0;max-width:34%}#idbar .idb-title{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}#idbar .idb-hint,#idbar .idb-base{color:var(--sub)}#idbar .grow{flex:1}#idbar button.idb{height:34px;padding:0 12px;border:1px solid var(--line);border-radius:9px;background:var(--bg);cursor:pointer;font:inherit;font-size:13.5px}#idbar button.idb.on{border-color:var(--acc);color:var(--acc);font-weight:600}#idbar button.idb:hover{background:var(--hl)}#idbar b{font-family:ui-monospace,monospace}
 .similar{padding:18px 24px;max-width:860px}.sm-head{display:flex;align-items:center;gap:6px}.sm-head h2{margin:0;font-size:20px}.sm-b{height:34px;min-width:34px;padding:0 8px;border:1px solid var(--line);border-radius:9px;background:var(--bg);font-size:16px;cursor:pointer;opacity:.45}.sm-b.on{opacity:1;background:var(--acc-bg);border-color:var(--acc)}.sm-b.wide{font-size:13px;opacity:1}.sm-base{margin:12px 0;font-size:13px;color:var(--sub)}.similar .sm-list .sm-row{display:block;padding:10px 12px;margin:0 0 8px;border:1px solid var(--line);border-radius:10px}.sm-top{display:flex;align-items:baseline;gap:10px}.sm-top b{font-family:ui-monospace,monospace;font-size:13px;color:var(--sub)}.sm-t{flex:1;font-weight:600;min-width:0}.sm-p{font-size:13px;color:var(--acc);font-weight:700}.similar .sm-meter{display:block;height:4px;border-radius:2px;background:var(--hl);margin:6px 0}.sm-meter i{display:block;height:100%;border-radius:2px;background:var(--acc)}.sm-re{display:flex;gap:10px;flex-wrap:wrap;font-size:12px;color:var(--sub)}
 #idbar button.idb{font-size:16px}#idbar button.idb b{font-size:14px}.idline .gid{font-size:18px!important;line-height:1}
@@ -715,6 +736,7 @@ body{-webkit-user-select:none;user-select:none}
       <button id="nav-back" class="ic" title="戻る (Ctrl+,)" disabled>⬅️</button><button id="nav-fwd" class="ic" title="進む (Ctrl+.)" disabled>➡️</button>
       <div id="tabbar"></div>
       <button id="save-status" class="ic" aria-live="polite" title="保存済み" hidden>⚠️</button>
+      <button id="rec-pc" class="ic" title="録音して文字にする（ノートを開いていれば、文字はそのノートの末尾へ。開いていなければ録音の一覧へ）。右クリックで、録音の一覧" aria-label="録音">🎙️</button>
       <button id="stamp-toggle" class="ic" title="行ごとの時刻を表示・非表示（Ctrl+R）。右クリックで、見せ方を選ぶ" aria-label="時刻の表示" aria-pressed="true">⏱️</button><button id="new" class="ic" title="新規">➕</button>
       <button id="imp" hidden></button><button id="vault" hidden></button>
     </div>
