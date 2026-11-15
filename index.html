@@ -142,6 +142,14 @@ button.ic.dj{width:34px;height:34px;font-size:17px;border:1px solid var(--line);
 #idbar button.idb{display:inline-flex;align-items:center;gap:7px;height:30px;padding:0 12px;border:1px solid var(--line);border-radius:999px;background:var(--bg);color:var(--sub);font-size:12.5px;cursor:pointer}
 #idbar button.idb b{font:600 13px ui-monospace,monospace;color:var(--fg)}#idbar button.idb:hover{border-color:var(--acc)}#idbar button.idb:hover b{color:var(--acc)}
 #idbar button.idb.x{width:30px;padding:0;justify-content:center;border:0;background:none;font-size:14px}
+/* ID をつける帯: 1 行目 題とやめる ／ 2 行目 候補（大きく・IDを強調） ／ 3 行目 基準のノートか案内 */
+#idbar{display:block;padding:12px 16px 12px;font-size:14px}
+#idbar .idb-row{display:flex;align-items:center;gap:10px;flex-wrap:wrap}#idbar .idb-row+.idb-row{margin-top:10px}
+#idbar .idb-t{font-size:14px;font-weight:700;color:var(--fg);max-width:none}#idbar .idb-title{font-size:15px;color:var(--fg);flex:1 1 auto}
+#idbar .idb-q{font-size:13px;color:var(--sub)}#idbar .idb-base,#idbar .idb-hint{font-size:13px;color:var(--sub)}
+#idbar button.idb{height:42px;padding:0 16px;gap:10px;border:1.5px solid var(--acc);border-radius:10px;background:var(--bg);color:var(--fg);font-size:14px}
+#idbar button.idb b{font:700 18px ui-monospace,monospace;color:var(--acc)}#idbar button.idb:hover{background:var(--acc-bg)}
+#idbar button.idb.x{width:32px;height:32px;padding:0;border:0;background:none;font-size:16px;color:var(--sub);margin-left:auto}#idbar button.idb.x:hover{color:var(--fg)}
 .file-preview .fc-ic{flex:none;width:44px;height:44px;display:flex;align-items:center;justify-content:center;font-size:26px;border-radius:8px;background:var(--hl)}
 .file-preview .url-preview-link{display:flex;align-items:center;gap:12px}
 /* 左のレール: 検索・ノート・メモ・日記・グローバルインデックス・ファイル（ノートの中の、デジタル・紙・未整理は、リストの上のタブ） */
