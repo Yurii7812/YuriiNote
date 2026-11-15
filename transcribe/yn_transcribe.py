@@ -2,7 +2,7 @@
 """YuriiNote の録音を、日本語の文字にする（CPU・ローカル。外へは何も送らない）。
 
 使い方（YuriiNote が呼ぶ）:
-  python yn_transcribe.py 録音.m4a --model モデルのフォルダ [--glossary 用語.txt] [--threads 4]
+  python yn_transcribe.py 録音.m4a --model モデルのフォルダ [--prompt 手がかりの文] [--threads 4]
 
 出力（標準出力に 1 行 1 つの JSON）:
   {"type": "info", "duration": 秒}
@@ -27,7 +27,7 @@ def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("audio")
     ap.add_argument("--model", required=True)
-    ap.add_argument("--glossary")
+    ap.add_argument("--prompt")  # 用語を含む手がかりの文（large-v3 用。kotoba-whisper に渡すと何も出なくなるので、YuriiNote は渡さない）
     ap.add_argument("--threads", type=int, default=4)
     a = ap.parse_args()
     try:
@@ -35,11 +35,7 @@ def main() -> int:
     except Exception as e:  # 部品が入っていない
         say(type="error", message=f"faster-whisper がありません: {e}")
         return 2
-    prompt = None
-    if a.glossary and os.path.isfile(a.glossary):
-        with open(a.glossary, encoding="utf-8") as f:
-            words = [w.strip() for w in f if w.strip()]
-        prompt = "、".join(words) or None
+    prompt = (a.prompt or "").strip() or None
     try:
         model = WhisperModel(a.model, device="cpu", compute_type="int8", cpu_threads=max(1, a.threads))
         with tempfile.TemporaryDirectory() as tmp:

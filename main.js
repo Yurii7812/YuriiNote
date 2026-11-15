@@ -125,11 +125,13 @@ async function recPump() {
   const doc = recDoc(), it = (doc.items || []).find(x => x.status === 'queued'); if (!it) return;
   const T = require('./transcriber'), t = T.tools();
   recBusy = true; recNow = { id: it.id, pct: 0 }; it.status = 'running'; recSave(doc); recSend({ id: it.id, pct: 0 });
-  let r; try { r = await T.run(t, path.join(recDir(), it.file), pct => { recNow = { id: it.id, pct }; recSend({ id: it.id, pct }); }); } catch (e) { r = { ok: false, error: String(e.message || e) }; }
+  try { recLearnNotes(); } catch { }   // ノートで直した所を、先に覚える
+  const words = vwDoc(), prompt = VW.promptText(VW.promptWords(words, vwKeywords(), { seeds: vwSeeds(words) }));
+  let r; try { r = await T.run(t, path.join(recDir(), it.file), pct => { recNow = { id: it.id, pct }; recSend({ id: it.id, pct }); }, { prompt }); } catch (e) { r = { ok: false, error: String(e.message || e) }; }
   const d2 = recDoc(), x = (d2.items || []).find(y => y.id === it.id); let state = null;
   if (x) {
     if (r.ok) {
-      x.lines = T.paragraphs(r.segs || [], x.at); x.status = 'done'; x.done = require('./stamp').nowStamp();
+      x.lines = await vwFix(T.paragraphs(r.segs || [], x.at)); x.raw = undefined; x.status = 'done'; x.done = require('./stamp').nowStamp();
       if (x.target && x.lines.length && await recPlace(x)) { x.placed = true; state = v.state(); }
     } else { x.status = 'error'; x.err = r.error; }
     recSave(d2);
@@ -144,6 +146,72 @@ async function recPlace(x) {
   const body = String(n.body || '').replace(/\s+$/, '');
   v.saveNote({ s: n.s, id: n.id, body: (body ? body + '\n\n' : '') + x.lines.join('\n') }); return true;
 }
+// ===== 音声入力の言葉（voice-words.js）。直したら覚える・次から使う。K_voicewords.json =====
+const VW = require('./voice-words');
+const vwDoc = () => { const d = (v && v.getDoc('K_voicewords')) || null; if (d) return d; const n = { words: [], fixes: [] }; vwSeedInit(n); return n; };
+const vwSave = d => v.saveDoc('K_voicewords', d);
+// 最初の 1 回: 入っている用語集（transcribe/words-ja.txt）と、~/transcribe の用語集を、単語に入れる
+function vwSeedInit(d) {
+  const lines = [];
+  for (const f of [path.join(__dirname, 'transcribe', 'words-ja.txt'), path.join(require('os').homedir(), 'transcribe', 'glossary.txt')]) { try { lines.push(...fs.readFileSync(f, 'utf8').split('\n')); } catch { } }
+  for (const l of lines) { const [w, r] = l.trim().split(/\s+/); if (!w || w.startsWith('#') || d.words.some(x => x.w === w)) continue; d.words.push({ w, src: 'seed', n: 0, ...(r ? { r } : {}) }); }
+}
+const vwSeeds = d => (d.words || []).filter(x => x.src === 'seed' && !x.off).map(x => x.w);
+// ノートのキーワード（よく使う順）。文字化の手がかり・読みによる直しに使う
+function vwKeywords() {
+  const c = new Map(); for (const n of v.state().notes || []) for (const k of n.keywords || []) c.set(k, (c.get(k) || 0) + 1);
+  return [...c.entries()].sort((a, b) => b[1] - a[1]).map(([k]) => k);
+}
+async function vwFix(lines) {
+  const d = vwDoc(), st = v.state(), readings = { ...(st.readings || {}) };
+  for (const x of d.words || []) if (x.r) readings[x.w] = [].concat(readings[x.w] || [], x.r);
+  const terms = [...new Set([...(d.words || []).filter(x => !x.off).map(x => x.w), ...vwKeywords()])];
+  let tk = null; try { const t = await tokenizer(); tk = s => t.tokenize(s); } catch { }
+  return lines.map(l => { const m = l.match(/^(\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2} )([\s\S]*)$/), head = m ? m[1] : '', body = m ? m[2] : l;
+    let out = VW.applyFixes(d, body, tk ? VW.fixOk(tk) : undefined); if (tk) { try { out = VW.fixByReading(tk, out, terms, readings); } catch { } } return head + out; });
+}
+function vwLearn(before, after) {
+  const d = vwDoc(), got = VW.learn(d, before, after, require('./stamp').nowStamp());
+  if (got.fixes.length || got.words.length) vwSave(d); return got;
+}
+// ノートに入れた録音の文字を、ノートで直していたら覚える（行頭の日時で、同じ段落を探す）
+function recLearnNotes() {
+  const doc = recDoc(); let ch = false; const st = v.state();
+  for (const x of doc.items || []) {
+    if (!x.placed || !x.target || !x.lines) continue;
+    const n = st.notes.find(m => m.s === x.target.s && m.id === x.target.id); if (!n) continue;
+    const body = String(n.body || '').split('\n');
+    const now = x.lines.map(l => { const sp = l.slice(0, 19); return body.find(b => b.startsWith(sp)) ?? l; });
+    if (now.join('\n') !== x.lines.join('\n')) { vwLearn(x.lines.join('\n'), now.join('\n')); x.lines = now; ch = true; }
+  }
+  if (ch) recSave(doc);
+}
+ipcMain.handle('recEdit', (_e, id, text) => {
+  const d = recDoc(), x = (d.items || []).find(y => y.id === id); if (!x || !x.lines) return null;
+  const stamps = x.lines.map(l => l.slice(0, 19)), plain = String(text || '').replace(/\r/g, '').split('\n').map(l => l.trim()).filter(Boolean);
+  const before = x.lines.map(l => l.slice(20)).join('\n');
+  const got = vwLearn(before, plain.join('\n'));
+  x.lines = plain.map((l, i) => `${stamps[Math.min(i, stamps.length - 1)] || require('./stamp').full(x.at)} ${l}`); x.edited = true;
+  recSave(d); return got;
+});
+ipcMain.handle('recWords', () => { try { recLearnNotes(); } catch { } const d = vwDoc(); return { ...d, keywords: vwKeywords().slice(0, 60), prompt: VW.promptWords(d, vwKeywords(), { seeds: vwSeeds(d) }) }; });
+ipcMain.handle('recWordsSave', (_e, x) => {
+  const d = vwDoc(), now = require('./stamp').nowStamp();
+  if (Array.isArray(x.words)) {   // 「単語 よみ」の行。消した単語は、捨てる（入っていた用語集のものは、使わない印だけ付ける）
+    const keep = new Map(); for (const l of x.words) { const [w, r] = String(l).trim().split(/\s+/); if (w && !w.startsWith('#')) keep.set(w, r); }
+    const out = [];
+    for (const o of d.words || []) { if (keep.has(o.w)) { const r = keep.get(o.w); out.push({ ...o, ...(r ? { r } : {}), off: undefined }); keep.delete(o.w); } else if (o.src === 'seed') out.push({ ...o, off: true }); }
+    for (const [w, r] of keep) out.push({ w, src: 'manual', n: 1, at: now, ...(r ? { r } : {}) });
+    d.words = out;
+  }
+  if (Array.isArray(x.fixes)) d.fixes = x.fixes.map(l => String(l).split(/\s*(?:→|->)\s*/)).filter(p => p.length === 2 && p[0].trim().length >= 1).map(([a, b]) => { const o = (d.fixes || []).find(f => f.from === a.trim() && f.to === b.trim()); return o || { from: a.trim(), to: b.trim(), n: 1, at: now, manual: true }; });
+  vwSave(d); return true;
+});
+ipcMain.handle('recDeleteAll', () => {   // 全部消す（文字にしている途中のものは残す）。音声は .trash へ
+  const d = recDoc(), keep = [], t = path.join(vault, '.trash');
+  for (const x of d.items || []) { if (x.status === 'running') { keep.push(x); continue; } if (!x.audioGone) { try { fs.mkdirSync(t, { recursive: true }); fs.renameSync(path.join(recDir(), x.file), path.join(t, `${Date.now()}-${x.file}`)); } catch { } } }
+  const n = (d.items || []).length - keep.length; d.items = keep; recSave(d); return n;
+});
 function recResume() { if (!v) return; const d = recDoc(); let ch = false; for (const x of d.items || []) if (x.status === 'running') { x.status = 'queued'; ch = true; } if (ch) recSave(d); setTimeout(recPump, 4000); }
 ipcMain.handle('recSave', (_e, bytes, meta = {}) => { const id = recAdd({ at: meta.at, sec: meta.sec, buf: Buffer.from(bytes), ext: '.webm', src: 'pc', target: meta.target }); recPump(); return id; });
 ipcMain.handle('recList', () => { const t = require('./transcriber').tools(); return { items: recDoc().items || [], now: recNow, tools: t.ok }; });

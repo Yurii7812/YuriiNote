@@ -9,11 +9,15 @@ function tools(env = process.env, home = os.homedir()) {
   const root = env.YURIINOTE_ROOT || env.YURIINOTE_SIMPLE_ROOT || path.join(home, '.local/share/YuriiNote');
   const first = list => list.filter(Boolean).find(f => fs.existsSync(f)) || null;
   const py = first([env.YURIINOTE_WHISPER_PY, path.join(root, 'whisper/venv/bin/python'), path.join(home, 'transcribe/.venv/bin/python')]);
-  const model = [env.YURIINOTE_WHISPER_MODEL, path.join(root, 'whisper/models/kotoba-v2.0-faster'), path.join(home, 'transcribe/models/kotoba-v2.0-faster')]
-    .filter(Boolean).find(d => fs.existsSync(path.join(d, 'model.bin'))) || null;
-  // 用語集は YuriiNote 用のもの（whisper/glossary.txt）だけ。~/transcribe の用語集は別の用途（歯科）で、渡すと何も出なくなることがある
-  const glossary = first([path.join(root, 'whisper/glossary.txt')]);
-  return { py, model, glossary, script: path.join(__dirname, 'transcribe', 'yn_transcribe.py'), ok: !!(py && model) };
+  // モデル: large-v3（文が欠けず、句読点が付き、用語の手がかりが効く）を先に。無ければ kotoba-whisper（速いが、手がかりを渡すと何も出なくなる）
+  const has = d => d && fs.existsSync(path.join(d, 'model.bin'));
+  const cands = [
+    env.YURIINOTE_WHISPER_MODEL && { dir: env.YURIINOTE_WHISPER_MODEL, prompt: !/kotoba/i.test(env.YURIINOTE_WHISPER_MODEL) },
+    { dir: path.join(root, 'whisper/models/large-v3-faster'), prompt: true }, { dir: path.join(home, 'transcribe/models/large-v3-faster'), prompt: true },
+    { dir: path.join(root, 'whisper/models/kotoba-v2.0-faster'), prompt: false }, { dir: path.join(home, 'transcribe/models/kotoba-v2.0-faster'), prompt: false },
+  ].filter(Boolean);
+  const m = cands.find(c => has(c.dir)) || null, model = m ? m.dir : null, usePrompt = !!(m && m.prompt);
+  return { py, model, usePrompt, script: path.join(__dirname, 'transcribe', 'yn_transcribe.py'), ok: !!(py && model) };
 }
 
 // 区切り（segs: [{start, end, text}]）を段落にまとめ、行頭に「録音を始めた時刻＋経過」の日時を付ける（保存は、いつも秒まで）
@@ -31,10 +35,10 @@ function paragraphs(segs, at) {
 }
 
 // 1 件を文字にする。onProgress(0〜100)。返り値 { ok, segs, error }
-function run(t, file, onProgress = () => { }, { threads = 4, spawn = cp.spawn } = {}) {
+function run(t, file, onProgress = () => { }, { threads = 4, spawn = cp.spawn, prompt = '' } = {}) {
   return new Promise(resolve => {
     if (!t.py || !t.model) return resolve({ ok: false, error: '文字化の部品（faster-whisper とモデル）が見つかりません。YuriiNote --update で入れ直すか、~/transcribe を用意してください' });
-    const args = [t.script, file, '--model', t.model, '--threads', String(threads), ...(t.glossary ? ['--glossary', t.glossary] : [])];
+    const args = [t.script, file, '--model', t.model, '--threads', String(threads), ...(t.usePrompt && prompt ? ['--prompt', prompt] : [])];
     const useNice = process.platform !== 'win32' && fs.existsSync('/usr/bin/nice');
     const p = spawn(useNice ? '/usr/bin/nice' : t.py, useNice ? ['-n', '10', t.py, ...args] : args, { stdio: ['ignore', 'pipe', 'pipe'] });
     const segs = []; let dur = 0, buf = '', err = '', failed = '';

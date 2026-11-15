@@ -754,17 +754,36 @@ async function recStop() {
   toast('🎙️ 保存しました。文字にしています…（右クリックで一覧）');
 }
 const recPlain = x => (x.lines || []).map(l => Stamp.stripLine(l)).join('\n');
+let recWordsOpen = false, recEditing = null;
 async function recDialog() {
   if (recDlg) return recDraw();
   const box = document.createElement('div'); box.className = 'pm-view rec-view'; document.body.append(box); recDlg = box;
-  const key = e => { if (e.key === 'Escape') { e.preventDefault(); close(); } };
-  const close = () => { box.remove(); recDlg = null; document.removeEventListener('keydown', key, true); };
+  const key = e => { if (e.key === 'Escape') { e.preventDefault(); if (recEditing || recWordsOpen) { recEditing = null; recWordsOpen = false; recDraw(); } else close(); }
+    if (e.key === 'Enter' && e.ctrlKey && recEditing) { e.preventDefault(); recDlg.querySelector('[data-r="esave"]')?.click(); } };
+  const close = () => { box.remove(); recDlg = null; recEditing = null; recWordsOpen = false; document.removeEventListener('keydown', key, true); };
   document.addEventListener('keydown', key, true);
   box.onclick = async e => {
     if (e.target === box) return close();
     const b = e.target.closest('[data-r]'); if (!b) return;
     const id = b.dataset.id, list = (await api.recList()).items, x = list.find(y => y.id === id);
     if (b.dataset.r === 'x') return close();
+    if (b.dataset.r === 'words') { recWordsOpen = !recWordsOpen; return recDraw(); }
+    if (b.dataset.r === 'wsave') {
+      const w = $('#rec-w').value.split('\n'), f = $('#rec-f').value.split('\n');
+      await api.recWordsSave({ words: w, fixes: f }); toast('📖 単語と直しを保存しました。次の文字化から使います'); recWordsOpen = false; return recDraw();
+    }
+    if (b.dataset.r === 'all') {
+      const n = list.filter(y => y.status !== 'running').length; if (!n) return;
+      if (confirm(`録音を ${n} 件、全部消しますか？（音声は .trash へ。文字も一覧から消えます。ノートに入れた文と、覚えた単語は残ります）`)) { const k = await api.recDeleteAll(); toast(`🗑️ ${k} 件消しました`); recDraw(); }
+      return;
+    }
+    if (b.dataset.r === 'edit') { recEditing = id; return recDraw(); }
+    if (b.dataset.r === 'ecancel') { recEditing = null; return recDraw(); }
+    if (b.dataset.r === 'esave') {
+      const got = await api.recEdit(id, recDlg.querySelector('.rec-edit').value); recEditing = null; recDraw();
+      const k = got ? got.words.length + got.fixes.length : 0;
+      toast(k ? `💾 保存して覚えました: ${[...got.words, ...got.fixes.map(f => `${f.from}→${f.to}`)].slice(0, 6).join('、')}` : '💾 保存しました'); return;
+    }
     if (!x) return;
     if (b.dataset.r === 'copy') { await navigator.clipboard.writeText(recPlain(x)); toast('📋 写しました'); }
     else if (b.dataset.r === 'ins') {
@@ -783,14 +802,25 @@ async function recDraw() {
   const r = await api.recList(), items = [...(r.items || [])].reverse(); recNow = r.now;
   const st = x => x.status === 'queued' ? '⏳ 文字にするのを待っています' : x.status === 'running' ? `✍️ 文字にしています ${recNow && recNow.id === x.id ? recNow.pct : 0}%` : x.status === 'error' ? `⚠️ 失敗: ${x.err || ''}` : x.placed ? `✅ 「${esc(x.target.id)}」の末尾に入れました` : '✅ 文字にしました';
   const tname = x => x.target ? ` → ノート ${esc(x.target.id)}` : '';
-  recDlg.innerHTML = `<div class="rec-panel"><div class="rec-h"><b>🎙️ 録音と文字</b><span class="sub">（右上の 🎙️ で録る・止める）</span><span class="grow"></span><button class="ic" data-r="x" title="閉じる（Esc）">✕</button></div>`
-    + (r.tools ? '' : '<div class="rec-warn">文字にする部品（faster-whisper と kotoba-whisper のモデル）が見つかりません。端末で <code>YuriiNote --update</code> を実行すると用意します（~/transcribe があれば、それを使います）。</div>')
+  const W = recWordsOpen ? await api.recWords() : null;
+  if (recEditing && !items.some(x => x.id === recEditing && x.status === 'done')) recEditing = null;
+  if (recEditing && recDlg.querySelector('.rec-edit')) return;   // 直している間は、描き直さない（進み具合の知らせで、書いたものが消えないように）
+  recDlg.innerHTML = `<div class="rec-panel"><div class="rec-h"><b>🎙️ 録音と文字</b><span class="sub">（右上の 🎙️ で録る・止める）</span><span class="grow"></span>`
+    + `<button class="chip${recWordsOpen ? ' on' : ''}" data-r="words" title="文字化で使う単語と、覚えた直し">📖 単語</button>`
+    + (items.some(x => x.status !== 'running') ? `<button class="chip" data-r="all" title="録音を全部消す（音声は .trash へ）">🗑️ 全部消す</button>` : '')
+    + `<button class="ic" data-r="x" title="閉じる（Esc）">✕</button></div>`
+    + (r.tools ? '' : '<div class="rec-warn">文字にする部品（faster-whisper と whisper large-v3 のモデル）が見つかりません。端末で <code>YuriiNote --update</code> を実行すると用意します（~/transcribe があれば、それを使います）。</div>')
+    + (W ? `<div class="rec-words"><p class="sub">文字を直して保存すると、直した所と単語を、ここに覚えます。次の文字化では、単語を手がかりに渡し、覚えた直しを自動でかけます。ノートに入れたあと、ノートで直したものも覚えます。</p>`
+      + `<div class="rec-wcols"><label><b>単語</b> <small>1 行に 1 つ。よみを付けるなら、スペースのあとに ひらがなで（例: 説一切有部 せついっさいうぶ）</small><textarea id="rec-w" spellcheck="false">${esc((W.words || []).filter(x => !x.off).sort((a, b) => (a.src === 'seed') - (b.src === 'seed')).map(x => x.w + (x.r ? ' ' + x.r : '')).join('\n'))}</textarea></label>`
+      + `<label><b>直し</b> <small>前 → 後（文字にしたあと、自動で置き換える）</small><textarea id="rec-f" spellcheck="false">${esc((W.fixes || []).map(f => `${f.from} → ${f.to}`).join('\n'))}</textarea></label></div>`
+      + `<p class="sub">いま手がかりに渡す語（${(W.prompt || []).length}）: ${esc((W.prompt || []).join('、')) || 'まだありません'}<br>ノートのキーワードも、手がかりと、読みによる直しに使います。</p>`
+      + `<div class="row"><span class="grow"></span><button class="chip" data-r="words">やめる</button><button class="chip p" data-r="wsave">💾 保存</button></div></div>` : '')
     + `<div class="rec-list">${items.length ? items.map(x => `<div class="rec-it"><div class="rec-top"><span>${x.src === 'phone' ? '📱' : '💻'} ${esc(x.at)}</span><span class="st">${mmss(x.sec || 0)}${tname(x)}</span><span class="grow"></span>`
-      + (x.status === 'done' ? `<button class="chip" data-r="copy" data-id="${esc(x.id)}">📋 写す</button><button class="chip" data-r="ins" data-id="${esc(x.id)}" title="いま開いているノートの末尾に入れる">↪️ 今のノートへ</button>` : '')
+      + (x.status === 'done' ? `<button class="chip" data-r="edit" data-id="${esc(x.id)}" title="文字を直す（直した所は、次から覚えて使う）">✏️ 直す</button><button class="chip" data-r="copy" data-id="${esc(x.id)}">📋 写す</button><button class="chip" data-r="ins" data-id="${esc(x.id)}" title="いま開いているノートの末尾に入れる">↪️ 今のノートへ</button>` : '')
       + (x.status === 'error' && !x.audioGone ? `<button class="chip" data-r="retry" data-id="${esc(x.id)}">🔁 やり直す</button>` : '')
       + (x.status !== 'running' && !x.audioGone && x.status === 'done' ? `<button class="chip" data-r="audio" data-id="${esc(x.id)}" title="音声のファイルだけ消す（文字は残る）">🔇 音声を消す</button>` : '')
       + (x.status !== 'running' ? `<button class="chip" data-r="del" data-id="${esc(x.id)}">🗑️</button>` : '')
-      + `</div><div class="rec-top st">${st(x)}</div>${x.status === 'running' ? `<div class="rec-bar"><i style="width:${recNow && recNow.id === x.id ? recNow.pct : 0}%"></i></div>` : ''}${x.lines && x.lines.length ? `<pre class="rec-text">${esc(recPlain(x))}</pre>` : ''}</div>`).join('')
+      + `</div><div class="rec-top st">${st(x)}</div>${x.status === 'running' ? `<div class="rec-bar"><i style="width:${recNow && recNow.id === x.id ? recNow.pct : 0}%"></i></div>` : ''}${recEditing === x.id ? `<textarea class="rec-edit" spellcheck="false">${esc(recPlain(x))}</textarea><div class="row"><small class="sub">1 行が 1 段落。Ctrl+Enter で保存、Esc でやめる</small><span class="grow"></span><button class="chip" data-r="ecancel" data-id="${esc(x.id)}">やめる</button><button class="chip p" data-r="esave" data-id="${esc(x.id)}">💾 保存して覚える</button></div>` : x.lines && x.lines.length ? `<pre class="rec-text">${esc(recPlain(x))}</pre>` : ''}</div>`).join('')
       : '<div class="none">録音は、まだありません。右上の 🎙️ を押すと録音を始め、もう一度押すと止めて、文字にします。<br>スマホで録った録音も、取り込むと、ここで文字になります。</div>'}</div></div>`;
 }
 api.onRecUpdate(async m => {
@@ -1219,48 +1249,125 @@ $('#pane').addEventListener('click', e => {
 }, true);
 
 // ===== IDをつける =====
-// 特別な画面は使わず、ふつうの画面でノートを探して、「このノートの子／次」と決める。
-// 上に帯が出る: 🆕 新しい番号 ／ 基準にするノートを開くと 🌱 子 ・ ↔️ 次（押したら決定）／ ✖️ やめる
-let idPick = null;   // { stem }（付けるノート）
+// 特別な画面は使わず、上の帯で決める。基準のノートは、開いているノートに自動で合わせるか、帯の「基準 ▾」から探して選ぶ（ノートは開き直さない）。
+// 候補（分岐・並列・新しい番号）は押したら決定。決まった形でないIDは「直接入力」で
+let idPick = null;   // { stem（付けるノート）, base（基準のノートの stem）, seen（最後に見た、開いているノート）, pop, q, sel, free }
 const idSubject = () => idPick && notes.find(n => n.stem === idPick.stem && n.noid) || null;
+const idCanBase = (n, subject) => n && n.s === 'd' && !n.noid && n !== subject;
 function giveIdDialog(note) {
   if (!note || note.s !== 'd') return;
-  idPick = { stem: note.stem }; drawIdBar();
+  // 最初の基準: 開いているタブのうち、最後の、ID のあるノート
+  const t = [...tabs].reverse().find(t => t.k === 'note' && idCanBase(get(t.s, t.id), note));
+  idPick = { stem: note.stem, base: t ? get(t.s, t.id).stem : null, seen: cur && cur.k === 'note' ? cur.s + ':' + cur.id : '' };
+  drawIdBar();
 }
 function endIdPick() { idPick = null; drawIdBar(); }
+function idBaseNote(subject) {
+  const now = cur && cur.k === 'note' ? cur.s + ':' + cur.id : '';
+  if (now !== idPick.seen) {   // 別のノートを開いたら、それを基準に
+    idPick.seen = now; const n = now ? get(cur.s, cur.id) : null;
+    if (idCanBase(n, subject)) { idPick.base = n.stem; idPick.pop = false; }
+  }
+  const b = idPick.base && notes.find(n => n.stem === idPick.base);
+  return idCanBase(b, subject) ? b : null;
+}
+function idBaseRows(subject) {
+  const q = (idPick.q || '').trim().toLowerCase();
+  let list = notes.filter(n => idCanBase(n, subject));
+  if (q) {
+    const byId = list.filter(n => n.id.toLowerCase().startsWith(q));
+    list = byId.length ? byId : list.filter(n => (titleOf(n) || '').toLowerCase().includes(q));
+  }
+  return list.sort((x, y) => L.cmpId(x.id, y.id)).slice(0, 80);
+}
+function idFreeCheck(v) {
+  v = v.trim().toLowerCase();
+  if (!v) return ['', ''];
+  if (!L.isId(v) || /^\d{8,}$/.test(v)) return ['bad', 'IDの形ではありません'];
+  if (get('d', v)) return ['bad', `${v} はもう使われています（${limit(titleOf(get('d', v)) || '無題', 16)}）`];
+  const par = L.parentIn(v, id => !!get('d', id));
+  return ['good', par ? `${par} の下に入ります` : '使えます'];
+}
 function drawIdBar() {
   const bar = $('#idbar'); if (!bar) return;
   const subject = idSubject();
   if (idPick && !subject) idPick = null;
   if (!idPick) { bar.hidden = true; bar.innerHTML = ''; return; }
-  const base = cur && cur.k === 'note' ? get(cur.s, cur.id) : null;
-  const ok = base && base.s === 'd' && !base.noid && base !== subject;
-  const child = ok ? X.suggest(notes, base, 'child') : '', sib = ok ? X.suggest(notes, base, 'sibling') : '';
+  const base = idBaseNote(subject);
+  const child = base ? X.suggest(notes, base, 'child') : '', sib = base ? X.suggest(notes, base, 'sibling') : '';
+  const opt = (id, cap, tip, cls = '') => `<button class="idb-o${cls}" data-idpick="${esc(id)}" title="${esc(tip)}"><b>${esc(id)}</b><small>${cap}</small></button>`;
+  const bt = base ? esc(limit(titleOf(base) || '無題', 24)) : '';
+  const free = idPick.free != null;
+  const [fc, fmsg] = free ? idFreeCheck(idPick.free) : ['', ''];
   bar.hidden = false;
-  const subj = esc(titleOf(subject) || '（無題）'), bt = ok ? esc(limit(titleOf(base) || '（無題）', 40)) : '';
-  const btn = (id, emoji, label, tip) => `<button class="idb" data-idpick="${esc(id)}" title="${esc(tip)}"><span class="em">${emoji}</span><span class="lb">${label}</span><b>${esc(id)}</b></button>`;
-  // 1 行に流し込み、幅が足りなければ折り返す。とても狭いときは、候補をアイコンと ID だけに（説明は title に）
-  bar.innerHTML = `<span class="idb-t">IDをつける</span><span class="idb-title" title="${subj}">${esc(limit(titleOf(subject) || '（無題）', 40))}</span>`
-    + btn(X.nextRoot(notes), '🆕', '新しい番号', '新しい番号（次の空き）')
-    + (ok ? btn(child, '🌱', `${esc(base.id)} の分岐`, `${base.id} の下に分岐（基準: ${titleOf(base) || '無題'}）`) + btn(sib, '↔️', `${esc(base.id)} と並列`, `${base.id} と並列（基準: ${titleOf(base) || '無題'}）`) : '')
-    + (ok ? `<span class="idb-note" title="基準のノート：${bt}（${esc(base.id)}）">基準のノート：${bt}（${esc(base.id)}）</span>`
-      : '<span class="idb-note">左の一覧でノートを開くと、そのノートの分岐・並列の候補が出ます</span>')
-    + '<button class="idb x" data-idcancel title="やめる（Esc）" aria-label="やめる">✕</button>';
+  bar.innerHTML = `<div class="idb-head"><span class="idb-k">IDをつける</span><span class="idb-subj" data-user title="${esc(titleOf(subject) || '無題')}">${esc(titleOf(subject) || '無題')}</span></div>`
+    + `<div class="idb-body">`
+    + `<button class="idb-base${base ? '' : ' empty'}${idPick.pop ? ' open' : ''}" data-idbase title="基準のノートを選ぶ（ほかのノートを開いても、それが基準になります）" aria-haspopup="listbox" aria-expanded="${!!idPick.pop}">`
+    + (base ? `<small>基準</small><b>${esc(base.id)}</b><span class="idb-bt" data-user>${bt}</span>` : '<span>基準のノートを選ぶ</span>') + '<i>▾</i></button>'
+    + (base ? `<div class="idb-seg">${opt(child, '分岐', `${base.id} の下に分岐する（${titleOf(base) || '無題'} の子）`)}${opt(sib, '並列', `${base.id} の次に並べる`)}</div>` : '')
+    + `<span class="idb-or">${base ? 'または' : ''}</span>`
+    + opt(X.nextRoot(notes), '新しい番号', '新しい番号（次の空き）', ' root')
+    + (free
+      ? `<label class="idb-free ${fc}"><input id="idb-in" value="${esc(idPick.free)}" placeholder="例: 3a2" autocomplete="off" spellcheck="false" aria-label="IDを直接入れる"><button data-idfreego ${fc === 'good' ? '' : 'disabled'} title="このIDにする（Enter）">決定</button></label><span class="idb-msg ${fc}" role="status">${esc(fmsg)}</span>`
+      : '<button class="idb-o free" data-idfree title="IDを自分で入れる"><b>✎</b><small>直接入力</small></button>')
+    + `</div><button class="idb-x" data-idcancel title="やめる（Esc）" aria-label="やめる">✕</button>`
+    + (idPick.pop ? `<div class="idb-pop" role="dialog"><input id="idb-q" value="${esc(idPick.q || '')}" placeholder="IDか題名で探す" autocomplete="off" spellcheck="false" aria-label="基準のノートを探す"><div class="idb-list" role="listbox">${idBaseRowsHtml(subject, base)}</div></div>` : '');
+  if (idPick.pop) { const q = $('#idb-q'); q.focus(); q.setSelectionRange(q.value.length, q.value.length); bar.querySelector('.idb-r.sel')?.scrollIntoView({ block: 'nearest' }); }
+  if (free) { const i = $('#idb-in'); i.focus(); i.setSelectionRange(i.value.length, i.value.length); }
+}
+function idBaseRowsHtml(subject, base) {
+  const rows = idBaseRows(subject); idPick.sel = Math.max(0, Math.min(idPick.sel || 0, rows.length - 1));
+  if (!rows.length) return '<div class="idb-none">見つかりません</div>';
+  return rows.map((n, i) => `<div class="idb-r${i === idPick.sel ? ' sel' : ''}${n === base ? ' cur' : ''}" role="option" data-idbstem="${esc(n.stem)}" style="--d:${Math.min(6, n.id.replace(/(\d+|[a-z]+)/g, 'x').length - 1)}"><b>${esc(n.id)}</b><span data-user>${esc(titleOf(n) || '無題')}</span></div>`).join('');
 }
 const limit = (t, n) => String(t || '').length > n ? String(t).slice(0, n) + '…' : String(t || '');
-document.addEventListener('click', async e => {
-  if (e.target.closest('[data-idcancel]')) return endIdPick();
-  const b = e.target.closest('[data-idpick]'); if (!b || !idPick) return;
+async function idApply(id) {
   const subject = idSubject(); if (!subject) return endIdPick();
-  const id = b.dataset.idpick, ok = await changeId(subject, id);
+  const ok = await changeId(subject, id);
   if (ok === false) return toast('そのIDは使えませんでした');
   idPick = null; drawIdBar(); toast(`ID ${id} を付けました`);
+}
+document.addEventListener('click', e => {
+  if (!idPick) return;
+  const bar = $('#idbar');
+  if (e.target.closest('[data-idcancel]')) return endIdPick();
+  if (e.target.closest('[data-idbase]')) { idPick.pop = !idPick.pop; idPick.q = ''; idPick.sel = 0; idPick.free = null; return drawIdBar(); }
+  const r = e.target.closest('[data-idbstem]'); if (r) { idPick.base = r.dataset.idbstem; idPick.pop = false; return drawIdBar(); }
+  if (e.target.closest('[data-idfree]')) { idPick.free = ''; idPick.pop = false; return drawIdBar(); }
+  if (e.target.closest('[data-idfreego]')) { const v = (idPick.free || '').trim().toLowerCase(); if (idFreeCheck(v)[0] === 'good') idApply(v); return; }
+  const b = e.target.closest('[data-idpick]'); if (b) return idApply(b.dataset.idpick);
+  if (idPick.pop && bar && !e.target.closest('.idb-pop')) { idPick.pop = false; drawIdBar(); }   // 外を押したら、探す欄を閉じる
+});
+document.addEventListener('input', e => {
+  if (!idPick) return;
+  if (e.target.id === 'idb-q') { idPick.q = e.target.value; idPick.sel = 0; const l = $('#idbar .idb-list'); if (l) l.innerHTML = idBaseRowsHtml(idSubject(), idBaseNote(idSubject())); }
+  if (e.target.id === 'idb-in') {
+    idPick.free = e.target.value; const [c, m] = idFreeCheck(idPick.free);
+    e.target.parentElement.className = 'idb-free ' + c; const g = $('#idbar [data-idfreego]'); if (g) g.disabled = c !== 'good';
+    const s = $('#idbar .idb-msg'); if (s) { s.className = 'idb-msg ' + c; s.textContent = m; }
+  }
 });
 document.addEventListener('keydown', e => {
-  if (e.key !== 'Escape' || !idPick || e.isComposing || $('#modal').style.display === 'flex') return;
+  if (!idPick || e.isComposing || $('#modal').style.display === 'flex') return;
+  if (e.target.id === 'idb-q') {
+    const rows = [...document.querySelectorAll('#idbar .idb-r')];
+    if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+      e.preventDefault(); if (!rows.length) return;
+      idPick.sel = (idPick.sel + (e.key === 'ArrowDown' ? 1 : -1) + rows.length) % rows.length;
+      rows.forEach((r, i) => r.classList.toggle('sel', i === idPick.sel)); rows[idPick.sel].scrollIntoView({ block: 'nearest' });
+    } else if (e.key === 'Enter') { e.preventDefault(); if (rows[idPick.sel]) { idPick.base = rows[idPick.sel].dataset.idbstem; idPick.pop = false; drawIdBar(); } }
+    else if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); idPick.pop = false; drawIdBar(); }
+    return;
+  }
+  if (e.target.id === 'idb-in') {
+    if (e.key === 'Enter') { e.preventDefault(); const v = (idPick.free || '').trim().toLowerCase(); if (idFreeCheck(v)[0] === 'good') idApply(v); }
+    else if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); idPick.free = null; drawIdBar(); }
+    return;
+  }
+  if (e.key !== 'Escape') return;
   if (e.target && e.target.closest && e.target.closest('input, textarea, .cm-editor')) return;
   endIdPick();
-});
+}, true);
 // キーワードと索引（ボタンで足す）
 const refContexts = (body, id, own = 'd', target = own) => { // id（target の側）を指している所の、周辺の文章（ハイライトなし）。own は、この本文のある側。リンクだけの行は出さない
   const out = [];
