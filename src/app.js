@@ -1112,15 +1112,15 @@ function drawIdBar() {
   const ok = base && base.s === 'd' && !base.noid && base !== subject;
   const child = ok ? X.suggest(notes, base, 'child') : '', sib = ok ? X.suggest(notes, base, 'sibling') : '';
   bar.hidden = false;
-  const subj = esc(titleOf(subject) || '（無題）');
-  bar.innerHTML = `<div class="idb-row"><span class="idb-t">IDをつける</span><span class="idb-title" title="${subj}">${esc(limit(titleOf(subject) || '（無題）', 40))}</span><button class="idb x" data-idcancel title="やめる（Esc）" aria-label="やめる">✕</button></div>`
-    + '<div class="idb-row"><span class="idb-q">どこに入れますか？</span>'
-    + `<button class="idb" data-idpick="${esc(X.nextRoot(notes))}" title="新しい番号（次の空き）"><span>🆕 新しい番号</span><b>${esc(X.nextRoot(notes))}</b></button>`
-    + (ok ? `<button class="idb" data-idpick="${esc(child)}" title="${esc(base.id)} の下に分岐"><span>🌱 ${esc(base.id)} の分岐</span><b>${esc(child)}</b></button>`
-      + `<button class="idb" data-idpick="${esc(sib)}" title="${esc(base.id)} と並列"><span>↔️ ${esc(base.id)} と並列</span><b>${esc(sib)}</b></button>` : '')
-    + '</div>'
-    + (ok ? `<div class="idb-row"><span class="idb-base">基準のノート：${esc(limit(titleOf(base) || '（無題）', 40))}（${esc(base.id)}）</span></div>`
-      : '<div class="idb-row"><span class="idb-hint">左の一覧でノートを開くと、そのノートの分岐・並列の候補が出ます</span></div>');
+  const subj = esc(titleOf(subject) || '（無題）'), bt = ok ? esc(limit(titleOf(base) || '（無題）', 40)) : '';
+  const btn = (id, emoji, label, tip) => `<button class="idb" data-idpick="${esc(id)}" title="${esc(tip)}"><span class="em">${emoji}</span><span class="lb">${label}</span><b>${esc(id)}</b></button>`;
+  // 1 行に流し込み、幅が足りなければ折り返す。とても狭いときは、候補をアイコンと ID だけに（説明は title に）
+  bar.innerHTML = `<span class="idb-t">IDをつける</span><span class="idb-title" title="${subj}">${esc(limit(titleOf(subject) || '（無題）', 40))}</span>`
+    + btn(X.nextRoot(notes), '🆕', '新しい番号', '新しい番号（次の空き）')
+    + (ok ? btn(child, '🌱', `${esc(base.id)} の分岐`, `${base.id} の下に分岐（基準: ${titleOf(base) || '無題'}）`) + btn(sib, '↔️', `${esc(base.id)} と並列`, `${base.id} と並列（基準: ${titleOf(base) || '無題'}）`) : '')
+    + (ok ? `<span class="idb-note" title="基準のノート：${bt}（${esc(base.id)}）">基準のノート：${bt}（${esc(base.id)}）</span>`
+      : '<span class="idb-note">左の一覧でノートを開くと、そのノートの分岐・並列の候補が出ます</span>')
+    + '<button class="idb x" data-idcancel title="やめる（Esc）" aria-label="やめる">✕</button>';
 }
 const limit = (t, n) => String(t || '').length > n ? String(t).slice(0, n) + '…' : String(t || '');
 document.addEventListener('click', async e => {
