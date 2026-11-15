@@ -1295,10 +1295,10 @@ function idBaseRows(subject) {
 function idFreeCheck(v) {
   v = v.trim().toLowerCase();
   if (!v) return ['', ''];
-  if (!L.isId(v) || /^\d{8,}$/.test(v)) return ['bad', 'IDの形ではありません'];
-  if (get('d', v)) return ['bad', `${v} はもう使われています（${limit(titleOf(get('d', v)) || '無題', 16)}）`];
+  if (!L.isId(v) || /^\d{8,}$/.test(v)) return ['bad', '🚫 IDの形ではありません（例: 1a2）'];
+  if (get('d', v)) return ['bad', `🚫 ${v} は使われています（${limit(titleOf(get('d', v)) || '無題', 16)}）`];
   const par = L.parentIn(v, id => !!get('d', id));
-  return ['good', par ? `${par} の下に入ります` : '使えます'];
+  return ['good', par ? `✅ ${par} の下に入ります` : '✅ 新しい親になります'];
 }
 function drawIdBar() {
   const bar = $('#idbar'); if (!bar) return;
@@ -1307,22 +1307,25 @@ function drawIdBar() {
   if (!idPick) { bar.hidden = true; bar.innerHTML = ''; return; }
   const base = idBaseNote(subject);
   const child = base ? X.suggest(notes, base, 'child') : '', sib = base ? X.suggest(notes, base, 'sibling') : '';
-  const opt = (id, cap, tip, cls = '') => `<button class="idb-o${cls}" data-idpick="${esc(id)}" title="${esc(tip)}"><b>${esc(id)}</b><small>${cap}</small></button>`;
+  const opt = (id, em, name, tip, cls = '') => `<button class="idb-o${cls}" data-idpick="${esc(id)}" title="${esc(tip)}"><span class="em">${em}</span>${name}<b>${esc(id)}</b></button>`;
   const bt = base ? esc(limit(titleOf(base) || '無題', 24)) : '';
   const free = idPick.free != null;
   const [fc, fmsg] = free ? idFreeCheck(idPick.free) : ['', ''];
+  const tt = esc(titleOf(subject) || '無題');
   bar.hidden = false;
-  bar.innerHTML = `<div class="idb-head"><span class="idb-k">IDをつける</span><span class="idb-subj" data-user title="${esc(titleOf(subject) || '無題')}">${esc(titleOf(subject) || '無題')}</span></div>`
+  bar.innerHTML = `<div class="idb-head"><span class="idb-k">🆔 IDをつける</span><span class="idb-subj" data-user title="${tt}">${tt}</span><button class="idb-x" data-idcancel title="やめる（Esc）" aria-label="やめる">✖️</button></div>`
     + `<div class="idb-body">`
-    + `<button class="idb-base${base ? '' : ' empty'}${idPick.pop ? ' open' : ''}" data-idbase title="基準のノートを選ぶ（ほかのノートを開いても、それが基準になります）" aria-haspopup="listbox" aria-expanded="${!!idPick.pop}">`
-    + (base ? `<small>基準</small><b>${esc(base.id)}</b><span class="idb-bt" data-user>${bt}</span>` : '<span>基準のノートを選ぶ</span>') + '<i>▾</i></button>'
-    + (base ? `<div class="idb-seg">${opt(child, '分岐', `${base.id} の下に分岐する（${titleOf(base) || '無題'} の子）`)}${opt(sib, '並列', `${base.id} の次に並べる`)}</div>` : '')
-    + `<span class="idb-or">${base ? 'または' : ''}</span>`
-    + opt(X.nextRoot(notes), '新しい番号', '新しい番号（次の空き）', ' root')
+    + `<button class="idb-base${base ? '' : ' empty'}${idPick.pop ? ' open' : ''}" data-idbase title="基準にするノートを選ぶ（ほかのノートを開いても、それが基準になります）" aria-haspopup="listbox" aria-expanded="${!!idPick.pop}">`
+    + (base ? `<small>基準</small><span class="em">📍</span><b>${esc(base.id)}</b><span class="idb-bt" data-user>${bt}</span>` : '<span>基準のノートを選ぶ</span>') + '<i>▾</i></button>'
+    + (base ? '<span class="idb-arrow" aria-hidden="true">▶</span>'
+      + opt(child, '🌱', '分岐', `${base.id}（${titleOf(base) || '無題'}）の下に、枝を足す`)
+      + opt(sib, '↔️', '並列', `${base.id}（${titleOf(base) || '無題'}）と同じ高さに並べる`) : '')
+    + '<span class="idb-sep" aria-hidden="true"></span>'
+    + opt(X.nextRoot(notes), '🆕', '新しい番号', 'どこにも属さない、新しい親（次の空き）')
     + (free
-      ? `<label class="idb-free ${fc}"><input id="idb-in" value="${esc(idPick.free)}" placeholder="例: 3a2" autocomplete="off" spellcheck="false" aria-label="IDを直接入れる"><button data-idfreego ${fc === 'good' ? '' : 'disabled'} title="このIDにする（Enter）">決定</button></label><span class="idb-msg ${fc}" role="status">${esc(fmsg)}</span>`
-      : '<button class="idb-o free" data-idfree title="IDを自分で入れる"><b>✎</b><small>直接入力</small></button>')
-    + `</div><button class="idb-x" data-idcancel title="やめる（Esc）" aria-label="やめる">✕</button>`
+      ? `<label class="idb-free ${fc}"><span class="em">✏️</span><input id="idb-in" value="${esc(idPick.free)}" placeholder="例: 3a2" autocomplete="off" spellcheck="false" aria-label="IDを直接入れる"><button data-idfreego ${fc === 'good' ? '' : 'disabled'} title="このIDにする（Enter）">決定</button></label><span class="idb-msg ${fc}" role="status">${esc(fmsg)}</span>`
+      : '<button class="idb-o free" data-idfree title="好きなIDを自分で打つ"><span class="em">✏️</span>自分で入力</button>')
+    + `</div>`
     + (idPick.pop ? `<div class="idb-pop" role="dialog"><input id="idb-q" value="${esc(idPick.q || '')}" placeholder="IDか題名で探す" autocomplete="off" spellcheck="false" aria-label="基準のノートを探す"><div class="idb-list" role="listbox">${idBaseRowsHtml(subject, base)}</div></div>` : '');
   if (idPick.pop) { const q = $('#idb-q'); q.focus(); q.setSelectionRange(q.value.length, q.value.length); bar.querySelector('.idb-r.sel')?.scrollIntoView({ block: 'nearest' }); }
   if (free) { const i = $('#idb-in'); i.focus(); i.setSelectionRange(i.value.length, i.value.length); }
