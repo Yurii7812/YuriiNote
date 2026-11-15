@@ -621,6 +621,12 @@ function openVault(vault) {
     for (const d of diaries.values()) if (d.body) d.body = conv(d.body);
     put(abs(MARK), fs.readFileSync(abs(MARK), 'utf8').replace(/\n*$/, '\n') + 'arrow1\n');
   }
+  // 秒の無い日時（昔の「時:分」まで）に「:00」を足す（一度だけ）。保存は、いつも秒まで
+  if (!fs.readFileSync(abs(MARK), 'utf8').includes('stamp2')) {
+    for (const n of notes.values()) if ((!n.kind || n.kind === 'text') && n.body) n.body = Stamp.secs(n.body);
+    for (const d of diaries.values()) if (d.body) d.body = Stamp.secs(d.body);
+    put(abs(MARK), fs.readFileSync(abs(MARK), 'utf8').replace(/\n*$/, '\n') + 'stamp2\n');
+  }
   rebuild();
   return {
     vault,
@@ -652,9 +658,19 @@ function openVault(vault) {
       const section = lines.findIndex(l => /^##\s/.test(l.trim()) && l.trim() !== '## 今日の記録');
       const before = (section < 0 ? d.body || '' : lines.slice(0, section).join('\n')).trimEnd();
       const after = section < 0 ? '' : lines.slice(section).join('\n').trimStart();
-      d.body = L.normDay((before ? before + '\n' : '') + text + (after ? '\n\n' + after : ''));
+      // 時刻の順の場所に入れる（取り込んだ行が、あとに書いた行より下にならないように）
+      const placed = Stamp.insertByTime(before, text, Stamp.stampOf(String(text).split('\n')[0]));
+      d.body = L.normDay(placed + (after ? '\n\n' + after : ''));
       d.updated = L.now();
       rebuild(); return pubDiary(d);
+    },
+    // スマホでメンションした吹き出し（取り込み済み）に、目印の (n) を付ける。at の時刻の行の末尾へ。その日のノートが無い・行が無いときは何もしない
+    markLine(kind, date, at, n) {
+      const d = diaries.get(dk(kind || DIARY, date)); if (!d || !(n > 0)) return false;
+      const lines = (d.body || '').split('\n'), key = Stamp.full(at);
+      const i = lines.findIndex(l => { const s = Stamp.stampOf(l); return s && Stamp.full(s) === key; }); if (i < 0) return false;
+      if (new RegExp('[(（]' + n + '[)）]').test(lines[i])) return true;
+      lines[i] = lines[i].replace(/\s+$/, '') + ` (${n})`; d.body = lines.join('\n'); d.updated = L.now(); rebuild(); return true;
     },
     // 紙の日記（「日記」だけ）: スキャン画像を P_<日付>.jpg（2枚目以降 _2 _3 …）に保存し、日記の最後の「紙の日記」に挿入する
     addDiaryScan(date, buf) {
@@ -730,6 +746,7 @@ function openVault(vault) {
       rebuild(); return this.records();
     },
     // ===== JSON の文書（チャット・なりきり・役・キャンバス）=====
+    getDoc(name) { const d = docs.get(name); return d ? JSON.parse(JSON.stringify(d)) : null; },
     saveDoc(name, obj) {
       if (!/^(C|K)_[^\\/]+$/.test(name)) return false;
       // 版（_rev）: 画面が持っている版より、保存先の版が新しければ「古い画面からの保存」。増えたメモを失わないように足し合わせて、画面に知らせる

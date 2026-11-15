@@ -676,7 +676,7 @@ test('日付の無い行には、そのノート（日記はその日）の日�
   v = openVault(dir);
   const n = v.state().notes.find(x => x.id === '1'), d = v.state().diaries.find(x => x.kind === 'メモ帳' && x.date === '2026-10-11');
   assert.strictEqual(n.body, '# 2026-10-10 11:12:30 題\n2026-10-10 11:12:30 本文\n```js\nコード\n```');
-  assert.match(d.body, /^2026-10-11 10:35 朝\n2026-10-11 \d{2}:\d{2}:\d{2} 時刻なしの行$/);
+  assert.match(d.body, /^2026-10-11 10:35:00 朝\n2026-10-11 \d{2}:\d{2}:\d{2} 時刻なしの行$/);
   assert.ok(fs.readFileSync(path.join(dir, '.pkm-layout'), 'utf8').includes('stamp1'));
   const again = openVault(dir).state().notes.find(x => x.id === '1');   // 二度目は、変えない
   assert.strictEqual(again.body, n.body);

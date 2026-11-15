@@ -51,9 +51,35 @@ function adoptTimes(text, date) {
     if (fence) { if (f && f[0] === fence[0] && f.length >= fence.length && /^\s*[`~]+\s*$/.test(out[i])) fence = null; continue; }
     if (f) { fence = f; continue; }
     const p = prefixLen(out[i]), m = out[i].slice(p).match(/^([01]\d|2[0-3]):([0-5]\d)(?: |$)/);
-    if (m && !stampOf(out[i])) out[i] = out[i].slice(0, p) + date + ' ' + m[1] + ':' + m[2] + out[i].slice(p + 5);
+    if (m && !stampOf(out[i])) out[i] = out[i].slice(0, p) + date + ' ' + m[1] + ':' + m[2] + ':00' + out[i].slice(p + 5);   // 保存は、いつも秒まで
   }
   return out.join('\n');
+}
+// 「時:分」までの日時に「:00」を足して、秒までにする（保存は、いつも秒まで）
+const full = at => /^\d{4}-\d{2}-\d{2} \d{2}:\d{2}$/.test(String(at || '')) ? at + ':00' : String(at || '');
+// 本文の先頭の日時のうち、秒の無いものを、秒までにする（コード等の囲みの中は変えない）
+function secs(text) {
+  const out = String(text).split('\n'); let fence = null;
+  for (let i = 0; i < out.length; i++) {
+    const f = fenceOpen(out[i]);
+    if (fence) { if (f && f[0] === fence[0] && f.length >= fence.length && /^\s*[`~]+\s*$/.test(out[i])) fence = null; continue; }
+    if (f) { fence = f; continue; }
+    const s = parse(out[i]); if (s && s.at.length === 16) out[i] = out[i].slice(0, s.p) + s.at + ':00' + out[i].slice(s.p + 16);
+  }
+  return out.join('\n');
+}
+// block（先頭の行の日時が at）を、text の中の時刻の順の場所に入れる。at より後の、最初の日時つきの行の前へ（無ければ末尾）。
+// 日時の無い行は、すぐ上の日時の行の続きとみなして、動かさない
+function insertByTime(text, block, at) {
+  const key = full(at), lines = text ? String(text).split('\n') : []; let fence = null, idx = -1;
+  if (key) for (let i = 0; i < lines.length; i++) {
+    const f = fenceOpen(lines[i]);
+    if (fence) { if (f && f[0] === fence[0] && f.length >= fence.length && /^\s*[`~]+\s*$/.test(lines[i])) fence = null; continue; }
+    if (f) { fence = f; continue; }
+    const s = parse(lines[i]); if (s && full(s.at) > key) { idx = i; break; }
+  }
+  if (idx < 0) { const t = String(text || '').replace(/\s+$/, ''); return (t ? t + '\n' : '') + block; }
+  return [...lines.slice(0, idx), ...String(block).split('\n'), ...lines.slice(idx)].join('\n');
 }
 // 画面に出すときの形。fmt: 「全部」（保存したとおり）か、「カスタム」:
 //   { y, mo, d, h, mi, s: 出す部分（年・月・日・時・分・秒）, dsep: 日付の区切り（既定 -）, tsep: 時刻の区切り（既定 :）, short: 今日の行は日付を省く }
@@ -75,4 +101,4 @@ const format = (at, fmt, today = nowStamp().slice(0, 10)) => {
 };
 const show = (at, today) => at ? format(at, { sec: false, short: !!today }, today || undefined) : '';
 
-module.exports = { LEGACY, nowStamp, parse, prefixLen, stampOf, stripLine, strip, body, stampable, add, adoptTimes, migrate, format, normFmt, show };
+module.exports = { full, secs, insertByTime, LEGACY, nowStamp, parse, prefixLen, stampOf, stripLine, strip, body, stampable, add, adoptTimes, migrate, format, normFmt, show };

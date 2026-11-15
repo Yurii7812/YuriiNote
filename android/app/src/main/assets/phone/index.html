@@ -5,25 +5,27 @@
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover,interactive-widget=resizes-content">
 <title>YuriiNote</title>
 <style>
-:root{--bg:#fff;--fg:#25272e;--sub:#7c808c;--line:#e6e7ec;--acc:#3b5bdb;--acc-bg:#eef1ff;--red:#c0392b;--ok:#1f8a4c;--paper:#f6f6f1;
+:root{--bg:#fff;--fg:#25272e;--sub:#7c808c;--line:#e6e7ec;--acc:#3b5bdb;--acc-bg:#eef1ff;--red:#c0392b;--ok:#1f8a4c;--paper:#f6f6f1;--bub:#f3f4f7;--mine:#e8edff;
   --font:"Noto Sans JP","Hiragino Sans","Yu Gothic",system-ui,sans-serif}
-@media (prefers-color-scheme:dark){:root{--bg:#17181d;--fg:#e8e9ee;--sub:#9096a6;--line:#2b2e38;--acc:#8aa2ff;--acc-bg:#232842;--red:#ff8d7a;--ok:#5ccf8e;--paper:#22232a;color-scheme:dark}}
+@media (prefers-color-scheme:dark){:root{--bg:#17181d;--fg:#e8e9ee;--sub:#9096a6;--line:#2b2e38;--acc:#8aa2ff;--acc-bg:#232842;--red:#ff8d7a;--ok:#5ccf8e;--paper:#22232a;--bub:#22242c;--mine:#262c48;color-scheme:dark}}
 *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}[hidden]{display:none!important}
 html,body{height:100%;margin:0}
 body{background:var(--bg);color:var(--fg);font-family:var(--font);font-size:16px;display:flex;flex-direction:column;padding-top:env(safe-area-inset-top);overscroll-behavior:none}
-button{font:inherit;color:inherit}
+button{font:inherit;color:inherit;cursor:pointer}
+input,textarea,select{font:inherit;color:var(--fg)}
 .top{flex:none;height:52px;display:flex;align-items:center;gap:8px;padding:0 12px;border-bottom:1px solid var(--line)}
 .top h1{margin:0;font-size:17px;flex:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.ib{width:42px;height:42px;border:1px solid var(--line);border-radius:12px;background:transparent;font-size:19px;cursor:pointer;flex:none}
+.ib{width:42px;height:42px;border:1px solid var(--line);border-radius:12px;background:transparent;font-size:19px;flex:none;display:inline-flex;align-items:center;justify-content:center;padding:0}
 .ib.on{background:var(--acc-bg);border-color:var(--acc);color:var(--acc)}
 main{flex:1;min-height:0;display:flex;flex-direction:column;position:relative}
 .pane{display:none;flex:1;min-height:0;flex-direction:column}.pane.on{display:flex}
-.tabs{flex:none;display:grid;grid-template-columns:repeat(4,1fr);border-top:1px solid var(--line);padding-bottom:max(4px,env(safe-area-inset-bottom))}
+.tabs{flex:none;display:grid;grid-template-columns:repeat(5,1fr);border-top:1px solid var(--line);padding-bottom:max(4px,env(safe-area-inset-bottom))}
 .tabs button{border:0;background:transparent;padding:8px 0 6px;font-size:11px;color:var(--sub);display:flex;flex-direction:column;align-items:center;gap:2px}
 .tabs button span{font-size:22px;line-height:1}.tabs button.on{color:var(--acc);font-weight:700}
 .chips{flex:none;display:flex;gap:6px;padding:10px 12px 0;overflow-x:auto}
-.chip{flex:none;border:1px solid var(--line);border-radius:999px;padding:6px 13px;font-size:14px;background:transparent}
+.chip{flex:none;border:1px solid var(--line);border-radius:999px;padding:7px 13px;font-size:14px;background:transparent;white-space:nowrap}
 .chip.on{background:var(--acc-bg);border-color:var(--acc);color:var(--acc);font-weight:700}
+.chip small{color:var(--sub);font-weight:400;margin-left:4px}
 .datebar{flex:none;display:flex;align-items:center;gap:6px;padding:8px 12px 0}.datebar b{flex:1;text-align:center;font-size:15px}
 .datebtn{flex:1;position:relative;display:flex;justify-content:center;padding:10px 0;border:1px dashed var(--line);border-radius:12px}
 .datebtn input{position:absolute;inset:0;width:100%;height:100%;opacity:0}
@@ -32,42 +34,94 @@ main{flex:1;min-height:0;display:flex;flex-direction:column;position:relative}
 .entry{padding:10px 14px;border-bottom:1px solid var(--line);display:flex;gap:10px;line-height:1.6;white-space:pre-wrap;word-break:break-word}
 .entry time{flex:none;color:var(--sub);font-size:11px;font-variant-numeric:tabular-nums;padding-top:5px;min-width:40px;max-width:84px;line-height:1.3}
 .entry .t{flex:1;min-width:0}.entry .st{flex:none;font-size:11px;color:var(--sub);padding-top:5px}.entry .st.sent{color:var(--ok)}
-.entry.sel{background:var(--acc-bg)}
+.entry.sel,.bub.hold{background:var(--acc-bg)}
 .hint{margin:8px 12px 0;padding:8px 10px;border-radius:10px;background:var(--acc-bg);color:var(--sub);font-size:12px;line-height:1.6;display:flex;gap:8px;align-items:center;flex-wrap:wrap}
-.hint button{border:1px solid var(--line);background:var(--bg);border-radius:999px;padding:4px 12px;font-size:12px}
+.hint button{border:1px solid var(--line);background:var(--bg);border-radius:999px;padding:5px 12px;font-size:12px}
 .none{padding:28px 18px;color:var(--sub);text-align:center;font-size:14px;line-height:1.8}
-.compose{flex:none;display:flex;gap:8px;align-items:flex-end;padding:8px 10px;border-top:1px solid var(--line)}
-.compose textarea{flex:1;min-width:0;min-height:44px;max-height:140px;border:1px solid var(--line);border-radius:14px;padding:10px 12px;font:inherit;font-size:16px;background:var(--bg);color:var(--fg);resize:none;outline:none}
+.compose{flex:none;display:flex;gap:6px;align-items:flex-end;padding:8px 10px;border-top:1px solid var(--line)}
+.compose textarea{flex:1;min-width:0;min-height:44px;max-height:160px;border:1px solid var(--line);border-radius:14px;padding:10px 12px;font-size:16px;background:var(--bg);resize:none;outline:none}
 .compose textarea:focus{border-color:var(--acc)}
+.compose .ib{height:44px;width:44px}
 .send{width:44px;height:44px;border:0;border-radius:14px;background:var(--acc);color:#fff;font-size:18px;flex:none}
 .row{padding:13px 14px;border-bottom:1px solid var(--line);display:flex;gap:10px;align-items:center}
 .row .t{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.row .sub{color:var(--sub);font-size:12px;flex:none}
-.badge{font-size:11px;border:1px solid var(--line);border-radius:999px;padding:1px 8px;color:var(--sub);flex:none}
-.fab{position:absolute;right:16px;bottom:16px;width:56px;height:56px;border-radius:18px;border:0;background:var(--acc);color:#fff;font-size:24px;box-shadow:0 6px 18px rgba(59,91,219,.35)}
-.editor{flex:1;min-height:0;width:100%;border:0;padding:14px;font:inherit;font-size:16px;line-height:1.8;background:var(--bg);color:var(--fg);resize:none;outline:none}
+.badge{font-size:11px;border:1px solid var(--line);border-radius:999px;padding:1px 8px;color:var(--sub);flex:none}.badge.ok{color:var(--ok);border-color:var(--ok)}
+.editor{flex:1;min-height:0;width:100%;border:0;padding:14px;font-size:16px;line-height:1.8;background:var(--bg);resize:none;outline:none}
 .edtools{flex:none;display:flex;gap:6px;padding:8px 10px;border-top:1px solid var(--line);overflow-x:auto}
-.edtools button{flex:none;height:42px;min-width:46px;padding:0 12px;border:1px solid var(--line);border-radius:10px;background:transparent;font-size:17px}
-.cam{flex:1;min-height:0;margin:10px 12px 0;border-radius:16px;background:#0f1013;position:relative;overflow:hidden;display:flex;align-items:center;justify-content:center}
-.cam video{width:100%;height:100%;object-fit:contain}   /* 切り取らずに、撮れる範囲を全部見せる（撮った写真と同じ範囲） */
-.cam .msg{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;color:#cfd2da;font-size:14px;text-align:center;padding:20px;line-height:1.8}
-.count{position:absolute;right:12px;top:12px;background:rgba(255,255,255,.2);color:#fff;border-radius:999px;padding:3px 12px;font-size:13px}
-.shutter{flex:none;display:flex;justify-content:center;padding:10px 0 4px}
-.shutter button{width:70px;height:70px;border-radius:50%;border:4px solid var(--acc);background:var(--bg);position:relative}
-.shutter button::after{content:"";position:absolute;inset:6px;border-radius:50%;background:var(--acc)}.shutter button:active::after{inset:10px}
-.strip{flex:none;display:flex;gap:8px;padding:6px 12px 6px;overflow-x:auto;min-height:66px;align-items:center;font-size:12px;color:var(--sub)}
-.thumb{flex:none;width:78px;height:56px;border-radius:7px;background:var(--paper);border:1px solid var(--line);position:relative;overflow:hidden}
-.thumb img{width:100%;height:100%;object-fit:cover}.thumb i{position:absolute;right:3px;bottom:1px;font-style:normal;color:#fff;text-shadow:0 0 3px #000;font-size:12px}
+.edtools button{flex:none;height:44px;min-width:48px;padding:0 12px;border:1px solid var(--line);border-radius:10px;background:transparent;font-size:17px}
+/* ノート（チャット形式。1 吹き出し = 1 ノート、Folgezettel の順） */
+.nav{flex:none;padding:8px 10px 6px;border-bottom:1px solid var(--line);display:flex;flex-direction:column;gap:6px}
+.nav .nrow{display:flex;gap:6px;align-items:center;overflow-x:auto}
+.nav .lab{flex:none;font-size:11px;color:var(--sub);width:30px}
+.nav .nb{flex:none;max-width:62vw;border:1px solid var(--line);border-radius:10px;padding:6px 10px;background:var(--bg);font-size:13px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.nav .nb b{font:600 12px ui-monospace,monospace;color:var(--red);margin-right:6px}
+.nav .cur{font-size:13px;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.bubs{flex:1;min-height:0;overflow:auto;padding:8px 10px 14px;display:flex;flex-direction:column;gap:8px}
+.bub{border-radius:14px;background:var(--bub);padding:9px 12px;line-height:1.6;white-space:pre-wrap;word-break:break-word;border:2px solid transparent}
+.bub.mine{background:var(--mine)}.bub.sel{border-color:var(--acc)}
+.bub .bh{display:flex;gap:8px;align-items:baseline;margin-bottom:2px}
+.bub .bid{font:700 13px ui-monospace,monospace;color:var(--red)}.bub .bid small{font:400 11px var(--font);color:var(--sub);margin-left:4px}
+.bub .bt{font-weight:700;font-size:14px;flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.bub .bx{font-size:14.5px;color:var(--fg);max-height:7.5em;overflow:hidden}.bub.open .bx{max-height:none}
+.bub .more{font-size:12px;color:var(--acc);border:0;background:none;padding:2px 0}
+.bub .depth{color:var(--sub);font-size:11px}
+.sec-h{font-size:12px;color:var(--sub);padding:10px 4px 2px}
+.nmode{flex:none;display:flex;align-items:center;gap:8px;padding:6px 12px 0;font-size:13px;color:var(--sub)}
+.nmode b{color:var(--acc)}.nmode button{border:0;background:none;color:var(--sub);font-size:15px;padding:2px 6px}
+/* 紙 */
+.seg{flex:none;display:flex;gap:6px;padding:10px 12px 0;align-items:center}
+.seg .chip{font-size:15px;padding:8px 16px}.grow{flex:1}
+.bigbtn{flex:none;margin:10px 12px 0;height:54px;border:0;border-radius:14px;background:var(--acc);color:#fff;font-size:17px;font-weight:700;display:flex;align-items:center;justify-content:center;gap:8px}
+.bigbtn.sub{background:var(--acc-bg);color:var(--acc);border:1px solid var(--acc);font-weight:600;height:46px;font-size:15px}
+.btnrow{display:flex;gap:8px;margin:0 12px}.btnrow .bigbtn{margin:10px 0 0;flex:1}
+.grid{flex:1;min-height:0;overflow:auto;padding:10px 12px 16px;display:grid;grid-template-columns:repeat(auto-fill,minmax(96px,1fr));gap:8px;align-content:start}
+.thumb{position:relative;aspect-ratio:3/4;border-radius:9px;background:var(--paper);border:1px solid var(--line);overflow:hidden}
+.thumb img{width:100%;height:100%;object-fit:cover}
+.thumb .tl{position:absolute;left:0;right:0;bottom:0;padding:3px 6px;background:rgba(0,0,0,.55);color:#fff;font-size:12px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.thumb .tl b{font-family:ui-monospace,monospace}
+.thumb .ck{position:absolute;right:4px;top:3px;color:#fff;text-shadow:0 0 3px #000;font-size:13px}
+.pmrow{flex:none;display:flex;align-items:center;gap:8px;padding:10px 12px 0;font-size:14px}
+.pmrow input.num{width:76px;font-size:17px;padding:8px 10px;border:1px solid var(--line);border-radius:9px;background:var(--bg);text-align:right}
+/* 名前を付ける画面（PC の紙の取り込みと同じ考え方。スマホ用に大きく） */
+.nmimg{flex:1;min-height:0;overflow:auto;background:#0f1013;display:flex;align-items:center;justify-content:center}
+.nmimg img{max-width:100%;max-height:100%;object-fit:contain}.nmimg.zoom{display:block}.nmimg.zoom img{max-width:none;max-height:none;width:200%}
+.nmform{flex:none;padding:8px 12px max(10px,env(safe-area-inset-bottom));border-top:1px solid var(--line);display:flex;flex-direction:column;gap:8px}
+.nmform .chips{padding:0}
+.nmid{display:flex;gap:8px;align-items:center}
+.nmid input,.nmform input.kw{flex:1;min-width:0;height:48px;border:2px solid var(--line);border-radius:12px;padding:0 12px;font-size:19px;background:var(--bg)}
+.nmid input{font-family:ui-monospace,monospace;font-weight:700;color:var(--red)}
+.nmid input.bad{border-color:var(--red)}.nmid input.good{border-color:var(--ok)}
+.nmform input.kw{font-size:16px;height:44px;border-width:1px}
+.nmmsg{font-size:12px;color:var(--sub);min-height:1.2em}.nmmsg.bad{color:var(--red)}
+.nmbtns{display:flex;gap:8px}.nmbtns button{height:50px;border-radius:12px;border:1px solid var(--line);background:var(--bg);font-size:15px;padding:0 14px}
+.nmbtns .primary{flex:1;background:var(--acc);color:#fff;border:0;font-weight:700;font-size:16px}
+/* 録音 */
+.recbox{flex:none;display:flex;flex-direction:column;align-items:center;gap:10px;padding:22px 12px 14px;border-bottom:1px solid var(--line)}
+.rectime{font:600 34px ui-monospace,monospace;font-variant-numeric:tabular-nums}
+.recbtn{width:92px;height:92px;border-radius:50%;border:5px solid var(--red);background:var(--bg);position:relative}
+.recbtn::after{content:"";position:absolute;inset:14px;border-radius:50%;background:var(--red);transition:all .15s}
+.recbtn.on::after{inset:26px;border-radius:8px}
+.recmsg{font-size:13px;color:var(--sub);text-align:center;line-height:1.6}
+.row audio{height:34px;max-width:46vw}
+/* シート */
 .sheet{position:fixed;left:0;right:0;bottom:0;top:90px;background:var(--bg);border-top:1px solid var(--line);border-radius:18px 18px 0 0;box-shadow:0 -10px 30px rgba(0,0,0,.2);display:flex;flex-direction:column;z-index:5}
-.sheet[hidden]{display:none}
-.sheet .bar{display:flex;gap:8px;padding:12px 12px 6px}.sheet input{flex:1;min-width:0;height:44px;border:1px solid var(--line);border-radius:12px;padding:0 12px;font:inherit;background:var(--bg);color:var(--fg)}
-.sheet .help{padding:0 14px 8px;font-size:12px;color:var(--sub)}.sheet .id{flex:none;width:52px;font:600 13px ui-monospace,monospace;color:var(--red)}
+.sheet .bar{display:flex;gap:8px;padding:12px 12px 6px}.sheet input{flex:1;min-width:0;height:46px;border:1px solid var(--line);border-radius:12px;padding:0 12px;background:var(--bg)}
+.sheet .help{padding:0 14px 8px;font-size:12px;color:var(--sub)}.sheet .id{flex:none;width:58px;font:600 13px ui-monospace,monospace;color:var(--red)}
 .sheet .res{flex:1;overflow:auto}
+.act{top:auto;padding-bottom:max(10px,env(safe-area-inset-bottom))}
+.act .ah{padding:14px 16px 6px;font-size:13px;color:var(--sub);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.act button.ai{display:flex;width:100%;align-items:center;gap:12px;border:0;border-top:1px solid var(--line);background:transparent;padding:15px 18px;font-size:16px;text-align:left}
+.act button.ai.danger{color:var(--red)}
+.viewer{position:fixed;inset:0;background:#0f1013;z-index:6;display:flex;flex-direction:column}
+.viewer .vimg{flex:1;min-height:0;overflow:auto;display:flex;align-items:center;justify-content:center}.viewer img{max-width:100%;max-height:100%}
+.viewer .vbar{flex:none;display:flex;gap:8px;align-items:center;padding:10px 12px max(12px,env(safe-area-inset-bottom));background:var(--bg)}
+.viewer .vbar input{width:70px;height:42px;border:1px solid var(--line);border-radius:10px;padding:0 8px;background:var(--bg);font-size:16px;text-align:center}
 .row input[type=checkbox]{width:26px;height:26px;flex:none;accent-color:var(--acc)}
-.row input.num{width:84px;flex:none;font:inherit;font-size:17px;padding:8px 10px;border:1px solid var(--line);border-radius:9px;background:var(--bg);color:var(--fg);text-align:right}
+.row input.num{width:84px;flex:none;font-size:17px;padding:8px 10px;border:1px solid var(--line);border-radius:9px;background:var(--bg);text-align:right}
 .row input.num:focus{outline:none;border-color:var(--acc)}
 .row label,label.row{cursor:pointer}
-.sheet select,.row select{font:inherit;padding:7px 8px;border:1px solid var(--line);border-radius:9px;background:var(--bg);color:var(--fg)}
-.toast{position:fixed;left:50%;top:calc(env(safe-area-inset-top) + 60px);transform:translateX(-50%);background:var(--fg);color:var(--bg);border-radius:999px;padding:7px 15px;font-size:13px;opacity:0;transition:opacity .2s;pointer-events:none;z-index:9;white-space:nowrap;max-width:92vw;overflow:hidden;text-overflow:ellipsis}
+.sheet select,.row select{padding:7px 8px;border:1px solid var(--line);border-radius:9px;background:var(--bg)}
+.toast{position:fixed;left:50%;top:calc(env(safe-area-inset-top) + 60px);transform:translateX(-50%);background:var(--fg);color:var(--bg);border-radius:999px;padding:8px 16px;font-size:13px;opacity:0;transition:opacity .2s;pointer-events:none;z-index:9;white-space:nowrap;max-width:92vw;overflow:hidden;text-overflow:ellipsis}
 .toast.on{opacity:.93}
 </style>
 </head>
@@ -88,24 +142,56 @@ main{flex:1;min-height:0;display:flex;flex-direction:column;position:relative}
     <div class="compose"><textarea id="diary-in" rows="1" placeholder="今日のこと"></textarea><button class="send" id="diary-send" aria-label="追加">⬆️</button></div>
   </section>
   <section class="pane" id="p-notes">
+    <div class="nav" id="nav"></div>
     <div id="note-hint"></div>
-    <div class="list" id="note-list"></div>
-    <button class="fab" id="note-new" aria-label="新しいノート">✏️</button>
+    <div class="bubs" id="bubs"></div>
+    <div class="nmode" id="nmode"></div>
+    <div class="compose"><button class="ib" id="n-arrow" aria-label="ほかのノートへのリンク（->ID）">→</button><textarea id="note-in" rows="1" placeholder="新しいノート"></textarea><button class="ib" id="n-expand" aria-label="大きく書く">⤢</button><button class="send" id="note-send" aria-label="追加">⬆️</button></div>
   </section>
   <section class="pane" id="p-edit">
     <div class="datebar" style="padding-bottom:6px"><button class="ib" id="edit-back" aria-label="戻る">◀</button><b id="edit-state"></b><span style="width:42px"></span></div>
     <textarea class="editor" id="edit-body" placeholder="書き始める" spellcheck="false"></textarea>
-    <div class="edtools"><button id="t-colon" title="ほかのノートへのリンク">：</button><button id="t-n" title="次の (n)">(n)</button><button id="t-arrow" title="->">→</button><button id="t-hash">#</button><button id="t-list">・</button></div>
+    <div class="edtools"><button id="t-arrow" title="ほかのノートへのリンク（->ID）">→ リンク</button><button id="t-n" title="次の (n)">(n)</button><button id="t-hash">#</button><button id="t-list">・</button></div>
   </section>
   <section class="pane" id="p-paper">
-    <div class="cam" id="cam"><div class="count" id="cnt">0 枚</div><div class="msg" id="cam-msg">カメラを準備しています…</div></div>
-    <div class="shutter"><button id="shot" aria-label="撮る"></button></div>
-    <div class="strip" id="strip"></div>
-    <div class="hint" style="margin-bottom:8px">番号は PC で付けます。PC に取り込んだあとに消すかは、あなたが決めます。</div>
+    <div class="seg"><button class="chip on" data-pm="card">🗂️ カード</button><button class="chip" data-pm="memo">📓 メモ帳</button><span class="grow"></span><button class="ib" id="b-trash" aria-label="ごみ箱">🗑️</button></div>
+    <div id="pc-card" class="pane on" style="display:flex">
+      <button class="bigbtn" id="scan-card">📷 カードを撮る</button>
+      <div class="chips" id="pfilter"></div>
+      <div id="paper-hint"></div>
+      <div class="grid" id="pgrid"></div>
+    </div>
+    <div id="pc-memo" class="pane" style="display:none">
+      <div class="chips" id="books"></div>
+      <div class="pmrow"><span>次のページ</span><input class="num" type="number" id="pm-next" inputmode="numeric" min="1" step="1"><span class="grow"></span></div>
+      <div class="btnrow"><button class="bigbtn" id="scan-spread">📖 見開きを撮る</button><button class="bigbtn sub" id="scan-page" style="flex:none;width:30%">📄 1 ページ</button></div>
+      <div id="pm-hint"></div>
+      <div class="grid" id="pmgrid"></div>
+    </div>
+  </section>
+  <section class="pane" id="p-name">
+    <div class="datebar" style="padding-bottom:6px"><button class="ib" id="nm-back" aria-label="やめる">◀</button><b id="nm-pos"></b><button class="ib" id="nm-del" aria-label="捨てる（ごみ箱へ）">🗑️</button></div>
+    <div class="nmimg" id="nm-box"><img id="nm-img" alt=""></div>
+    <div class="nmform">
+      <div class="nmid"><input id="nm-id" placeholder="ID（例 2a1）" autocomplete="off" autocapitalize="off" spellcheck="false" enterkeyhint="next"></div>
+      <div class="nmmsg" id="nm-msg"></div>
+      <div class="chips" id="nm-sug"></div>
+      <input class="kw" id="nm-kw" placeholder="キーワード（、で区切る。無くてもよい）" autocomplete="off" enterkeyhint="done">
+      <div class="chips" id="nm-kwc"></div>
+      <div class="nmbtns"><button id="nm-skip">飛ばす</button><button id="nm-clear" hidden>名前を外す</button><button class="primary" id="nm-save">保存して次へ</button></div>
+    </div>
+  </section>
+  <section class="pane" id="p-rec">
+    <div class="recbox"><div class="rectime" id="rec-time">00:00</div><button class="recbtn" id="rec-btn" aria-label="録音"></button><div class="recmsg" id="rec-msg">押すと録音を始めます。画面を消しても続きます。<br>PC に取り込むと、PC で文字にします。</div></div>
+    <div id="rec-hint"></div>
+    <div class="list" id="rec-list"></div>
   </section>
 </main>
-<nav class="tabs"><button data-t="memo" class="on"><span>📒</span>メモ帳</button><button data-t="diary"><span>📔</span>日記</button><button data-t="notes"><span>📝</span>ノート</button><button data-t="paper"><span>📷</span>紙</button></nav>
-<div class="sheet" id="sheet" hidden><div class="bar"><input id="sheet-q" placeholder="🔎 リンクするノートを探す" autocomplete="off"><button class="ib" id="sheet-x" aria-label="やめる">✖️</button></div><div class="help">押すと、本文に <b>->ID</b> が入ります</div><div class="res" id="sheet-res"></div></div>
+<nav class="tabs"><button data-t="memo" class="on"><span>📒</span>メモ帳</button><button data-t="diary"><span>📔</span>日記</button><button data-t="notes"><span>📝</span>ノート</button><button data-t="paper"><span>📷</span>紙</button><button data-t="rec"><span>🎙️</span>録音</button></nav>
+<div class="sheet" id="sheet" hidden><div class="bar"><input id="sheet-q" placeholder="🔎 リンクするノートを探す（ID・題）" autocomplete="off"><button class="ib" id="sheet-x" aria-label="やめる">✖️</button></div><div class="help">押すと、<b>->ID</b> が入ります</div><div class="res" id="sheet-res"></div></div>
+<div class="sheet act" id="act" hidden><div class="ah" id="act-h"></div><div id="act-b"></div><button class="ai" id="act-x">やめる</button></div>
+<div class="sheet" id="trashsheet" hidden><div class="bar"><b style="flex:1;font-size:16px;line-height:44px">🗑️ ごみ箱（スマホ）</b><button class="chip" id="trash-empty">空にする</button><button class="ib" id="trash-x" aria-label="閉じる">✖️</button></div><div class="help">消した写真・録音です。「戻す」で元に戻せます。</div><div class="res" id="trash-res"></div></div>
+<div class="viewer" id="viewer" hidden><div class="vimg"><img id="v-img" alt=""></div><div class="vbar"><button class="ib" id="v-x" aria-label="閉じる">◀</button><span>メモ帳</span><input id="v-book" autocapitalize="characters"><span>ページ</span><input id="v-page" type="number" inputmode="numeric"><span class="grow"></span><button class="ib" id="v-del" aria-label="捨てる">🗑️</button><button class="chip on" id="v-ok">保存</button></div></div>
 <div class="sheet" id="fmtsheet" hidden style="top:auto;border-radius:18px 18px 0 0;max-height:86vh;overflow:auto;padding-bottom:max(12px,env(safe-area-inset-bottom))">
   <div class="bar" style="padding-bottom:0"><b style="flex:1;font-size:16px;line-height:44px">⏱️ 時刻の見せ方</b><button class="ib" id="fmt-x" aria-label="閉じる">✖️</button></div>
   <div class="help" style="padding:4px 14px 8px">保存は、いつも「年月日 時:分:秒」です。ここでは、見せ方だけを変えます（PC と同じ選び方）。</div>
@@ -113,7 +199,7 @@ main{flex:1;min-height:0;display:flex;flex-direction:column;position:relative}
   <div id="fmt-list"></div>
   <div class="row"><button class="chip" id="fmt-new">＋ カスタムを作る</button></div>
   <div id="fmt-edit" hidden>
-    <div class="row"><span class="t">名前</span><input type="text" id="fe-name" placeholder="例: 時分だけ" style="flex:1;min-width:0;font:inherit;padding:8px;border:1px solid var(--line);border-radius:9px;background:var(--bg);color:var(--fg)"></div>
+    <div class="row"><span class="t">名前</span><input type="text" id="fe-name" placeholder="例: 時分だけ" style="flex:1;min-width:0;padding:8px;border:1px solid var(--line);border-radius:9px;background:var(--bg)"></div>
     <div class="row" style="flex-wrap:wrap;gap:14px"><label><input type="checkbox" id="fe-y"> 年</label><label><input type="checkbox" id="fe-mo"> 月</label><label><input type="checkbox" id="fe-d"> 日</label><label><input type="checkbox" id="fe-h"> 時</label><label><input type="checkbox" id="fe-mi"> 分</label><label><input type="checkbox" id="fe-s"> 秒</label></div>
     <label class="row"><input type="checkbox" id="fe-ja"><span class="t">「2026年11月13日 12時54分30秒」の書き方</span></label>
     <div class="row"><span class="t">区切り（日付・時刻）</span><input class="num" type="text" id="fe-dsep" style="width:60px;text-align:center"><input class="num" type="text" id="fe-tsep" style="width:60px;text-align:center"></div>
@@ -142,40 +228,79 @@ const esc = s => String(s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;',
 // ---- 保存（Android の WebView では Native、ブラウザで試すときは localStorage）
 const Native = window.Native || (() => {
   const g = k => { try { return JSON.parse(localStorage.getItem('yn:' + k) || 'null'); } catch { return null; } }, s = (k, v) => localStorage.setItem('yn:' + k, JSON.stringify(v));
-  const files = () => g('files') || {};
+  const files = () => g('files') || {}, tr = () => g('trash') || {};
   return {
     list: () => JSON.stringify(Object.keys(files()).map(n => ({ name: n, size: files()[n].length }))),
     read: n => files()[n] || '', write: (n, t) => { const f = files(); f[n] = t; s('files', f); return true; }, writeB64: (n, b) => { const f = files(); f[n] = 'data:image/jpeg;base64,' + b; s('files', f); return true; },
     remove: n => { const f = files(); delete f[n]; s('files', f); return true; }, meta: n => (g('meta:' + n) ? JSON.stringify(g('meta:' + n)) : ''),
-    url: n => { const t = files()[n] || ''; return t.startsWith('data:') ? t : ''; }, pref: k => String(localStorage.getItem('pref:' + k) || ''), setPref: (k, v) => localStorage.setItem('pref:' + k, v), dev: true
+    url: n => { const t = files()[n] || ''; return t.startsWith('data:') ? t : ''; }, pref: k => String(localStorage.getItem('pref:' + k) || ''), setPref: (k, v) => localStorage.setItem('pref:' + k, v),
+    toTrash: n => { const f = files(), t = tr(); if (!(n in f)) return false; t[Date.now() + '-' + n] = f[n]; delete f[n]; s('files', f); s('trash', t); return true; },
+    trashList: () => JSON.stringify(Object.keys(tr()).sort().reverse().map(n => ({ name: n, size: tr()[n].length }))),
+    fromTrash: n => { const f = files(), t = tr(), o = n.replace(/^\d+-/, ''); if (!(n in t) || o in f) return false; f[o] = t[n]; delete t[n]; s('files', f); s('trash', t); return true; },
+    trashRead: n => tr()[n] || '', trashUrl: n => { const v = tr()[n] || ''; return v.startsWith('data:') ? v : ''; }, emptyTrash: () => { const c = Object.keys(tr()).length; s('trash', {}); return c; },
+    dev: true
   };
 })();
 const pad = n => String(n).padStart(2, '0');
 const nowAt = () => { const d = new Date(); return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`; };   // 保存は、いつも秒まで
 const today = () => nowAt().slice(0, 10);
 const rid = () => Date.now() + '-' + Math.random().toString(36).slice(2, 6);
-const toast = t => { const e = $('#toast'); e.textContent = t; e.classList.add('on'); clearTimeout(toast.t); toast.t = setTimeout(() => e.classList.remove('on'), 1800); };
+const toast = t => { const e = $('#toast'); e.textContent = t; e.classList.add('on'); clearTimeout(toast.t); toast.t = setTimeout(() => e.classList.remove('on'), 2000); };
 const shiftDay = (d, n) => { const t = new Date(d + 'T12:00:00'); t.setDate(t.getDate() + n); return `${t.getFullYear()}-${pad(t.getMonth() + 1)}-${pad(t.getDate())}`; };
 const wd = d => '日月火水木金土'[new Date(d + 'T12:00:00').getDay()];
 const coarse = matchMedia('(pointer:coarse)').matches;
+const stripStamps = t => String(t || '').replace(/^(\s*(?:>[ \t]?)*(?:#{1,6}[ \t]+|[-*+][ \t]+(?:\[[ xX]\][ \t]+)?)?)\d{4}-\d{2}-\d{2} \d{2}:\d{2}(?::\d{2})? ?/gm, '$1');
+const firstLine = t => (stripStamps(t).split('\n').find(x => x.trim()) || '').replace(/^#+\s*/, '').slice(0, 60);
+
+// ---- Folgezettel の ID（PC の lib.js と同じ計算）
+const isId = s => /^[0-9]+[a-z0-9]*$/.test(String(s || ''));
+const tokId = id => String(id).match(/\d+|[a-z]+/g) || [];
+const cmpTok = (a, b) => { const an = /\d/.test(a), bn = /\d/.test(b); if (an && bn) return +a - +b; if (!an && !bn) return a.length - b.length || (a < b ? -1 : a > b ? 1 : 0); return an ? -1 : 1; };
+const cmpId = (x, y) => { const a = tokId(x), b = tokId(y); for (let i = 0; i < Math.min(a.length, b.length); i++) { const c = cmpTok(a[i], b[i]); if (c) return c; } return a.length - b.length; };
+const incLetters = s => { const c = s.split(''); let i = c.length - 1; while (i >= 0) { if (c[i] === 'z') { c[i] = 'a'; i--; } else { c[i] = String.fromCharCode(c[i].charCodeAt(0) + 1); return c.join(''); } } return 'a' + c.join(''); };
+const sibling = id => { const t = tokId(id); if (!t.length) return '1'; const l = t.pop(); t.push(/\d/.test(l) ? String(+l + 1) : incLetters(l)); return t.join(''); };
+const child = id => { const t = tokId(id); if (!t.length) return '1'; return id + (/\d/.test(t[t.length - 1]) ? 'a' : '1'); };
+const parentIn = (id, has) => { const t = tokId(id); while (t.length > 1) { t.pop(); const p = t.join(''); if (has(p)) return p; } return null; };
+const upId = id => { const t = tokId(id); if (t.length <= 1) return null; t.pop(); return t.join(''); };
+// メモ帳の記号: A, B, …, Z, AA, AB, …
+const bookNo = s => { let n = 0; for (const c of String(s)) n = n * 26 + (c.charCodeAt(0) - 64); return n; };
+const bookOf = n => { let s = ''; while (n > 0) { const r = (n - 1) % 26; s = String.fromCharCode(65 + r) + s; n = Math.floor((n - 1) / 26); } return s; };
+const isBook = s => /^[A-Z]+$/.test(String(s || ''));
 
 // ---- 状態: 受信箱のファイルを全部読む
-let items = [], imported = new Set(), kindsPc = [], notesPc = [], showStamp = Native.pref('stamp') !== '0';
+let items = [], imported = new Set(), kindsPc = [], notesPc = [], pmemoPc = {}, showStamp = Native.pref('stamp') !== '0';
+const META = /^(imported|kinds|notes|pmemo)\.json$/;
 function load() {
   let list = []; try { list = JSON.parse(Native.list() || '[]'); } catch { }
   items = [];
   for (const f of list) {
-    if (!/\.json$/.test(f.name) || /^(imported|kinds|notes)\.json$/.test(f.name)) continue;
+    if (!/\.json$/.test(f.name) || META.test(f.name)) continue;
     try { const d = JSON.parse(Native.read(f.name)); if (d && d.type) items.push({ name: f.name, d }); } catch { }
   }
   const meta = n => { try { return JSON.parse(Native.meta(n) || 'null'); } catch { return null; } };
   imported = new Set((meta('imported.json') || {}).names || []);
   kindsPc = ((meta('kinds.json') || {}).kinds || []);
   notesPc = ((meta('notes.json') || {}).notes || []);
+  pmemoPc = ((meta('pmemo.json') || {}).books || {});
 }
 const isSent = it => imported.has(it.name);
 const save = (name, d) => Native.write(name, JSON.stringify(d));
+const imgUrl = n => (Native.url ? Native.url(n) : '');
 
+// ---- 時刻の見せ方（PC と同じ形。保存は、いつも秒まで）
+const SAMPLE = '2026-11-13 12:54:30';
+const normFmt = f => { if (!f || f.all) return { all: true }; const t = k => f[k] !== false; return { y: t('y'), mo: t('mo'), d: t('d'), h: t('h'), mi: t('mi'), s: t('s'), dsep: f.dsep ?? '-', tsep: f.tsep ?? ':', short: !!f.short, ja: !!f.ja, name: f.name }; };
+function formatAt(at, fmt) {
+  at = String(at || ''); const f = normFmt(fmt); if (f.all) return at;
+  const m = /^(\d{4})-(\d{2})-(\d{2}) (\d{2}):(\d{2})(?::(\d{2}))?$/.exec(at); if (!m) return at;
+  const date = f.ja ? [f.y && m[1] + '年', f.mo && m[2] + '月', f.d && m[3] + '日'].filter(Boolean).join('') : [f.y && m[1], f.mo && m[2], f.d && m[3]].filter(Boolean).join(f.dsep);
+  const time = f.ja ? [f.h && m[4] + '時', f.mi && m[5] + '分', f.s && m[6] && m[6] + '秒'].filter(Boolean).join('') : [f.h && m[4], f.mi && m[5], f.s && m[6]].filter(Boolean).join(f.tsep);
+  return [f.short && at.slice(0, 10) === today() ? '' : date, time].filter(Boolean).join(' ');
+}
+let presets = (() => { try { const d = JSON.parse(Native.pref('presets') || 'null'); if (d && Array.isArray(d.list)) return { current: d.current || 'all', list: d.list.map(normFmt).filter(x => x.name) }; } catch { } return { current: 'all', list: [] }; })();
+const savePresets = () => Native.setPref('presets', JSON.stringify(presets));
+const curFmt = () => presets.current === 'all' ? { all: true } : (presets.list.find(x => x.name === presets.current) || { all: true });
+const showAt = at => formatAt(at, curFmt());
 function drawFmt() {
   $('#fmt-show').checked = showStamp;
   const row = (id, label, on, sample) => `<label class="row"><input type="radio" name="fmtp" value="${esc(id)}"${on ? ' checked' : ''}><span class="t">${esc(label)}<small style="color:var(--sub)">　${esc(sample)}</small></span>${id === 'all' ? '' : `<button class="chip" data-fe="${esc(id)}">直す</button>`}</label>`;
@@ -200,18 +325,20 @@ $('#fe-cancel').onclick = () => { $('#fmt-edit').hidden = true; };
 $('#fe-ok').onclick = () => { const f = feRead(); if (!f.name || f.name === 'all' || f.name === '全部') return toast('名前を入れてください（「全部」は使えません）'); presets.list = [...presets.list.filter(x => x.name !== f.name && x.name !== feOld), normFmt(f)]; presets.current = f.name; savePresets(); $('#fmt-edit').hidden = true; drawFmt(); draw(); toast(`⏱️ 「${f.name}」を保存して、使います`); };
 $('#fe-del').onclick = () => { presets.list = presets.list.filter(x => x.name !== feOld); if (presets.current === feOld) presets.current = 'all'; savePresets(); $('#fmt-edit').hidden = true; drawFmt(); draw(); };
 $('#fmt-x').onclick = () => { $('#fmtsheet').hidden = true; };
+
 // ---- タブ
 let tab = 'memo', memoDay = today(), diaryDay = today(), kind = Native.pref('kind') || '日記', editing = null;
-const TITLES = { memo: 'メモ帳', diary: '日記', notes: 'ノート', paper: '紙のカード', edit: 'ノート' };
+const TITLES = { memo: 'メモ帳', diary: '日記', notes: 'ノート', paper: '紙', edit: 'ノート', name: '紙に名前を付ける', rec: '録音' };
+const FULL = new Set(['edit', 'name']);   // 下のタブを隠す画面
 function show(t) {
-  if (tab === 'paper' && t !== 'paper') stopCam();
-  if (t === 'memo') memoDay = today();    // メモ帳・日記は、いつも今日を開く（日付を選ぶと、その日を開く）
-  if (t === 'diary') diaryDay = today();
-  tab = t; $$('.pane').forEach(p => p.classList.toggle('on', p.id === 'p-' + t));
-  $$('.tabs button').forEach(b => b.classList.toggle('on', b.dataset.t === (t === 'edit' ? 'notes' : t)));
-  $('.tabs').style.display = t === 'edit' ? 'none' : ''; $('#ttl').textContent = TITLES[t];
-  $('#b-stamp').style.visibility = t === 'paper' || t === 'edit' ? 'hidden' : '';
-  draw(); if (t === 'paper') startCam();
+  if (t === 'memo' && tab !== 'memo') memoDay = today();    // メモ帳・日記は、いつも今日を開く（日付を選ぶと、その日を開く）
+  if (t === 'diary' && tab !== 'diary') diaryDay = today();
+  tab = t; $$('.pane').forEach(p => { if (p.parentElement.tagName === 'MAIN') p.classList.toggle('on', p.id === 'p-' + t); });
+  const tb = t === 'edit' ? 'notes' : t === 'name' ? 'paper' : t;
+  $$('.tabs button').forEach(b => b.classList.toggle('on', b.dataset.t === tb));
+  $('.tabs').style.display = FULL.has(t) ? 'none' : ''; $('#ttl').textContent = TITLES[t];
+  $('#b-stamp').style.visibility = t === 'memo' || t === 'diary' ? '' : 'hidden';
+  draw();
 }
 $$('.tabs button').forEach(b => b.onclick = () => show(b.dataset.t));
 for (const k of ['memo', 'diary']) {
@@ -224,144 +351,406 @@ for (const ev of ['pointerup', 'pointerleave', 'pointercancel']) $('#b-stamp').a
 $('#b-stamp').addEventListener('contextmenu', e => { e.preventDefault(); drawFmt(); $('#fmtsheet').hidden = false; });
 $('#b-stamp').onclick = () => { if (fmtLong) { fmtLong = false; return; } showStamp = !showStamp; Native.setPref('stamp', showStamp ? '1' : '0'); $('#b-stamp').classList.toggle('on', showStamp); draw(); toast(showStamp ? '⏱️ 行ごとの時刻を表示' : '⏱️ 行ごとの時刻を隠す（保存はされています）'); };
 
-// ---- 時刻の見せ方（今日なら時刻だけ、ほかの日は年月日も）
-// 見せ方: 「全部」か、名前をつけて保存したカスタム（PC と同じ形）。保存は、いつも秒まで
-const SAMPLE = '2026-11-13 12:54:30';
-const normFmt = f => { if (!f || f.all) return { all: true }; const t = k => f[k] !== false; return { y: t('y'), mo: t('mo'), d: t('d'), h: t('h'), mi: t('mi'), s: t('s'), dsep: f.dsep ?? '-', tsep: f.tsep ?? ':', short: !!f.short, ja: !!f.ja, name: f.name }; };
-function formatAt(at, fmt) {
-  at = String(at || ''); const f = normFmt(fmt); if (f.all) return at;
-  const m = /^(\d{4})-(\d{2})-(\d{2}) (\d{2}):(\d{2})(?::(\d{2}))?$/.exec(at); if (!m) return at;
-  const date = f.ja ? [f.y && m[1] + '年', f.mo && m[2] + '月', f.d && m[3] + '日'].filter(Boolean).join('') : [f.y && m[1], f.mo && m[2], f.d && m[3]].filter(Boolean).join(f.dsep);
-  const time = f.ja ? [f.h && m[4] + '時', f.mi && m[5] + '分', f.s && m[6] && m[6] + '秒'].filter(Boolean).join('') : [f.h && m[4], f.mi && m[5], f.s && m[6]].filter(Boolean).join(f.tsep);
-  return [f.short && at.slice(0, 10) === today() ? '' : date, time].filter(Boolean).join(' ');
-}
-let presets = (() => { try { const d = JSON.parse(Native.pref('presets') || 'null'); if (d && Array.isArray(d.list)) return { current: d.current || 'all', list: d.list.map(normFmt).filter(x => x.name) }; } catch { } return { current: 'all', list: [] }; })();
-const savePresets = () => Native.setPref('presets', JSON.stringify(presets));
-const curFmt = () => presets.current === 'all' ? { all: true } : (presets.list.find(x => x.name === presets.current) || { all: true });
-const showAt = at => formatAt(at, curFmt());
 const hintFor = (names, cls) => {
   const done = names.filter(n => imported.has(n));
   return done.length ? `<div class="hint">✔ PC に取り込み済み ${done.length} 件<button data-clear="${cls}">🗑️ スマホから消す</button></div>` : '';
 };
+function draw() {
+  if (tab === 'memo') drawMemo();
+  else if (tab === 'diary') drawDiary();
+  else if (tab === 'notes') drawNotes();
+  else if (tab === 'paper') drawPaper();
+  else if (tab === 'name') drawName();
+  else if (tab === 'rec') drawRec();
+}
+
+// ==== メモ帳・日記（チャット）====
+// 吹き出しを長押し → メンション（同じ日は ->(n)、別の日は ->日付(n)）・消す
+const chatItems = (type, day, k) => items.filter(i => i.d.type === type && (type === 'memo' ? String(i.d.at).slice(0, 10) === day : (i.d.kind || '日記') === k && i.d.date === day)).sort((a, b) => (a.d.at || '').localeCompare(b.d.at || '') || a.name.localeCompare(b.name));
 function chatList(sel, hintSel, arr) {
   const box = $(sel);
-  box.innerHTML = arr.length ? arr.map(it => `<div class="entry" data-n="${esc(it.name)}">${showStamp ? `<time>${esc(showAt(it.d.at))}</time>` : ''}<div class="t">${esc(it.d.text)}</div><span class="st ${isSent(it) ? 'sent' : ''}">${isSent(it) ? '✔ 取り込み済み' : '未送信'}</span></div>`).join('') : '<div class="none">まだありません。下の欄に書くと、時刻つきで並びます。</div>';
+  box.innerHTML = arr.length ? arr.map(it => `<div class="entry" data-n="${esc(it.name)}">${showStamp ? `<time>${esc(showAt(it.d.at))}</time>` : ''}<div class="t">${esc(it.d.text)}</div><span class="st ${isSent(it) ? 'sent' : ''}">${isSent(it) ? '✔' : '未送信'}</span></div>`).join('') : '<div class="none">まだありません。下の欄に書くと、時刻つきで並びます。<br>吹き出しを長押しすると、メンションできます。</div>';
   $(hintSel).innerHTML = hintFor(arr.map(x => x.name), 'chat'); box.scrollTop = box.scrollHeight;
 }
-function draw() {
-  if (tab === 'memo') {
-    $('#memo-date').textContent = `${memoDay}（${wd(memoDay)}）${memoDay === today() ? '　今日' : ''}`; $('#memo-pick').value = memoDay; $('#memo-today').hidden = memoDay === today();
-    chatList('#memo-list', '#memo-hint', items.filter(i => i.d.type === 'memo' && String(i.d.at).slice(0, 10) === memoDay).sort((a, b) => a.d.at.localeCompare(b.d.at) || a.name.localeCompare(b.name)));
-  } else if (tab === 'diary') {
-    const used = [...new Set(items.filter(i => i.d.type === 'diary').map(i => i.d.kind))], kinds = ['日記', ...new Set([...kindsPc.filter(k => k !== '日記' && k !== 'メモ帳'), ...used.filter(k => k !== '日記')])];
-    $('#kinds').innerHTML = kinds.map(k => `<button class="chip${k === kind ? ' on' : ''}" data-kind="${esc(k)}">${k === '日記' ? '📔 ' : ''}${esc(k)}</button>`).join('') + '<button class="chip" id="kind-add">＋</button>';
-    $('#diary-date').textContent = `${diaryDay}（${wd(diaryDay)}）${diaryDay === today() ? '　今日' : ''}`; $('#diary-pick').value = diaryDay; $('#diary-today').hidden = diaryDay === today();
-    chatList('#diary-list', '#diary-hint', items.filter(i => i.d.type === 'diary' && (i.d.kind || '日記') === kind && i.d.date === diaryDay).sort((a, b) => (a.d.at || '').localeCompare(b.d.at || '') || a.name.localeCompare(b.name)));
-  } else if (tab === 'notes') {
-    const arr = items.filter(i => i.d.type === 'note').sort((a, b) => (b.d.updated || b.d.created || '').localeCompare(a.d.updated || a.d.created || ''));
-    $('#note-list').innerHTML = arr.length ? arr.map(it => `<div class="row" data-n="${esc(it.name)}"><span class="t">${esc(firstLine(it.d.body) || '（無題）')}</span><span class="sub">${esc(showAt((it.d.updated || it.d.created || '').slice(0, 16)))}</span><span class="badge">${isSent(it) ? '✔ 取り込み済み' : 'ID なし'}</span></div>`).join('') : '<div class="none">ここで書いたノートは、ID なしで PC に届きます。<br>ID は PC で付けます。<br>右下の ✏️ で書き始めます。</div>';
-    $('#note-hint').innerHTML = hintFor(arr.map(x => x.name), 'note');
-  } else if (tab === 'paper') drawStrip();
+function drawMemo() {
+  $('#memo-date').textContent = `${memoDay}（${wd(memoDay)}）${memoDay === today() ? '　今日' : ''}`; $('#memo-pick').value = memoDay; $('#memo-today').hidden = memoDay === today();
+  chatList('#memo-list', '#memo-hint', chatItems('memo', memoDay));
 }
-const firstLine = t => (String(t || '').split('\n').find(x => x.trim()) || '').replace(/^#+\s*/, '').slice(0, 60);
-
-// ---- チャット（メモ帳・日記）
+function drawDiary() {
+  const used = [...new Set(items.filter(i => i.d.type === 'diary').map(i => i.d.kind))], kinds = ['日記', ...new Set([...kindsPc.filter(k => k !== '日記' && k !== 'メモ帳'), ...used.filter(k => k && k !== '日記')])];
+  $('#kinds').innerHTML = kinds.map(k => `<button class="chip${k === kind ? ' on' : ''}" data-kind="${esc(k)}">${k === '日記' ? '📔 ' : ''}${esc(k)}</button>`).join('') + '<button class="chip" id="kind-add">＋</button>';
+  $('#diary-date').textContent = `${diaryDay}（${wd(diaryDay)}）${diaryDay === today() ? '　今日' : ''}`; $('#diary-pick').value = diaryDay; $('#diary-today').hidden = diaryDay === today();
+  chatList('#diary-list', '#diary-hint', chatItems('diary', diaryDay, kind));
+}
 function send(inputSel, make) {
   const el = $(inputSel), text = el.value.replace(/\s+$/, ''); if (!text.trim()) return;
-  const name = make(text); el.value = ''; el.style.height = ''; load(); draw(); void name;
+  make(text); el.value = ''; el.style.height = ''; load(); draw();
 }
-const sendMemo = () => send('#memo-in', text => { const at = memoDay === today() ? nowAt() : memoDay + ' ' + nowAt().slice(11); const name = 'memo-' + rid() + '.json'; save(name, { type: 'memo', at, text }); return name; });
-const sendDiary = () => send('#diary-in', text => { const at = diaryDay === today() ? nowAt() : diaryDay + ' ' + nowAt().slice(11); const name = 'diary-' + rid() + '.json'; save(name, { type: 'diary', kind, date: diaryDay, at, text }); return name; });
+const sendMemo = () => send('#memo-in', text => { const at = memoDay === today() ? nowAt() : memoDay + ' ' + nowAt().slice(11); save('memo-' + rid() + '.json', { type: 'memo', at, text }); });
+const sendDiary = () => send('#diary-in', text => { const at = diaryDay === today() ? nowAt() : diaryDay + ' ' + nowAt().slice(11); save('diary-' + rid() + '.json', { type: 'diary', kind, date: diaryDay, at, text }); });
+const autoGrow = el => el.addEventListener('input', () => { el.style.height = 'auto'; el.style.height = Math.min(el.scrollHeight, 160) + 'px'; });
 for (const [sel, fn, btn] of [['#memo-in', sendMemo, '#memo-send'], ['#diary-in', sendDiary, '#diary-send']]) {
   const el = $(sel);
   $(btn).onclick = () => { fn(); el.focus(); };
-  el.addEventListener('input', () => { el.style.height = 'auto'; el.style.height = Math.min(el.scrollHeight, 140) + 'px'; });
+  autoGrow(el);
   el.addEventListener('keydown', e => { if (e.key === 'Enter' && !e.shiftKey && !e.isComposing && !coarse) { e.preventDefault(); fn(); } });
 }
+// メンション: 相手の吹き出しに (n) が無ければ付ける（まだ送っていなければ本文に、取り込み済みなら PC へ「印」を送る）
+const anchorOf = text => { const m = String(text || '').match(/\((\d+)\)\s*$/); return m ? +m[1] : 0; };
+function mention(it) {
+  const isMemo = it.d.type === 'memo', day = isMemo ? String(it.d.at).slice(0, 10) : it.d.date, k = isMemo ? 'メモ帳' : (it.d.kind || '日記');
+  let n = anchorOf(it.d.text);
+  if (!n) {
+    const peers = isMemo ? chatItems('memo', day) : chatItems('diary', day, k);
+    n = Math.max(0, ...peers.flatMap(p => [...String(p.d.text).matchAll(/\((\d+)\)/g)].map(m => +m[1])), ...items.filter(x => x.d.type === 'mark' && x.d.date === day && x.d.kind === k).map(x => +x.d.n || 0)) + 1;
+    if (!isSent(it)) { it.d.text = String(it.d.text).replace(/\s+$/, '') + ` (${n})`; save(it.name, it.d); }
+    else save('mark-' + rid() + '.json', { type: 'mark', kind: k, date: day, at: it.d.at, n, made: nowAt() });
+  }
+  const curDay = isMemo ? memoDay : diaryDay, curKind = isMemo ? 'メモ帳' : kind;
+  const ref = day === curDay && k === curKind ? `->(${n})` : `->${day}${k === '日記' ? '' : '-' + k}(${n})`;
+  const el = $(isMemo ? '#memo-in' : '#diary-in'); el.focus(); el.setRangeText(ref + ' ', el.selectionStart, el.selectionEnd, 'end'); el.dispatchEvent(new Event('input'));
+  load(); draw(); toast(`↪️ ${ref} を入れました`);
+}
+// 長押し
+let hold = null, holdFired = false;
+const longPress = (sel, fn) => {
+  document.addEventListener('pointerdown', e => {
+    const el = e.target.closest(sel); if (!el) return; holdFired = false;
+    hold = setTimeout(() => { hold = null; holdFired = true; el.classList.add('hold'); if (navigator.vibrate) navigator.vibrate(15); fn(el); setTimeout(() => el.classList.remove('hold'), 400); }, 520);
+  });
+};
+for (const ev of ['pointerup', 'pointermove', 'pointercancel']) document.addEventListener(ev, e => { if (hold && (ev !== 'pointermove' || Math.abs(e.movementY) + Math.abs(e.movementX) > 6)) { clearTimeout(hold); hold = null; } });
+longPress('.entry[data-n]', row => {
+  const it = items.find(x => x.name === row.dataset.n); if (!it) return;
+  actions(String(it.d.text).slice(0, 40), [
+    ['↪️ メンション（この吹き出しを指す）', () => mention(it)],
+    ...(isSent(it) ? [] : [['🗑️ 消す（まだ PC に送っていない）', () => { if (confirm('この 1 件を消しますか？')) { Native.remove(it.name); load(); draw(); } }, true]])
+  ]);
+});
+// 操作のシート
+function actions(head, list) {
+  $('#act-h').textContent = head || ''; $('#act-b').innerHTML = list.map(([label, , danger], i) => `<button class="ai${danger ? ' danger' : ''}" data-ai="${i}">${esc(label)}</button>`).join('');
+  $('#act').hidden = false; actions.list = list;
+}
+$('#act-b').onclick = e => { const b = e.target.closest('[data-ai]'); if (!b) return; $('#act').hidden = true; const f = actions.list[+b.dataset.ai]; if (f) f[1](); };
+$('#act-x').onclick = () => { $('#act').hidden = true; };
 document.addEventListener('click', e => {
   const d = e.target.closest('[data-day]'); if (d) { const n = +d.dataset.day; if (d.dataset.for === 'memo') memoDay = shiftDay(memoDay, n); else diaryDay = shiftDay(diaryDay, n); draw(); return; }
   const k = e.target.closest('[data-kind]'); if (k) { kind = k.dataset.kind; Native.setPref('kind', kind); draw(); return; }
-  if (e.target.id === 'kind-add') { const name = (prompt && prompt('新しい時系列記録の名前') || '').trim(); if (name && !/[\\/:*?"<>|]/.test(name)) { kind = name; Native.setPref('kind', kind); draw(); } return; }
+  if (e.target.id === 'kind-add') { const name = (prompt && prompt('新しい時系列記録の名前') || '').trim(); if (name && !/[\\/:*?"<>|()（）]/.test(name)) { kind = name; Native.setPref('kind', kind); draw(); } return; }
   const td = e.target.closest('[data-today]'); if (td) { if (td.dataset.today === 'memo') memoDay = today(); else diaryDay = today(); draw(); return; }
-  const c = e.target.closest('[data-clear]'); if (c) { clearImported(); return; }
+  const c = e.target.closest('[data-clear]'); if (c) { clearImported(c); return; }
 });
 // 取り込み済みを、スマホから消す（消すかどうかは、利用者が決める）
-function clearImported() {
-  const btn = $('[data-clear]'); if (!btn) return;
+const CLEAR = { chat: t => t === 'memo' || t === 'diary' || t === 'mark', note: t => t === 'note', paper: t => t === 'paper', pmemo: t => t === 'pmemo', rec: t => t === 'audio' };
+function clearImported(btn) {
   if (btn.dataset.sure !== '1') { btn.dataset.sure = '1'; btn.textContent = '本当に消す？ もう一度押す'; setTimeout(() => { if (btn.isConnected) { btn.dataset.sure = ''; btn.textContent = '🗑️ スマホから消す'; } }, 4000); return; }
-  let n = 0; for (const it of items) if (isSent(it)) { Native.remove(it.name); if (it.d.image) Native.remove(it.d.image); n++; }
+  const ok = CLEAR[btn.dataset.clear] || (() => false);
+  let n = 0; for (const it of items) if (isSent(it) && ok(it.d.type)) { Native.remove(it.name); for (const f of [it.d.image, it.d.file]) if (f) Native.remove(f); n++; }
   load(); draw(); toast(`🗑️ 取り込み済みの ${n} 件を、スマホから消しました`);
 }
-// 長押しで、1 件消す（まだ PC に取り込んでいないもの）
-let hold = null;
-document.addEventListener('pointerdown', e => {
-  const row = e.target.closest('.entry[data-n]'); if (!row) return;
-  hold = setTimeout(() => { hold = null; const name = row.dataset.n, it = items.find(x => x.name === name); if (!it) return; if (isSent(it)) return toast('取り込み済みは、上のボタンでまとめて消せます'); row.classList.add('sel'); setTimeout(() => { if (row.isConnected && confirm('この1件を消しますか？')) { Native.remove(name); load(); draw(); } else row.classList.remove('sel'); }, 30); }, 600);
-});
-for (const ev of ['pointerup', 'pointermove', 'pointercancel']) document.addEventListener(ev, () => { if (hold) { clearTimeout(hold); hold = null; } });
 
-// ---- ノート（ふつうに書く。ID なし）
-$('#note-new').onclick = () => openEditor(null);
-$('#note-list').addEventListener('click', e => { const r = e.target.closest('[data-n]'); if (r) openEditor(r.dataset.n); });
-function openEditor(name) {
+// ==== ノート（チャット形式。1 吹き出し = 1 ノート。並びは Folgezettel の順）====
+// PC のノート（notes.json）と、スマホで書いたノートを、ひとつの並びに。スマホで書いた分岐・並列には、PC と同じ計算で「仮の ID」を見せる（PC で取り込むと決まる）
+let focusKey = Native.pref('focus') || '', nMode = null;   // nMode: { rel: 'child'|'sibling', base: ノート }
+function noteModel() {
+  const pc = notesPc.filter(n => (n.s || 'd') === 'd' && isId(n.id)).map(n => ({ key: 'pc:' + n.id, id: n.id, title: n.title || firstLine(n.body), body: n.body || '', pc: true }));
+  const taken = new Set(pc.map(n => n.id)), byName = new Map(), out = [...pc], loose = [];
+  for (const it of items.filter(i => i.d.type === 'note').sort((a, b) => a.name.localeCompare(b.name))) {
+    const base = it.d.parentName ? (byName.get(it.d.parentName) || {}).id : it.d.parent;
+    let id = null;
+    if (base && taken.has(base) && (it.d.rel === 'child' || it.d.rel === 'sibling')) { id = it.d.rel === 'child' ? child(base) : sibling(base); while (taken.has(id)) id = sibling(id); taken.add(id); }
+    const m = { key: 'ph:' + it.name, id, prov: !!id, title: firstLine(it.d.body), body: it.d.body, it, mine: true, sent: isSent(it) };
+    byName.set(it.name, m);
+    if (m.sent) continue;   // PC に取り込んだものは、PC のノートとして出る
+    (id ? out : loose).push(m);
+  }
+  out.sort((a, b) => cmpId(a.id, b.id));
+  return { list: out, loose, all: [...out, ...loose] };
+}
+function navOf(model, m) {
+  if (!m || !m.id) return { parent: null, sibs: [], kids: [] };
+  const has = id => model.list.some(x => x.id === id), p = parentIn(m.id, has);
+  const pOf = x => parentIn(x.id, has);
+  return { parent: p ? model.list.find(x => x.id === p) : null, sibs: model.list.filter(x => x !== m && pOf(x) === p && tokId(x.id).length === tokId(m.id).length), kids: model.list.filter(x => pOf(x) === m.id) };
+}
+const depthOf = id => Math.max(0, tokId(id).length - 1);
+const bubHtml = m => {
+  const body = stripStamps(m.body || '').replace(/^#\s+.*\n?/, '').trim(), long = body.split('\n').length > 5 || body.length > 240;
+  return `<div class="bub${m.mine ? ' mine' : ''}${m.key === focusKey ? ' sel' : ''}" data-k="${esc(m.key)}" style="margin-left:${Math.min(depthOf(m.id || ''), 6) * 10}px">`
+    + `<div class="bh"><span class="bid">${m.id ? esc(m.id) : 'ID なし'}${m.prov ? '<small>仮</small>' : ''}${m.mine ? '<small>📱未送信</small>' : ''}</span><span class="bt">${esc(m.title || '（無題）')}</span></div>`
+    + (body && body !== m.title ? `<div class="bx">${esc(body)}</div>${long ? '<button class="more" data-more>続きを見る</button>' : ''}` : '') + '</div>';
+};
+function drawNotes(scroll = true) {
+  const model = noteModel(), m = model.all.find(x => x.key === focusKey) || null, nv = navOf(model, m);
+  const nb = (x, lab) => `<button class="nb" data-go="${esc(x.key)}">${x.id ? `<b>${esc(x.id)}</b>` : ''}${esc(lab || x.title || '（無題）')}</button>`;
+  $('#nav').innerHTML = m ? `<div class="nrow"><span class="lab">今</span><span class="cur">${m.id ? esc(m.id) + '　' : ''}${esc(m.title || '（無題）')}</span></div>`
+    + (nv.parent ? `<div class="nrow"><span class="lab">親</span>${nb(nv.parent)}</div>` : '')
+    + (nv.sibs.length ? `<div class="nrow"><span class="lab">並列</span>${nv.sibs.map(x => nb(x)).join('')}</div>` : '')
+    + (nv.kids.length ? `<div class="nrow"><span class="lab">子</span>${nv.kids.map(x => nb(x)).join('')}</div>` : '')
+    : `<div class="nrow"><span class="lab"></span><span class="cur" style="font-weight:400;color:var(--sub)">吹き出しを押すと、親・並列・子へすぐ移れます</span></div>`;
+  $('#nav').hidden = !model.all.length;
+  $('#bubs').innerHTML = model.all.length ? model.list.map(bubHtml).join('') + (model.loose.length ? '<div class="sec-h">ID なし（PC で ID を付けます）</div>' + model.loose.map(bubHtml).join('') : '')
+    : '<div class="none">PC につなぐと、PC のノートが Folgezettel の順に並びます。<br>下の欄で、新しいノートを書けます。<br>吹き出しを押すと選べて、長押しで「子を書く」「並列を書く」「引用」ができます。</div>';
+  $('#note-hint').innerHTML = hintFor(items.filter(i => i.d.type === 'note').map(x => x.name), 'note');
+  drawNMode();
+  if (scroll) { const el = $('#bubs .bub.sel'); if (el) el.scrollIntoView({ block: 'center' }); }
+}
+function drawNMode() {
+  const m = nMode && nMode.base;
+  $('#nmode').innerHTML = m ? `${nMode.rel === 'child' ? '🌱' : '↔️'} <b>${esc(m.id || m.title)}</b> ${nMode.rel === 'child' ? 'の子（分岐）' : 'と並列'}として書く<button id="nmode-x" aria-label="やめる">✕</button>` : '';
+  $('#nmode').hidden = !m; $('#note-in').placeholder = m ? '書いて ⬆️' : '新しいノート（ID なし）';
+}
+$('#nmode').addEventListener('click', e => { if (e.target.id === 'nmode-x') { nMode = null; drawNMode(); } });
+const focusOn = key => { focusKey = key; Native.setPref('focus', key); drawNotes(); };
+$('#nav').addEventListener('click', e => { const b = e.target.closest('[data-go]'); if (b) focusOn(b.dataset.go); });
+$('#bubs').addEventListener('click', e => {
+  if (holdFired) { holdFired = false; return; }
+  const more = e.target.closest('[data-more]'); if (more) { const b = more.closest('.bub'); b.classList.toggle('open'); more.textContent = b.classList.contains('open') ? 'たたむ' : '続きを見る'; return; }
+  const b = e.target.closest('.bub'); if (!b) return;
+  if (b.dataset.k === focusKey) { noteActions(b.dataset.k); return; }   // 選んであるものをもう一度押すと、操作
+  focusKey = b.dataset.k; Native.setPref('focus', focusKey); drawNotes(false);
+});
+longPress('.bub[data-k]', b => noteActions(b.dataset.k));
+function noteActions(key) {
+  const model = noteModel(), m = model.all.find(x => x.key === key); if (!m) return;
+  const canRel = !!m.id;
+  actions(`${m.id || 'ID なし'}　${m.title || ''}`, [
+    ...(canRel ? [['🌱 子を書く（分岐）', () => startReply(m, 'child')], ['↔️ 並列を書く', () => startReply(m, 'sibling')]] : []),
+    ...(m.pc ? [['↪️ 引用（->' + m.id + ' を入れる）', () => insertTo($('#note-in'), '->' + m.id + ' ')]] : []),
+    ...(m.mine && !m.sent ? [['✏️ 直す', () => openEditor(m.it.name)], ['🗑️ 消す（まだ PC に送っていない）', () => { if (confirm('このノートを消しますか？（ごみ箱へ）')) { (Native.toTrash || Native.remove)(m.it.name); load(); draw(); } }, true]] : []),
+    ...(!canRel ? [['（ID が無いノートには、子・並列を付けられません）', () => { }]] : [])
+  ]);
+}
+function startReply(m, rel) { nMode = { rel, base: m }; focusKey = m.key; Native.setPref('focus', m.key); drawNotes(false); $('#note-in').focus(); }
+const insertTo = (el, text) => { el.focus(); el.setRangeText(text, el.selectionStart, el.selectionEnd, 'end'); el.dispatchEvent(new Event('input')); };
+function noteRec(body) {
+  const d = { type: 'note', created: nowAt(), updated: nowAt(), body };
+  if (nMode && nMode.base) { d.rel = nMode.rel; if (nMode.base.pc) d.parent = nMode.base.id; else d.parentName = nMode.base.it.name; }
+  return d;
+}
+$('#note-send').onclick = () => {
+  const el = $('#note-in'), body = el.value.replace(/\s+$/, ''); if (!body.trim()) return;
+  const name = 'note-' + rid() + '.json'; save(name, noteRec(body)); el.value = ''; el.style.height = '';
+  nMode = null; load(); focusKey = 'ph:' + name; Native.setPref('focus', focusKey); drawNotes(); toast('📝 ノートを書きました（PC に取り込むと ID が付きます）');
+};
+autoGrow($('#note-in'));
+$('#n-arrow').onclick = () => openSheet($('#note-in'));
+$('#n-expand').onclick = () => { const body = $('#note-in').value; editing = null; draftMode = nMode; $('#note-in').value = ''; openEditor(null, body); };
+// 大きく書く（スマホで書いたノートを直す・長いノートを書く）
+let draftMode = null;
+function openEditor(name, initial = '') {
   editing = name ? items.find(i => i.name === name) : null;
-  const ta = $('#edit-body'); ta.value = editing ? editing.d.body : ''; ta.readOnly = !!(editing && isSent(editing));
-  $('#edit-state').textContent = editing && isSent(editing) ? '✔ PC に取り込み済み（ここでは直せません）' : editing ? 'ノートを直す' : '新しいノート（ID なし）';
+  const ta = $('#edit-body'); ta.value = editing ? editing.d.body : initial; ta.readOnly = !!(editing && isSent(editing));
+  const m = draftMode && draftMode.base;
+  $('#edit-state').textContent = editing && isSent(editing) ? '✔ PC に取り込み済み（ここでは直せません）' : editing ? 'ノートを直す' : m ? `${m.id} ${draftMode.rel === 'child' ? 'の子' : 'と並列'}` : '新しいノート（ID なし）';
   show('edit'); if (!ta.readOnly) ta.focus();
 }
 let saveTimer = null;
 function saveNote() {
   const body = $('#edit-body').value, ta = $('#edit-body'); if (ta.readOnly) return;
-  if (!editing) { if (!body.trim()) return; const name = 'note-' + rid() + '.json', d = { type: 'note', created: nowAt(), updated: nowAt(), body }; save(name, d); editing = { name, d }; }
-  else { if (!body.trim()) { Native.remove(editing.name); editing = null; return; } editing.d.body = body; editing.d.updated = nowAt(); save(editing.name, editing.d); }
+  if (!editing) { if (!body.trim()) return; const keep = nMode; nMode = draftMode; const name = 'note-' + rid() + '.json', d = noteRec(body); nMode = keep; save(name, d); editing = { name, d }; draftMode = null; focusKey = 'ph:' + name; Native.setPref('focus', focusKey); }
+  else { if (!body.trim()) { (Native.toTrash || Native.remove)(editing.name); editing = null; return; } editing.d.body = body; editing.d.updated = nowAt(); save(editing.name, editing.d); }
 }
 $('#edit-body').addEventListener('input', () => { clearTimeout(saveTimer); saveTimer = setTimeout(saveNote, 400); });
-$('#edit-back').onclick = () => { clearTimeout(saveTimer); saveNote(); load(); show('notes'); };
-// 道具: ：（候補から選ぶ）・(n)・->・#・・
-const ins = text => { const ta = $('#edit-body'); if (ta.readOnly) return; ta.focus(); ta.setRangeText(text, ta.selectionStart, ta.selectionEnd, 'end'); ta.dispatchEvent(new Event('input')); };
+$('#edit-back').onclick = () => { clearTimeout(saveTimer); saveNote(); load(); nMode = null; draftMode = null; show('notes'); };
+const ins = text => { const ta = $('#edit-body'); if (ta.readOnly) return; insertTo(ta, text); };
 $('#t-n').onclick = () => { const nums = [...$('#edit-body').value.matchAll(/\((\d+)\)/g)].map(m => +m[1]); ins(`(${(nums.length ? Math.max(...nums) : 0) + 1})`); };
-$('#t-arrow').onclick = () => ins('->');
-$('#t-hash').onclick = () => { const ta = $('#edit-body'), at = ta.value.lastIndexOf('\n', ta.selectionStart - 1) + 1; if (!ta.readOnly) { ta.setRangeText('# ', at, at, 'preserve'); ta.dispatchEvent(new Event('input')); ta.focus(); } };
-$('#t-list').onclick = () => { const ta = $('#edit-body'), at = ta.value.lastIndexOf('\n', ta.selectionStart - 1) + 1; if (!ta.readOnly) { ta.setRangeText('- ', at, at, 'preserve'); ta.dispatchEvent(new Event('input')); ta.focus(); } };
+$('#t-arrow').onclick = () => { if (!$('#edit-body').readOnly) openSheet($('#edit-body')); };
+const lineHead = mark => { const ta = $('#edit-body'), at = ta.value.lastIndexOf('\n', ta.selectionStart - 1) + 1; if (!ta.readOnly) { ta.setRangeText(mark, at, at, 'preserve'); ta.dispatchEvent(new Event('input')); ta.focus(); } };
+$('#t-hash').onclick = () => lineHead('# '); $('#t-list').onclick = () => lineHead('- ');
+// ノートの検索（矢印のボタン）。押すと ->ID が入る
+let sheetTarget = null;
+function openSheet(target) { sheetTarget = target; $('#sheet').hidden = false; $('#sheet-q').value = ''; drawSheet(); $('#sheet-q').focus(); }
 function drawSheet() {
   const q = $('#sheet-q').value.trim().toLowerCase();
-  const own = items.filter(i => i.d.type === 'note').map(i => ({ id: '', title: firstLine(i.d.body) }));   // スマホで書いたノートには ID が無いので、ここには出さない
-  const list = notesPc.filter(n => !q || n.id.toLowerCase().includes(q) || (n.title || '').toLowerCase().includes(q)).slice(0, 200); void own;
-  $('#sheet-res').innerHTML = list.length ? list.map(n => `<div class="row" data-id="${esc(n.id)}"><span class="id">${esc(n.id)}</span><span class="t">${esc(n.title || '')}</span></div>`).join('') : `<div class="none">${notesPc.length ? 'ありません' : 'PC につなぐと、PC のノートの一覧が入ります'}</div>`;
+  const list = notesPc.filter(n => (n.s || 'd') === 'd' && isId(n.id)).filter(n => !q || n.id.toLowerCase().startsWith(q) || (n.title || '').toLowerCase().includes(q) || (n.body || '').toLowerCase().includes(q)).sort((a, b) => cmpId(a.id, b.id)).slice(0, 200);
+  $('#sheet-res').innerHTML = list.length ? list.map(n => `<div class="row" data-id="${esc(n.id)}"><span class="id">${esc(n.id)}</span><span class="t">${esc(n.title || firstLine(n.body) || '')}</span></div>`).join('') : `<div class="none">${notesPc.length ? 'ありません' : 'PC につなぐと、PC のノートの一覧が入ります'}</div>`;
 }
-$('#t-colon').onclick = () => { if ($('#edit-body').readOnly) return; $('#sheet').hidden = false; $('#sheet-q').value = ''; drawSheet(); $('#sheet-q').focus(); };
-$('#sheet-q').oninput = drawSheet; $('#sheet-x').onclick = () => { $('#sheet').hidden = true; $('#edit-body').focus(); };
-$('#sheet-res').onclick = e => { const r = e.target.closest('[data-id]'); if (!r) return; $('#sheet').hidden = true; ins('->' + r.dataset.id + ' '); };
+$('#sheet-q').oninput = drawSheet; $('#sheet-x').onclick = () => { $('#sheet').hidden = true; if (sheetTarget) sheetTarget.focus(); };
+$('#sheet-res').onclick = e => { const r = e.target.closest('[data-id]'); if (!r) return; $('#sheet').hidden = true; if (sheetTarget && !sheetTarget.readOnly) insertTo(sheetTarget, '->' + r.dataset.id + ' '); };
 
-// ---- 紙のカード（カメラ）。番号は PC で付ける
-let stream = null;
-async function startCam() {
-  const msg = $('#cam-msg'); if (stream) return;
-  try {
-    // 16:9 の画角は、上下を切り取った狭い範囲になる端末が多いので、センサー全体を使う 4:3 を求める。解像度も高めに（手書きの字を読むため）
-    stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: { ideal: 'environment' }, width: { ideal: 2560 }, height: { ideal: 1920 }, aspectRatio: { ideal: 4 / 3 } }, audio: false });
-    let v = $('#cam video'); if (!v) { v = document.createElement('video'); v.setAttribute('playsinline', ''); v.muted = true; $('#cam').prepend(v); }
-    v.srcObject = stream; await v.play(); msg.hidden = true;
-  } catch (e) { msg.hidden = false; msg.textContent = 'カメラを使えません。設定でカメラを許可してください。下の ● でも、写真を選べます。'; }
+// ==== 紙（カード・メモ帳）。縁は文書スキャナーで選ぶ ====
+let pmode = Native.pref('pmode') || 'card', pfilter = Native.pref('pfilter') || 'todo', scanCtx = 'card';
+let book = isBook(Native.pref('book')) ? Native.pref('book') : 'A';
+const papers = () => items.filter(i => i.d.type === 'paper').sort((a, b) => a.name.localeCompare(b.name));
+const pmemos = () => items.filter(i => i.d.type === 'pmemo');
+const lastPage = b => Math.max(0, +(pmemoPc[b] || 0), ...pmemos().filter(i => i.d.book === b).map(i => +i.d.page || 0));
+function drawPaper() {
+  $$('[data-pm]').forEach(b => b.classList.toggle('on', b.dataset.pm === pmode));
+  $('#pc-card').style.display = pmode === 'card' ? 'flex' : 'none'; $('#pc-memo').style.display = pmode === 'memo' ? 'flex' : 'none';
+  if (pmode === 'card') {
+    const all = papers(), todo = all.filter(i => !i.d.name && !isSent(i)), named = all.filter(i => i.d.name);
+    $('#pfilter').innerHTML = [['todo', '名前なし', todo.length], ['named', '名前あり', named.length], ['all', '全部', all.length]].map(([k, l, n]) => `<button class="chip${pfilter === k ? ' on' : ''}" data-pf="${k}">${l}<small>${n}</small></button>`).join('')
+      + (todo.length ? `<button class="chip" id="name-run">✍️ 名前を付ける</button>` : '');
+    const list = pfilter === 'todo' ? todo : pfilter === 'named' ? named : all;
+    $('#pgrid').innerHTML = list.length ? list.map(it => `<div class="thumb" data-pn="${esc(it.name)}"><img loading="lazy" src="${esc(imgUrl(it.d.image))}" alt=""><span class="ck">${isSent(it) ? '✔' : ''}</span><div class="tl">${it.d.name ? `<b>${esc(it.d.name.id)}</b> ${esc((it.d.name.kws || []).join('、'))}` : '名前なし'}</div></div>`).join('')
+      : `<div class="none" style="grid-column:1/-1">${pfilter === 'todo' ? '名前を付けていないカードはありません' : 'カードは、まだありません'}。<br>上の「📷 カードを撮る」で、縁を自動で選んで撮れます。<br>名前（ID・キーワード）は、ここでも PC でも付けられます。付けなくてもかまいません。</div>`;
+    $('#paper-hint').innerHTML = hintFor(all.map(x => x.name), 'paper');
+  } else {
+    const books = [...new Set([...Object.keys(pmemoPc), ...pmemos().map(i => i.d.book), book].filter(isBook))].sort((a, b) => bookNo(a) - bookNo(b));
+    const nextBook = bookOf(Math.max(...books.map(bookNo)) + 1);
+    $('#books').innerHTML = books.map(b => `<button class="chip${b === book ? ' on' : ''}" data-book="${b}">📓 ${b}<small>${lastPage(b) ? 'p.' + lastPage(b) + ' まで' : '新しい'}</small></button>`).join('') + `<button class="chip" data-book="${nextBook}">＋ ${nextBook}</button>`;
+    if (document.activeElement !== $('#pm-next')) $('#pm-next').value = String(lastPage(book) + 1);
+    const pages = pmemos().filter(i => i.d.book === book).sort((a, b) => (+a.d.page || 0) - (+b.d.page || 0) || a.name.localeCompare(b.name));
+    $('#pmgrid').innerHTML = pages.length ? pages.map(it => `<div class="thumb" data-pmn="${esc(it.name)}"><img loading="lazy" src="${esc(imgUrl(it.d.image))}" alt=""><span class="ck">${isSent(it) ? '✔' : ''}</span><div class="tl"><b>${esc(it.d.book)}-${esc(it.d.page)}</b></div></div>`).join('')
+      : `<div class="none" style="grid-column:1/-1">メモ帳 ${book} の写真は、スマホにはありません。<br>「📖 見開きを撮る」で、見開きを 1 枚撮ると、左右の 2 ページに分かれて、番号が続きで付きます。${lastPage(book) ? `<br>（PC には p.${lastPage(book)} まであります）` : ''}</div>`;
+    $('#pm-hint').innerHTML = hintFor(pmemos().map(x => x.name), 'pmemo');
+  }
 }
-function stopCam() { if (stream) { stream.getTracks().forEach(t => t.stop()); stream = null; } const v = $('#cam video'); if (v) v.srcObject = null; }
-const shoot = blob => new Promise(res => { const r = new FileReader(); r.onload = () => { const b64 = String(r.result).split(',')[1], id = rid(), img = `paper-${id}.jpg`, js = `paper-${id}.json`; Native.writeB64(img, b64); save(js, { type: 'paper', at: nowAt(), image: img }); res(); }; r.readAsDataURL(blob); });
-$('#shot').onclick = async () => {
-  const v = $('#cam video');
-  if (v && stream && v.videoWidth) {
-    const k = Math.min(1, 2400 / Math.max(v.videoWidth, v.videoHeight)), w = Math.round(v.videoWidth * k), h = Math.round(v.videoHeight * k), c = document.createElement('canvas'); c.width = w; c.height = h; c.getContext('2d').drawImage(v, 0, 0, w, h);
-    await new Promise(r => c.toBlob(async b => { await shoot(b); r(); }, 'image/jpeg', .88));
-  } else { const f = document.createElement('input'); f.type = 'file'; f.accept = 'image/*'; f.multiple = true; f.onchange = async () => { for (const file of f.files) await shoot(file); load(); drawStrip(); }; f.click(); return; }
-  load(); drawStrip(); if (navigator.vibrate) navigator.vibrate(20);
+$('#p-paper').addEventListener('click', e => {
+  const pm = e.target.closest('[data-pm]'); if (pm) { pmode = pm.dataset.pm; Native.setPref('pmode', pmode); drawPaper(); return; }
+  const pf = e.target.closest('[data-pf]'); if (pf) { pfilter = pf.dataset.pf; Native.setPref('pfilter', pfilter); drawPaper(); return; }
+  const bk = e.target.closest('[data-book]'); if (bk) { book = bk.dataset.book; Native.setPref('book', book); $('#pm-next').value = String(lastPage(book) + 1); drawPaper(); return; }
+  if (e.target.id === 'name-run') { startNaming(papers().filter(i => !i.d.name && !isSent(i)).map(i => i.name), 0); return; }
+  const t = e.target.closest('[data-pn]'); if (t) { const list = (pfilter === 'todo' ? papers().filter(i => !i.d.name && !isSent(i)) : pfilter === 'named' ? papers().filter(i => i.d.name) : papers()).map(i => i.name); startNaming(list, list.indexOf(t.dataset.pn)); return; }
+  const pmn = e.target.closest('[data-pmn]'); if (pmn) { openViewer(pmn.dataset.pmn); return; }
+});
+const canScan = () => typeof Native.scan === 'function';
+function scan(ctx) {
+  scanCtx = ctx;
+  if (canScan()) { Native.scan(ctx === 'spread' ? 'spread' : 'card'); return; }
+  pickFiles(ctx);   // 文書スキャナーが使えない（ブラウザで試すとき）: 写真を選ぶ
+}
+function pickFiles(ctx) {
+  const f = document.createElement('input'); f.type = 'file'; f.accept = 'image/*'; f.multiple = true;
+  f.onchange = async () => {
+    const names = [];
+    for (const file of f.files) { const b64 = await new Promise(r => { const fr = new FileReader(); fr.onload = () => r(String(fr.result).split(',')[1]); fr.readAsDataURL(file); }); const n = `paper-${rid()}.jpg`; Native.writeB64(n, b64); names.push([n]); }
+    window.onScanned(JSON.stringify(ctx === 'spread' ? names.map(x => [x[0], x[0]]) : names));
+  };
+  f.click();
+}
+$('#scan-card').onclick = () => scan('card');
+$('#scan-spread').onclick = () => scan('spread');
+$('#scan-page').onclick = () => scan('page');
+window.onScanFail = msg => { toast('文書スキャナーを使えません。写真を選んでください'); void msg; pickFiles(scanCtx); };
+window.onScanned = json => {
+  let groups = []; try { groups = JSON.parse(json) || []; } catch { }
+  if (!groups.length) return;
+  const at = nowAt();
+  if (scanCtx === 'card') {
+    for (const g of groups) for (const img of g) save(img.replace(/\.jpg$/, '.json'), { type: 'paper', at, image: img });
+    load(); pfilter = 'todo'; Native.setPref('pfilter', pfilter); drawPaper(); if (navigator.vibrate) navigator.vibrate(20);
+    toast(`📷 ${groups.length} 枚を撮りました。名前は、付けても付けなくてもよい`);
+    return;
+  }
+  let p = Math.max(1, parseInt($('#pm-next').value, 10) || lastPage(book) + 1), n = 0;
+  for (const g of groups) for (const img of (scanCtx === 'spread' ? g : g.slice(0, 1))) { save(img.replace(/\.jpg$/, '.json'), { type: 'pmemo', at, book, page: p, image: img }); p++; n++; }
+  load(); $('#pm-next').value = String(p); drawPaper(); if (navigator.vibrate) navigator.vibrate(20);
+  toast(`📓 メモ帳 ${book}: ${n} ページを足しました（次は p.${p}）`);
 };
-function drawStrip() {
-  const arr = items.filter(i => i.d.type === 'paper').sort((a, b) => a.name.localeCompare(b.name));
-  $('#cnt').textContent = arr.length + ' 枚';
-  $('#strip').innerHTML = arr.length ? arr.map(it => `<div class="thumb" data-n="${esc(it.name)}"><img src="${esc(Native.url ? Native.url(it.d.image) : '')}" alt=""><i>${isSent(it) ? '✔' : ''}</i></div>`).join('') + (arr.some(isSent) ? '<button class="chip" data-clear="paper">🗑️ 取り込み済みを消す</button>' : '') : '撮ったカードが、ここに並びます';
+// 写真を見る・番号を直す（メモ帳）
+let viewing = null;
+function openViewer(name) {
+  viewing = items.find(i => i.name === name); if (!viewing) return;
+  $('#v-img').src = imgUrl(viewing.d.image); $('#v-book').value = viewing.d.book; $('#v-page').value = viewing.d.page;
+  const ro = isSent(viewing); for (const id of ['#v-book', '#v-page', '#v-ok']) $(id).disabled = ro; $('#v-del').hidden = ro; $('#viewer').hidden = false;
 }
+$('#v-x').onclick = () => { $('#viewer').hidden = true; viewing = null; };
+$('#v-ok').onclick = () => {
+  const b = $('#v-book').value.trim().toUpperCase(), p = parseInt($('#v-page').value, 10);
+  if (!isBook(b) || !(p > 0)) return toast('メモ帳は A〜Z・AA…、ページは 1 以上の数');
+  viewing.d.book = b; viewing.d.page = p; save(viewing.name, viewing.d); $('#viewer').hidden = true; load(); drawPaper(); toast(`${b}-${p} にしました`);
+};
+$('#v-del').onclick = () => { if (!viewing || !confirm('この写真を、ごみ箱へ移しますか？（あとで戻せます）')) return; trashItem(viewing); $('#viewer').hidden = true; viewing = null; load(); drawPaper(); };
+function trashItem(it) { const t = Native.toTrash || Native.remove; t(it.name); for (const f of [it.d.image, it.d.file]) if (f) t(f); }
+
+// ---- 名前を付ける（PC の紙の取り込みと同じ: ID とキーワード。途中でやめても、付けなくてもよい）
+let nq = [], ni = 0, lastId = Native.pref('lastPaperId') || '';
+const paperIdsPc = () => new Set(notesPc.filter(n => n.s === 'p').map(n => n.id));
+const kwPool = () => { const c = new Map(); for (const n of notesPc.filter(n => n.s === 'p')) for (const k of n.kw || []) c.set(k, (c.get(k) || 0) + 1); for (const k of (Native.pref('recentKw') || '').split('、').filter(Boolean)) c.set(k, (c.get(k) || 0) + 1000); return [...c.entries()].sort((a, b) => b[1] - a[1]).map(x => x[0]).slice(0, 30); };
+function takenBy(id, self) { if (paperIdsPc().has(id)) return 'PC'; const o = papers().find(i => i.name !== self && i.d.name && i.d.name.id === id); return o ? 'スマホ' : ''; }
+const free = id => { let x = id; while (takenBy(x, nq[ni])) x = sibling(x); return x; };
+function startNaming(list, at) { nq = list.filter(Boolean); ni = Math.max(0, at); if (!nq.length) return toast('名前を付けるカードがありません'); show('name'); }
+function drawName() {
+  const it = items.find(i => i.name === nq[ni]); if (!it) { show('paper'); return; }
+  $('#nm-pos').textContent = `${ni + 1} / ${nq.length}`; $('#nm-img').src = imgUrl(it.d.image); $('#nm-box').classList.remove('zoom');
+  const ro = isSent(it); $('#nm-id').value = it.d.name ? it.d.name.id : ''; $('#nm-kw').value = it.d.name ? (it.d.name.kws || []).join('、') : '';
+  for (const id of ['#nm-id', '#nm-kw', '#nm-save']) $(id).disabled = ro; $('#nm-clear').hidden = ro || !it.d.name; $('#nm-del').hidden = ro;
+  $('#nm-save').textContent = ni + 1 < nq.length ? '保存して次へ' : '保存して終わる';
+  const known = [...paperIdsPc(), ...papers().filter(i => i.d.name).map(i => i.d.name.id)].filter(isId).sort(cmpId);   // 前に付けた ID が無ければ、いちばん大きい紙の ID を基準に
+  const base = lastId && isId(lastId) ? lastId : known.length ? known[known.length - 1] : '', has = () => false;
+  const sug = base ? [['↔️ 並列', free(sibling(base))], ['🌱 子', free(child(base))], ...(upId(base) ? [['↰ 親の次', free(sibling(upId(base)))]] : [])] : [['🆕 最初', free('1')]];
+  $('#nm-sug').innerHTML = (ro ? '' : sug.map(([l, id]) => `<button class="chip" data-sug="${esc(id)}">${l} <b>${esc(id)}</b></button>`).join('')) + (base ? `<span class="chip" style="border:0;color:var(--sub)">前: ${esc(base)}</span>` : ''); void has;
+  $('#nm-kwc').innerHTML = ro ? '' : kwPool().map(k => `<button class="chip" data-kw="${esc(k)}">${esc(k)}</button>`).join('');
+  checkId(); if (ro) toast('PC に取り込み済みです（直すのは PC で）');
+}
+function checkId() {
+  const v = $('#nm-id').value.trim().toLowerCase(), it = items.find(i => i.name === nq[ni]), el = $('#nm-id'), msg = $('#nm-msg');
+  const t = v && takenBy(v, it && it.name), bad = v && !isId(v) ? 'ID の形が違います（例: 2a1）' : t ? `紙 ${v} は、もう${t}にあります` : '';
+  el.classList.toggle('bad', !!bad); el.classList.toggle('good', !!v && !bad); msg.className = 'nmmsg' + (bad ? ' bad' : ''); msg.textContent = bad || (v ? '✅ 使えます' : 'ID を入れるか、下の候補を押す（空のまま「飛ばす」もできます）');
+  return !bad;
+}
+$('#nm-id').addEventListener('input', checkId);
+$('#nm-id').addEventListener('keydown', e => { if (e.key === 'Enter' && !e.isComposing) { e.preventDefault(); $('#nm-kw').focus(); } });
+$('#nm-kw').addEventListener('keydown', e => { if (e.key === 'Enter' && !e.isComposing) { e.preventDefault(); nameSave(); } });
+$('#nm-sug').onclick = e => { const b = e.target.closest('[data-sug]'); if (!b) return; $('#nm-id').value = b.dataset.sug; checkId(); };
+$('#nm-kwc').onclick = e => { const b = e.target.closest('[data-kw]'); if (!b) return; const cur = $('#nm-kw').value.split(/[、,，]/).map(s => s.trim()).filter(Boolean); if (!cur.includes(b.dataset.kw)) cur.push(b.dataset.kw); $('#nm-kw').value = cur.join('、'); };
+$('#nm-box').onclick = () => $('#nm-box').classList.toggle('zoom');
+const nameNext = () => { if (ni + 1 < nq.length) { ni++; drawName(); } else { toast('おしまい'); show('paper'); } };
+function nameSave() {
+  const it = items.find(i => i.name === nq[ni]); if (!it || isSent(it)) return nameNext();
+  const id = $('#nm-id').value.trim().toLowerCase(), kws = $('#nm-kw').value.split(/[、,，]/).map(s => s.trim()).filter(Boolean);
+  if (!id) { if (kws.length) return toast('キーワードだけでは保存できません。ID を入れてください'); return nameNext(); }
+  if (!checkId()) return;
+  it.d.name = { id, kws, at: nowAt() }; save(it.name, it.d); lastId = id; Native.setPref('lastPaperId', id);
+  if (kws.length) Native.setPref('recentKw', [...new Set([...kws, ...(Native.pref('recentKw') || '').split('、').filter(Boolean)])].slice(0, 20).join('、'));
+  load(); toast(`紙 ${id} にしました`); nameNext();
+}
+$('#nm-save').onclick = nameSave;
+$('#nm-skip').onclick = nameNext;
+$('#nm-back').onclick = () => show('paper');
+$('#nm-clear').onclick = () => { const it = items.find(i => i.name === nq[ni]); if (!it || isSent(it)) return; delete it.d.name; save(it.name, it.d); load(); drawName(); toast('名前を外しました'); };
+$('#nm-del').onclick = () => { const it = items.find(i => i.name === nq[ni]); if (!it || isSent(it) || !confirm('この写真を、ごみ箱へ移しますか？（あとで戻せます）')) return; trashItem(it); load(); nq.splice(ni, 1); if (!nq.length) { show('paper'); return; } if (ni >= nq.length) ni = nq.length - 1; drawName(); };
+
+// ---- ごみ箱（写真・録音・ノート）
+function drawTrash() {
+  let list = []; try { list = JSON.parse(Native.trashList ? Native.trashList() : '[]'); } catch { }
+  const jsons = list.filter(f => /\.json$/.test(f.name));
+  $('#trash-res').innerHTML = jsons.length ? jsons.map(f => {
+    let d = {}; try { d = JSON.parse(Native.trashRead(f.name) || '{}'); } catch { }
+    const img = d.image ? list.find(x => x.name.replace(/^\d+-/, '') === d.image) : null, when = new Date(+f.name.split('-')[0]);
+    const label = d.type === 'paper' ? '🗂️ カード' + (d.name ? ' ' + d.name.id : '') : d.type === 'pmemo' ? `📓 ${d.book}-${d.page}` : d.type === 'audio' ? '🎙️ 録音 ' + (d.at || '') : d.type === 'note' ? '📝 ' + firstLine(d.body) : d.type || f.name;
+    return `<div class="row">${img ? `<img src="${esc(Native.trashUrl(img.name))}" style="width:46px;height:58px;object-fit:cover;border-radius:6px" alt="">` : ''}<span class="t">${esc(label)}</span><span class="sub">${pad(when.getMonth() + 1)}/${pad(when.getDate())} ${pad(when.getHours())}:${pad(when.getMinutes())}</span><button class="chip" data-restore="${esc(f.name)}">戻す</button></div>`;
+  }).join('') : '<div class="none">ごみ箱は空です</div>';
+}
+$('#b-trash').onclick = () => { if (!Native.trashList) return toast('ごみ箱は、スマホのアプリで使えます'); drawTrash(); $('#trashsheet').hidden = false; };
+$('#trash-x').onclick = () => { $('#trashsheet').hidden = true; load(); draw(); };
+$('#trash-res').onclick = e => {
+  const b = e.target.closest('[data-restore]'); if (!b) return;
+  let d = {}; try { d = JSON.parse(Native.trashRead(b.dataset.restore) || '{}'); } catch { }
+  let list = []; try { list = JSON.parse(Native.trashList() || '[]'); } catch { }
+  const ok = Native.fromTrash(b.dataset.restore);
+  for (const f of [d.image, d.file]) { const t = f && list.find(x => x.name.replace(/^\d+-/, '') === f); if (t) Native.fromTrash(t.name); }
+  toast(ok ? '↩️ 戻しました' : '戻せませんでした（同じ名前があります）'); drawTrash();
+};
+$('#trash-empty').onclick = e => { const b = e.target; if (b.dataset.sure !== '1') { b.dataset.sure = '1'; b.textContent = '本当に？ もう一度'; setTimeout(() => { b.dataset.sure = ''; b.textContent = '空にする'; }, 4000); return; } const n = Native.emptyTrash(); b.dataset.sure = ''; b.textContent = '空にする'; drawTrash(); toast(`🗑️ ${n} 個を完全に消しました`); };
+
+// ==== 録音（スマホでは録るだけ。PC に取り込むと、PC で文字にする）====
+const recState = () => { try { return JSON.parse(Native.recState ? Native.recState() : '{}'); } catch { return {}; } };
+const mmss = s => `${pad(Math.floor(s / 60))}:${pad(s % 60)}`;
+let recTimer = null;
+function drawRec() {
+  const st = recState(), on = !!st.on;
+  $('#rec-btn').classList.toggle('on', on); $('#rec-time').textContent = mmss(+st.sec || 0);
+  $('#rec-msg').innerHTML = on ? `🔴 録音中（${esc(st.at || '')} から）。押すと止めます。` : '押すと録音を始めます。画面を消しても続きます。<br>PC に取り込むと、PC で文字にします。';
+  const recs = items.filter(i => i.d.type === 'audio').sort((a, b) => (b.d.at || '').localeCompare(a.d.at || ''));
+  $('#rec-list').innerHTML = recs.length ? recs.map(it => `<div class="row"><span class="t">🎙️ ${esc(showAt(it.d.at))}<br><small style="color:var(--sub)">${mmss(+it.d.sec || 0)}</small></span><audio controls preload="none" src="${esc(imgUrl(it.d.file))}"></audio><span class="badge${isSent(it) ? ' ok' : ''}">${isSent(it) ? '✔ 取り込み済み' : '未送信'}</span>${isSent(it) ? '' : `<button class="ib" data-rdel="${esc(it.name)}" aria-label="ごみ箱へ">🗑️</button>`}</div>`).join('') : '<div class="none">録ったものが、ここに並びます</div>';
+  $('#rec-hint').innerHTML = hintFor(recs.map(x => x.name), 'rec');
+  clearTimeout(recTimer); if (on && tab === 'rec') recTimer = setTimeout(drawRecLive, 1000);
+}
+function drawRecLive() { if (tab !== 'rec') return; const st = recState(); $('#rec-time').textContent = mmss(+st.sec || 0); if (st.on) recTimer = setTimeout(drawRecLive, 1000); else { load(); drawRec(); } }
+$('#rec-btn').onclick = () => {
+  if (!Native.recStart) return toast('録音は、スマホのアプリで使えます');
+  if (recState().on) { Native.recStop(); toast('■ 止めました'); setTimeout(() => { load(); drawRec(); }, 900); return; }
+  const r = Native.recStart(); if (r === 'started') { toast('● 録音を始めました'); setTimeout(drawRec, 400); }
+};
+window.onRecState = s => { if (s === 'denied') toast('マイクの許可がありません'); else { toast('● 録音を始めました'); setTimeout(drawRec, 400); } };
+$('#rec-list').onclick = e => { const b = e.target.closest('[data-rdel]'); if (!b) return; const it = items.find(i => i.name === b.dataset.rdel); if (it && confirm('この録音を、ごみ箱へ移しますか？')) { trashItem(it); load(); drawRec(); } };
+
 // ---- 定期の通知（アラーム）。Android アプリのときだけ
 const hasAlarm = typeof Native.alarmGet === 'function';
-function fillAlarm() { }   // 間隔・時間帯・秒は、数を打って入れる
 function readAlarm() { try { return JSON.parse(Native.alarmGet()); } catch { return null; } }
 function drawAlarm() {
   const a = readAlarm(); if (!a) return;
@@ -377,14 +766,19 @@ function saveAlarm() {
   Native.alarmSet(JSON.stringify({ on: $('#al-on').checked, minutes: num('#al-min', 1, 1440, cur.minutes || 60), from: num('#al-from', 0, 24, cur.from ?? 9), to: num('#al-to', 0, 24, cur.to ?? 23), ring: num('#al-ring', 0, 600, cur.ring || 0) }));
   drawAlarm();
 }
-fillAlarm();
 $('#b-alarm').onclick = () => { if (!hasAlarm) return toast('⏰ 通知は、スマホのアプリで使えます'); drawAlarm(); $('#alarmsheet').hidden = false; };
 $('#alarm-x').onclick = () => { $('#alarmsheet').hidden = true; };
 for (const id of ['#al-on', '#al-min', '#al-from', '#al-to', '#al-ring']) $(id).onchange = () => { if (id === '#al-on' && $('#al-on').checked && Native.askNotify && !(readAlarm() || {}).notif) Native.askNotify(); saveAlarm(); };
 $('#al-notif').onclick = () => Native.askNotify && Native.askNotify();
 $('#al-exactbtn').onclick = () => Native.askExact && Native.askExact();
 // 戻るボタン（Android）
-window.onBack = () => { if (!$('#alarmsheet').hidden) { $('#alarmsheet').hidden = true; return true; } if (!$('#fmtsheet').hidden) { $('#fmtsheet').hidden = true; return true; } if (!$('#sheet').hidden) { $('#sheet').hidden = true; return true; } if (tab === 'edit') { $('#edit-back').click(); return true; } return false; };
+window.onBack = () => {
+  for (const id of ['#act', '#alarmsheet', '#fmtsheet', '#sheet', '#trashsheet', '#viewer']) if (!$(id).hidden) { $(id).hidden = true; return true; }
+  if (tab === 'edit') { $('#edit-back').click(); return true; }
+  if (tab === 'name') { show('paper'); return true; }
+  if (tab === 'notes' && nMode) { nMode = null; drawNMode(); return true; }
+  return false;
+};
 window.reload = () => { load(); draw(); };   // PC につないだあと、Native から呼ぶ
 // アプリに戻ってきたとき: しばらく離れていたら、今日に戻す。通知から来たら、今日のメモ帳の入力へ
 let lastActive = Date.now();
@@ -393,10 +787,10 @@ window.resumeToday = () => {
   if (away) { memoDay = today(); diaryDay = today(); }
   draw();
 };
-window.openPrompt = () => { lastActive = Date.now(); for (const id of ['#alarmsheet', '#fmtsheet', '#sheet']) $(id).hidden = true; load(); memoDay = today(); if (tab === 'edit') { clearTimeout(saveTimer); saveNote(); load(); } show('memo'); setTimeout(() => $('#memo-in').focus(), 150); };
+window.openPrompt = () => { lastActive = Date.now(); for (const id of ['#alarmsheet', '#fmtsheet', '#sheet', '#act', '#trashsheet', '#viewer']) $(id).hidden = true; load(); memoDay = today(); if (tab === 'edit') { clearTimeout(saveTimer); saveNote(); load(); } show('memo'); setTimeout(() => $('#memo-in').focus(), 150); };
 ['pointerdown', 'keydown'].forEach(ev => document.addEventListener(ev, () => { lastActive = Date.now(); }, true));
-document.addEventListener('visibilitychange', () => { if (!document.hidden) { load(); draw(); } });
-load(); show('memo');
+document.addEventListener('visibilitychange', () => { if (!document.hidden && tab !== 'edit' && tab !== 'name') { load(); draw(); } });
+load(); show(recState().on ? 'rec' : 'memo');
 })();
 </script>
 </body>

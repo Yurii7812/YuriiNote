@@ -45,4 +45,7 @@ android {
     packaging { resources { excludes += "/META-INF/{AL2.0,LGPL2.1}" } }
 }
 
-// 部品は使わない（WebView と Android の標準の道具だけ）
+// 部品は、紙の文書スキャナー（Google。縁を見つけて切り取る）だけ。ほかは WebView と Android の標準の道具
+dependencies {
+    implementation("com.google.android.gms:play-services-mlkit-document-scanner:16.0.0-beta1")
+}

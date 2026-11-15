@@ -19,16 +19,16 @@ test('スマホの受信箱: メモ帳・日記・ノート・紙を取り込み
     { name: 'broken.json', buf: Buffer.from('{') }, J('memo-7-g.json', { type: 'memo', at: '2026-11-13 12:00', text: '   ' })
   ];
   const r = importInbox(v, files, { papers: (name, buf) => got.push([name, buf.length]) });
-  assert.deepStrictEqual(r.sum, { memos: 3, diaries: 1, notes: 1, papers: 1, skipped: 2, already: 0 });
+  assert.deepStrictEqual(r.sum, { memos: 3, diaries: 1, notes: 1, papers: 1, named: 0, pmemos: 0, audios: 0, marks: 0, skipped: 2, already: 0 });
   const memo = v.state().diaries.find(d => d.kind === 'メモ帳' && d.date === '2026-11-13').body;
-  assert.strictEqual(memo, '2026-11-13 08:12 朝の考え\n2026-11-13 10:40 二つ目 の続き\n2026-11-13 11:00 時刻なし');   // 1件1行・改行は空白に・全部に年月日と時刻
+  assert.strictEqual(memo, '2026-11-13 08:12:00 朝の考え\n2026-11-13 10:40:00 二つ目 の続き\n2026-11-13 11:00:00 時刻なし');   // いつも秒まで   // 1件1行・改行は空白に・全部に年月日と時刻
   assert.match(v.state().diaries.find(d => d.kind === '日記' && d.date === '2026-11-13').body, /\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2} 今日は読書をした。/);
   const note = v.state().notes.find(n => /読書メモの書き方/.test(n.body));
   assert.ok(note && note.s === 'd' && note.id === note.stem && /^\d{14}$/.test(note.id));   // ID なし（ファイル名が ID 代わり）＝未所属
   assert.deepStrictEqual(got, [['paper-6-f.jpg', 3]]);
   assert.deepStrictEqual(r.done.sort(), ['memo-1-a.json', 'memo-2-b.json', 'memo-3-c.json', 'diary-4-d.json', 'note-5-e.json', 'paper-6-f.json', 'paper-6-f.jpg'].sort());
   assert.deepStrictEqual(r.bad.sort(), ['broken.json', 'memo-7-g.json']);
-  assert.strictEqual(summary(r.sum), 'メモ 3 件、日記 1 件、ノート 1 件、紙のカード 1 枚');
+  assert.strictEqual(summary(r.sum), 'メモ 3 件、日記 1 件、ノート 1 件、紙のカード 1 枚（名前は取り込み画面で）');
 });
 
 test('スマホの受信箱: 消さずに残してあるファイルは、二度取り込まない', () => {
@@ -36,5 +36,31 @@ test('スマホの受信箱: 消さずに残してあるファイルは、二度
   const first = importInbox(v, files.slice(0, 1));
   const second = importInbox(v, files, { seen: new Set(first.done) });
   assert.strictEqual(second.sum.memos, 1); assert.strictEqual(second.sum.already, 1);
-  assert.strictEqual(v.state().diaries.find(d => d.kind === 'メモ帳').body, '2026-11-13 08:12 一度だけ\n2026-11-13 09:00 新しい');
+  assert.strictEqual(v.state().diaries.find(d => d.kind === 'メモ帳').body, '2026-11-13 08:12:00 一度だけ\n2026-11-13 09:00:00 新しい');
+});
+
+test('スマホの受信箱: 時刻の順に入る・分岐/並列の ID・名前つきの紙・紙のメモ帳・録音・メンションの印', () => {
+  const v = openVault(tmp());
+  v.saveNote({ s: 'd', id: '1', body: '数学' }); v.saveNote({ s: 'd', id: '1a', body: '掛け算' });
+  v.appendToDay('メモ帳', '2026-11-15', '2026-11-15 11:30:00 もとからPCにあった文');
+  const ids = {}, pm = [], au = [], named = [];
+  const files = [
+    J('memo-1.json', { type: 'memo', at: '2026-11-15 10:30:00', text: '取り込まれた文' }),
+    J('note-10.json', { type: 'note', created: '2026-11-15 10:00:00', body: '1a の子', parent: '1a', rel: 'child' }),
+    J('note-11.json', { type: 'note', created: '2026-11-15 10:01:00', body: '孫', parentName: 'note-10.json', rel: 'child' }),
+    J('note-12.json', { type: 'note', created: '2026-11-15 10:02:00', body: '1a と並列', parent: '1a', rel: 'sibling' }),
+    J('paper-20.json', { type: 'paper', at: '2026-11-15 10:00:00', image: 'paper-20.jpg', name: { id: '7b', kws: ['時間'] } }), { name: 'paper-20.jpg', buf: Buffer.from([1]) },
+    J('pm-30-l.json', { type: 'pmemo', at: '2026-11-15 10:00:00', book: 'A', page: 13, image: 'pm-30-l.jpg' }), { name: 'pm-30-l.jpg', buf: Buffer.from([2]) },
+    J('rec-40.json', { type: 'audio', at: '2026-11-15 10:05', file: 'rec-40.m4a', sec: 30 }), { name: 'rec-40.m4a', buf: Buffer.from([3]) },
+    J('mark-50.json', { type: 'mark', kind: 'メモ帳', date: '2026-11-15', at: '2026-11-15 11:30:00', n: 2 })
+  ];
+  const sug = (base, rel) => require('../id-explorer-core').suggest(v.state().notes, v.state().notes.find(n => n.s === 'd' && n.id === base), rel);
+  const r = importInbox(v, files, { ids, suggest: sug, named: d => { named.push(d.name.id); return true; }, pmemo: d => pm.push([d.book, d.page]), audio: d => au.push([d.at, d.sec]) });
+  assert.strictEqual(r.sum.notes, 3); assert.strictEqual(r.sum.named, 1); assert.strictEqual(r.sum.pmemos, 1); assert.strictEqual(r.sum.audios, 1); assert.strictEqual(r.sum.marks, 1);
+  const memo = v.state().diaries.find(d => d.kind === 'メモ帳' && d.date === '2026-11-15').body;
+  assert.strictEqual(memo, '2026-11-15 10:30:00 取り込まれた文\n2026-11-15 11:30:00 もとからPCにあった文 (2)');   // 時刻の順・印
+  const has = id => v.state().notes.some(n => n.s === 'd' && n.id === id);
+  assert.ok(has('1a1') && has('1a1a') && has('1b'), JSON.stringify(v.state().notes.map(n => n.id)));
+  assert.deepStrictEqual(ids, { 'note-10.json': '1a1', 'note-11.json': '1a1a', 'note-12.json': '1b' });
+  assert.deepStrictEqual(named, ['7b']); assert.deepStrictEqual(pm, [['A', 13]]); assert.deepStrictEqual(au, [['2026-11-15 10:05:00', 30]]);
 });

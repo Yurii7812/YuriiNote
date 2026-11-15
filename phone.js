@@ -202,11 +202,12 @@ async function markInbox(names) {
   return { ok: await putFile(r, 'files/imported.json', JSON.stringify({ version: 3, names }), PKG) };
 }
 // スマホで選べるように、PC の記録の種類と、ノートの一覧（ID と題）を渡す
-async function sendMeta({ kinds, notes }) {
+async function sendMeta({ kinds, notes, pmemo }) {
   const r = await ready(); if (r.error) return { ok: false, message: r.error };
   const a = await putFile(r, 'files/kinds.json', JSON.stringify({ version: 3, kinds }), PKG);
-  const b = await putFile(r, 'files/notes.json', JSON.stringify({ version: 3, notes }), PKG);
-  return { ok: a && b };
+  const b = await putFile(r, 'files/notes.json', JSON.stringify({ version: 4, notes }), PKG);
+  const c = pmemo ? await putFile(r, 'files/pmemo.json', JSON.stringify({ version: 1, books: pmemo }), PKG) : true;   // 紙のメモ帳: 記号ごとの最後のページ（スマホで続きの番号を出す）
+  return { ok: a && b && c };
 }
 // つながっているスマホ（adb devices の一覧）。adb が無ければ空
 async function listDevices() {

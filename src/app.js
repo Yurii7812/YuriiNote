@@ -2145,8 +2145,8 @@ async function scanIndexOk() {
 }
 function scanRemove() {   // 🗑️ この画像を捨てる（取り込まない）。スマホの写真は、スマホから来たファイルも、消える
   const f = queue[qi]; if (!f || scanBusy) return;
-  if (f._phone && !confirm(`「${f.name}」を捨てますか？\n（スマホから受け取った写真のファイルも、消えます）`)) return;
-  if (f._phone) api.phonePaperDone(f.name);
+  if (f._phone && !confirm(`「${f.name}」を捨てますか？\n（スマホから受け取った写真は、ごみ箱へ移します。あとで戻せます）`)) return;
+  if (f._phone) { api.phonePaperTrash(f.name); refreshPhonePapers(); }
   scanSt[qi] = 'del'; scanFlash(`🗑️ ${f.name} を捨てました`);
   qi = scanNext(qi + 1) >= 0 ? scanNext(qi + 1) : scanNext(0); showScan();
 }

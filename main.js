@@ -42,7 +42,7 @@ const foundVaults = () => ['YuriiNote', 'YuriiKasten', 'PaperPKM'].map(n => path
 let vault = process.env.YURIINOTE_VAULT || process.env.YURIIKASTEN_VAULT || process.env.PAPER_PKM_VAULT || readCfg().vault || null;
 if (process.platform === 'linux' && process.env.APPIMAGE) app.commandLine.appendSwitch('no-sandbox'); // AppImage ではサンドボックス用の権限が付けられない
 let v = null, urlPreviews = null;
-const open = () => { v = store.openVault(vault); urlPreviews = require('./url-preview').createService(v, { fetcher: url => require('./url-preview').fetchMetadata(url, { thumbnailer: bytes => { const image = nativeImage.createFromBuffer(bytes), size = image.getSize(); if (!size.width || !size.height) throw new Error('画像を読めません'); return image.resize(size.width >= size.height ? { width: Math.min(128, size.width) } : { height: Math.min(128, size.height) }).toPNG(); } }), onProgress: p => { if (mainWin && !mainWin.isDestroyed()) mainWin.webContents.send('urlProgress', p); } }); const service = urlPreviews; setTimeout(() => service.refresh().catch(() => {}), 0); return v.state(); };
+const open = () => { v = store.openVault(vault); urlPreviews = require('./url-preview').createService(v, { fetcher: url => require('./url-preview').fetchMetadata(url, { thumbnailer: bytes => { const image = nativeImage.createFromBuffer(bytes), size = image.getSize(); if (!size.width || !size.height) throw new Error('画像を読めません'); return image.resize(size.width >= size.height ? { width: Math.min(128, size.width) } : { height: Math.min(128, size.height) }).toPNG(); } }), onProgress: p => { if (mainWin && !mainWin.isDestroyed()) mainWin.webContents.send('urlProgress', p); } }); const service = urlPreviews; setTimeout(() => service.refresh().catch(() => {}), 0); recResume(); return v.state(); };   // 文字化が途中のもの・待っているものを、続ける
 
 ipcMain.handle('load', () => vault ? open() : { firstRun: true, suggest: suggestVault(), found: foundVaults() });
 // 初めて起動したとき: 選んだフォルダ（無ければ作る）を保存先にする
@@ -61,6 +61,8 @@ ipcMain.handle('phonePapers', () => {
   try { return fs.readdirSync(papersDir()).filter(f => /^[\w.-]+\.(jpe?g|png)$/i.test(f)).sort().map(name => ({ name, bytes: fs.readFileSync(path.join(papersDir(), name)) })); } catch { return []; }
 });
 ipcMain.handle('phonePapersCount', () => { try { return fs.readdirSync(papersDir()).filter(f => /^[\w.-]+\.(jpe?g|png)$/i.test(f)).length; } catch { return 0; } });
+// 捨てた写真は、ごみ箱（.trash）へ（あとで戻せる）
+ipcMain.handle('phonePaperTrash', (_e, name) => { try { const n = String(name); if (!/^[\w.-]+$/.test(n)) return false; const t = path.join(vault, '.trash'); fs.mkdirSync(t, { recursive: true }); fs.renameSync(path.join(papersDir(), n), path.join(t, `${Date.now()}-${n}`)); return true; } catch { return false; } });
 ipcMain.handle('phonePaperDone', (_e, name) => { try { if (/^[\w.-]+$/.test(String(name))) fs.unlinkSync(path.join(papersDir(), String(name))); return true; } catch { return false; } });
 // ===== 意味の見方（AI）: モデルのダウンロードと、ノートのベクトル（ai-embed.js）=====
 let aiEmb = null, aiIdx = null, aiIdxVault = '';
@@ -86,6 +88,73 @@ ipcMain.handle('aiVectors', async (_e, notes) => {
     return { ok: true, vectors: await aiIdx.vectors(notes, p => aiSend({ kind: 'embed', ...p })) };
   } catch (e) { return { ok: false, message: String(e.message || e) }; }
 });
+// ===== 紙のメモ帳（スマホで撮った見開き → ページ）。画像は vault の P_memo-<記号>-<ページ>.jpg、一覧は K_pmemo.json =====
+const pmemoDoc = () => (v && v.getDoc('K_pmemo')) || { pages: [] };
+function pmemoBooks() { const b = {}; for (const p of pmemoDoc().pages || []) b[p.book] = Math.max(b[p.book] || 0, +p.page || 0); return b; }
+function pmemoAdd(list) {
+  const doc = pmemoDoc(); doc.pages = doc.pages || [];
+  for (const { d, buf } of list) {
+    let name = `P_memo-${d.book}-${+d.page}.jpg`, i = 2; while (fs.existsSync(path.join(vault, name))) name = `P_memo-${d.book}-${+d.page}_${i++}.jpg`;
+    fs.writeFileSync(path.join(vault, name), buf);
+    doc.pages.push({ book: d.book, page: +d.page, image: name, at: require('./stamp').full(d.at || '') });
+  }
+  v.saveDoc('K_pmemo', doc);
+}
+ipcMain.handle('pmemoList', () => pmemoDoc().pages || []);
+ipcMain.handle('pmemoImage', (_e, name) => { if (!/^P_memo-[A-Z]+-\d+(?:_\d+)?\.jpg$/.test(String(name))) return null; try { return fs.readFileSync(path.join(vault, name)); } catch { return null; } });
+// 番号を直す・ごみ箱へ（画像は .trash へ）
+ipcMain.handle('pmemoEdit', (_e, image, x) => { const doc = pmemoDoc(), p = (doc.pages || []).find(y => y.image === image); if (!p) return false; if (x && x.remove) { try { const t = path.join(vault, '.trash'); fs.mkdirSync(t, { recursive: true }); fs.renameSync(path.join(vault, image), path.join(t, `${Date.now()}-${image}`)); } catch { } doc.pages = doc.pages.filter(y => y !== p); } else { if (/^[A-Z]+$/.test(x.book)) p.book = x.book; if (+x.page > 0) p.page = +x.page; } v.saveDoc('K_pmemo', doc); return true; });
+
+// ===== 録音と文字化（PC のマイク・スマホの録音）。音声は vault/.recordings、一覧と文字は K_recordings.json =====
+//   ノートを開いて PC で録ったものは、文字にしたあと、そのノートの末尾へ。それ以外（スマホの録音も）は、録音の一覧へ
+const recDir = () => path.join(vault, '.recordings');
+const recDoc = () => (v && v.getDoc('K_recordings')) || { items: [] };
+const recSave = doc => v.saveDoc('K_recordings', doc);
+const recSend = m => { if (mainWin && !mainWin.isDestroyed()) mainWin.webContents.send('recUpdate', m); };
+function recAdd({ at, sec, buf, ext, src, target }) {
+  fs.mkdirSync(recDir(), { recursive: true });
+  const id = `rec-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`, file = id + (ext || '.webm'), S = require('./stamp');
+  fs.writeFileSync(path.join(recDir(), file), buf);
+  const doc = recDoc(); doc.items = doc.items || [];
+  doc.items.push({ id, at: S.full(at || '') || S.nowStamp(), sec: +sec || 0, file, src, target: target || null, status: 'queued' });
+  recSave(doc); return id;
+}
+let recBusy = false, recNow = null;
+async function recPump() {
+  if (recBusy || !v) return;
+  const doc = recDoc(), it = (doc.items || []).find(x => x.status === 'queued'); if (!it) return;
+  const T = require('./transcriber'), t = T.tools();
+  recBusy = true; recNow = { id: it.id, pct: 0 }; it.status = 'running'; recSave(doc); recSend({ id: it.id, pct: 0 });
+  let r; try { r = await T.run(t, path.join(recDir(), it.file), pct => { recNow = { id: it.id, pct }; recSend({ id: it.id, pct }); }); } catch (e) { r = { ok: false, error: String(e.message || e) }; }
+  const d2 = recDoc(), x = (d2.items || []).find(y => y.id === it.id); let state = null;
+  if (x) {
+    if (r.ok) {
+      x.lines = T.paragraphs(r.segs || [], x.at); x.status = 'done'; x.done = require('./stamp').nowStamp();
+      if (x.target && x.lines.length && await recPlace(x)) { x.placed = true; state = v.state(); }
+    } else { x.status = 'error'; x.err = r.error; }
+    recSave(d2);
+  }
+  recBusy = false; recNow = null; recSend({ id: it.id, done: true, state });
+  if (!r.ok && !t.ok) return;   // 部品が無ければ、ほかも同じなので続けない
+  recPump();
+}
+async function recPlace(x) {
+  await flushRenderer();
+  const n = v.state().notes.find(m => m.s === x.target.s && m.id === x.target.id); if (!n) return false;
+  const body = String(n.body || '').replace(/\s+$/, '');
+  v.saveNote({ s: n.s, id: n.id, body: (body ? body + '\n\n' : '') + x.lines.join('\n') }); return true;
+}
+function recResume() { if (!v) return; const d = recDoc(); let ch = false; for (const x of d.items || []) if (x.status === 'running') { x.status = 'queued'; ch = true; } if (ch) recSave(d); setTimeout(recPump, 4000); }
+ipcMain.handle('recSave', (_e, bytes, meta = {}) => { const id = recAdd({ at: meta.at, sec: meta.sec, buf: Buffer.from(bytes), ext: '.webm', src: 'pc', target: meta.target }); recPump(); return id; });
+ipcMain.handle('recList', () => { const t = require('./transcriber').tools(); return { items: recDoc().items || [], now: recNow, tools: t.ok }; });
+ipcMain.handle('recRetry', (_e, id) => { const d = recDoc(), x = (d.items || []).find(y => y.id === id); if (!x || x.audioGone) return false; x.status = 'queued'; delete x.err; recSave(d); recPump(); return true; });
+// 消す: 音声は .trash へ。keepText なら、文字は一覧に残す
+ipcMain.handle('recDelete', (_e, id, keepText) => {
+  const d = recDoc(), x = (d.items || []).find(y => y.id === id); if (!x || x.status === 'running') return false;
+  if (!x.audioGone) { try { const t = path.join(vault, '.trash'); fs.mkdirSync(t, { recursive: true }); fs.renameSync(path.join(recDir(), x.file), path.join(t, `${Date.now()}-${x.file}`)); } catch { } }
+  if (keepText && x.lines) x.audioGone = true; else d.items = d.items.filter(y => y !== x);
+  recSave(d); return true;
+});
 // ===== スマホ（USB・adb）=====
 ipcMain.handle('phoneInstall', async () => require('./phone').install({}, m => { if (mainWin && !mainWin.isDestroyed()) mainWin.webContents.send('phoneMsg', m); }));
 // スマホのメモを取り込む（Gnosis の \M と同じ）。取り込んだら、スマホへ「取り込み済み」の印を返す
@@ -96,14 +165,30 @@ async function runPhoneImport() {
   const r = await P.pullInbox(); if (!r.ok) return { ok: false, message: r.message };
   const seenFile = path.join(app.getPath('userData'), 'phone-seen.json');
   let seen = new Set(); try { seen = new Set(JSON.parse(fs.readFileSync(seenFile, 'utf8')).names || []); } catch { }
-  const papersDir = path.join(vault, '.phone-papers');
-  const out = I.importInbox(v, r.files, { seen, papers: (name, buf) => { fs.mkdirSync(papersDir, { recursive: true }); fs.writeFileSync(path.join(papersDir, name), buf); } });
+  const papersDir = path.join(vault, '.phone-papers'), X = require('./id-explorer-core');
+  const idsFile = path.join(app.getPath('userData'), 'phone-ids.json');   // スマホのノートのファイル名 → PC で付けた ID（あとから届く子・並列の親をたどる）
+  let ids = {}; try { ids = JSON.parse(fs.readFileSync(idsFile, 'utf8')) || {}; } catch { }
+  const named = [], pmemos = [];
+  const out = I.importInbox(v, r.files, {
+    seen, ids,
+    papers: (name, buf) => { fs.mkdirSync(papersDir, { recursive: true }); fs.writeFileSync(path.join(papersDir, name), buf); },
+    // スマホで付けた名前（ID・キーワード）: PC でまだ使っていない ID なら、そのまま紙のノートにする（使っていれば、取り込み画面へ回す）
+    named: (d, buf) => { const id = String(d.name.id).toLowerCase(); if (!require('./lib').isId(id) || v.state().notes.some(n => n.s === 'p' && n.id === id)) return false; v.saveImage('p', id, buf); named.push({ id, kws: (d.name.kws || []).map(String) }); v.saveNote({ s: 'p', id, keywords: (d.name.kws || []).map(String), body: '' }); return true; },
+    pmemo: (d, buf) => pmemos.push({ d, buf }),
+    audio: (d, buf) => recAdd({ at: d.at, sec: +d.sec || 0, buf, ext: path.extname(d.file) || '.m4a', src: 'phone' }),
+    suggest: (base, rel) => { const ns = v.state().notes, b = ns.find(n => n.s === 'd' && n.id === base && !n.noid); return b ? X.suggest(ns, b, rel) : null; }
+  });
+  fs.writeFileSync(idsFile, JSON.stringify(ids));
+  for (const { kws } of named) for (const k of kws) if (!(v.state().readings || {})[k]) { try { const t = await tokenizer(); v.setReading(k, require('./lib').toHira(t.tokenize(k).map(x => x.reading && x.reading !== '*' ? x.reading : x.surface_form).join(''))); } catch { } }
+  if (pmemos.length) pmemoAdd(pmemos);
   for (const n of out.done) seen.add(n);
   const present = new Set(r.files.map(f => f.name)), keep = [...seen].filter(n => present.has(n));   // スマホに残っているものだけ覚える（消されたら忘れる）
   fs.writeFileSync(seenFile, JSON.stringify({ names: keep }));
   const m1 = await P.markInbox(keep);
   const st = v.state();
-  const m2 = await P.sendMeta({ kinds: v.records().map(x => x.name), notes: st.notes.filter(n => (!n.kind || n.kind === 'text') && !n.noid).map(n => ({ s: n.s, id: n.id, title: n.title || '' })) });
+  // スマホへ: ノートの一覧（チャット形式で見せるので、本文の頭も）・紙のキーワード・紙のメモ帳の最後のページ
+  const m2 = await P.sendMeta({ kinds: v.records().map(x => x.name), notes: st.notes.filter(n => (!n.kind || n.kind === 'text') && !n.noid).map(n => ({ s: n.s, id: n.id, title: n.title || '', body: n.s === 'd' ? String(n.body || '').slice(0, 1500) : '', kw: n.s === 'p' ? n.keywords || [] : undefined })), pmemo: pmemoBooks() });
+  recPump();
   const sum = { ...out.sum, chats: out.sum.memos, days: out.sum.diaries, scans: out.sum.papers };
   const msg = I.summary(out.sum) ? 'スマホから取り込みました: ' + I.summary(out.sum) : 'スマホに、新しいものはありませんでした';
   return { ok: true, state: st, sum, message: msg + (out.sum.already ? `（取り込み済みで残っているもの ${out.sum.already} 件）` : '') + (m1.ok && m2.ok ? '' : '\n（スマホへ、取り込み済みの印か一覧を返せませんでした）') };
