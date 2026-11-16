@@ -1343,7 +1343,7 @@ async function idApply(id) {
   const subject = idSubject(); if (!subject) return endIdPick();
   const ok = await changeId(subject, id);
   if (ok === false) return toast('そのIDは使えませんでした');
-  idPick = null; drawIdBar(); toast(`ID ${id} を付けました`);
+  idPick = null; drawIdBar(); openNote(subject.s, id); toast(`ID ${id} を付けました`);   // IDを決めたノートの画面にする（基準にしたノートの画面のままにしない）
 }
 document.addEventListener('click', e => {
   if (!idPick) return;
