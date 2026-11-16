@@ -2577,7 +2577,7 @@ function settingsDialog() {
       <div class="srow"><span>本文のフォント</span><select id="s-bf"><option value="default"${sw.bodyFont === 'default' ? ' selected' : ''}>画面と同じ</option><option value="serif"${sw.bodyFont === 'serif' ? ' selected' : ''}>明朝</option><option value="mono"${sw.bodyFont === 'mono' ? ' selected' : ''}>等幅</option><option value="custom"${sw.bodyFont === 'custom' ? ' selected' : ''}>好きな名前</option></select><input type="text" id="s-bfc" placeholder="フォント名" value="${esc(sw.bodyFontCustom)}" style="flex:1"></div></div>
     <div class="sec"><b>URLプレビュー</b><div class="srow"><button id="s-url-refresh">URLプレビュー情報を再取得</button><span id="s-url-progress" role="status"></span></div></div>
     <div class="sec"><b>スマホ</b><div class="srow"><span>つないだら、自動で取り込む・アプリを更新する</span><label class="nm-sw"><input type="checkbox" id="s-autophone" ${sw.autoPhone !== false ? 'checked' : ''}><i></i></label></div><div class="srow"><button id="s-phone">スマホにアプリを入れる…（USB）</button></div></div>
-    <div class="sec"><b>アプリ</b><div class="srow"><span id="s-ver" class="sub"></span><button id="s-upd">更新を確認</button><button id="s-short">ショートカットを作る</button><button id="s-gh">GitHub を開く</button></div></div>
+    <div class="sec"><b>アプリ</b><div class="srow"><span id="s-ver" class="sub"></span><button id="s-upd">更新を確認</button><button id="s-keys">⌨️ キー一覧</button><button id="s-short">ショートカットを作る</button><button id="s-gh">GitHub を開く</button></div></div>
     <div class="row"><span class="grow"></span><button class="p" id="s-close">閉じる</button></div></div>`, close => {
     const set = (k, v) => { settings[k] = v; saveSettings(); };
     api.appInfo().then(i => { $('#s-ver').textContent = 'YuriiNote ' + i.version; $('#s-upd').onclick = () => checkUpdate(i); $('#s-short').style.display = i.platform === 'win32' ? 'none' : ''; });
@@ -2597,6 +2597,21 @@ function settingsDialog() {
     $('#s-autophone').onchange = e => set('autoPhone', e.target.checked);
     $('#s-phone').onclick = phoneInstall; $('#s-gh').onclick = () => api.openUrl('https://github.com/Yurii7812/YuriiNote');
     $('#s-short').onclick = async () => toast(await api.installShortcuts());
+    $('#s-keys').onclick = () => { close(); keysDialog(); };
+  });
+}
+// ⌨️ キー一覧（Ctrl に統一。割り当てを足したら、ここにも書く）
+const KEYS = [
+  ['書く', [['Ctrl+M', '新しい (n) を、カーソルの位置に入れる'], ['Ctrl+P', '(p) を入れる'], ['Ctrl+I', ':ID を入れる'], ['Ctrl+R', '行ごとの時刻の、オン・オフ'], ['Ctrl+↑ / ↓', '行を動かす']]],
+  ['ノートを作る', [['Ctrl+N', 'IDなしの新しいノート'], ['Ctrl+H', '並列のノート'], ['Ctrl+B', '分岐（子）のノート']]],
+  ['探す・移る', [['Ctrl+F', '左の検索'], ['Ctrl+E', '今のページの中の検索・置換'], ['Ctrl+J', '左の一覧の折りたたみを、全部たたむ・ひらく'], ['Ctrl+,  /  Ctrl+.', '戻る・進む'], ['Ctrl+\\', '右パネルの、出し入れ']]],
+  ['タブ', [['Ctrl+T', '新しいタブ'], ['Ctrl+W', '閉じる']]],
+  ['録音', [['Ctrl+L', '録音して、今のノートの末尾へ'], ['Ctrl+O', '録音して、ノートには何もしない'], ['（録音中）', 'どちらのキーでも止まる']]],
+  ['紙の取り込み画面', [['Ctrl+H', '次'], ['Ctrl+B', '子'], ['Ctrl+U', '親の次'], ['Ctrl+K', '前と同じキーワード'], ['Ctrl+S', '飛ばす'], ['Ctrl+D', '日記の日付'], ['Ctrl+E', '拡大']]]
+];
+function keysDialog() {
+  dialog(`<div class="sdlg"><h3>⌨️ キー一覧</h3>${KEYS.map(([h, rows]) => `<div class="sec"><b>${h}</b>${rows.map(([k, d]) => `<div class="srow"><kbd style="min-width:120px;font-family:monospace;font-weight:700">${esc(k)}</kbd><span>${esc(d)}</span></div>`).join('')}</div>`).join('')}<div class="row"><span class="grow"></span><button class="p" id="k-close">閉じる</button></div></div>`, close => {
+    $('#k-close').onclick = close; $('#modal').onkeydown = e => { if (e.key === 'Escape') close(); };
   });
 }
 // スマホにアプリを入れる（USB でつないだスマホに、adb で）
