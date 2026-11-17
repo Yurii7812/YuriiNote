@@ -60,29 +60,26 @@ test('区画: 番号と名前だけ。名前が無くても区画は出る。区
   assert.equal(v.saveRegion('1a', 'x'), false, '区画の番号の形でないものは不可');
 });
 
-test('区画の名前とトピックIndexは別。グローバルIndexへの追加は区画の印（index）で、外せる', () => {
+test('区画の名前とトピックIndexは別。グローバルIndexの名前は、ノートのキーワードと同じく、いくつでも登録・解除できる', () => {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'zkreg2-'));
   const v = openVault(dir);
   v.saveNote({ s: 'd', id: '1a', created: '2026-11-17 10:00:00', body: '本文' });
   v.saveRegion('1', '仏教');
   v.saveTopic({ name: '無名1-1', entry: { s: 'd', id: '1' }, keyword: '', text: '' });
   assert.equal(v.state().regions[0].name, '仏教', 'トピックIndexを作っても区画の名前は変わらない');
-  assert.equal(v.state().regions[0].index, false);
-  assert.equal(v.saveRegion('1', '仏教', true).regions[0].index, true);
-  assert.equal(v.saveRegion('1', '仏教改').regions[0].index, true, '名前だけ保存しても、追加の印は残る');
-  assert.equal(v.saveRegion('1', '仏教改', false).regions[0].index, false, '外せる');
+  assert.deepStrictEqual(v.state().regions[0].keywords, []);
+  assert.deepStrictEqual(v.saveRegion('1', '仏教', ['ブッダ', '釈迦']).regions[0].keywords, ['ブッダ', '釈迦'], '名前をいくつでも登録できる');
+  assert.deepStrictEqual(v.saveRegion('1', '仏教改').regions[0].keywords, ['ブッダ', '釈迦'], '名前だけ保存しても、登録は残る');
+  assert.deepStrictEqual(v.saveRegion('1', '仏教改', ['釈迦']).regions[0].keywords, ['釈迦'], '解除できる');
+  assert.deepStrictEqual(v.saveRegion('1', '仏教改', ['釈迦', '釈迦', ' ']).regions[0].keywords, ['釈迦'], '同じ名前・空は入らない');
+  assert.deepStrictEqual(openVault(dir).state().regions[0].keywords, ['釈迦'], '開き直しても残る');
 });
 
-test('区画をグローバルIndexに載せる名前（kw）は、区画の名前とは別。省略したら今のまま', () => {
+test('旧い形式（index / kw）で保存された区画も、名前の一覧として読める', () => {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'zkreg3-'));
-  const v = openVault(dir);
-  v.saveNote({ s: 'd', id: '1a', created: '2026-11-17 10:00:00', body: '本文' });
-  v.saveRegion('1', '区画の名前');
-  const r1 = v.saveRegion('1', '区画の名前', true, '載せる名前').regions[0];
-  assert.deepStrictEqual([r1.name, r1.index, r1.kw], ['区画の名前', true, '載せる名前']);
-  const r2 = v.saveRegion('1', '名前だけ変える').regions[0];
-  assert.deepStrictEqual([r2.name, r2.index, r2.kw], ['名前だけ変える', true, '載せる名前'], '名前を保存しても、載せる名前と印は残る');
-  const r3 = v.saveRegion('1', '名前だけ変える', false).regions[0];
-  assert.equal(r3.index, false);
-  assert.equal(openVault(dir).state().regions[0].kw, '載せる名前', '保存して開き直しても残る');
+  fs.writeFileSync(path.join(dir, 'K_regions.json'), JSON.stringify({ regions: { 1: { name: 'aaa', index: true, kw: '' }, 2: { name: 'bbb', index: true, kw: 'ビー' }, 3: { name: 'ccc', index: false } } }));
+  const r = openVault(dir).state().regions;
+  assert.deepStrictEqual(r.find(x => x.n === '1').keywords, ['aaa']);
+  assert.deepStrictEqual(r.find(x => x.n === '2').keywords, ['ビー']);
+  assert.deepStrictEqual(r.find(x => x.n === '3').keywords, []);
 });

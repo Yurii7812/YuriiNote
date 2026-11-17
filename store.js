@@ -572,7 +572,7 @@ function openVault(vault) {
     const set = new Set(Object.keys(regionDoc().regions || {}).map(Number));
     for (const n of notes.values()) if (n.s === 'd' && validId(n.id) && !L.isNoid(n.id)) set.add(L.region(n.id));
     for (const t of topics.values()) if (t.entry && t.entry.s === 'd' && L.isRegionOnly(t.entry.id)) set.add(+t.entry.id);
-    return [...set].filter(Boolean).sort((a, b) => a - b).map(n => { const r = (regionDoc().regions || {})[n] || {}; return { n: String(n), name: r.name || '', index: !!r.index, kw: r.kw || '' }; });   // index: グローバルIndexに載せている・kw: 載せる名前（区画の名前とは別）
+    return [...set].filter(Boolean).sort((a, b) => a - b).map(n => { const r = (regionDoc().regions || {})[n] || {}; return { n: String(n), name: r.name || '', keywords: Array.isArray(r.keywords) ? [...r.keywords] : (r.index && (r.kw || r.name) ? [r.kw || r.name] : []) }; });   // keywords: グローバルIndexの名前（ノートのキーワードと同じ。いくつでも）。旧い index/kw は、ここで名前の一覧に直す
   }
   // 対応表（旧 → 新）でIDを付け替える（ノート・子・トピックの入口と索引・本文の ->ID・日記・canvas の節点）。rename と移行が使う
   function applyIdMap(s, map) {
@@ -848,11 +848,11 @@ function openVault(vault) {
       rebuild(); return pub(n);
     },
     // 区画の名前（番号だけの入れ物）。name が空でも、区画は残る（索引を作れる）
-    saveRegion(n, name, index, kw) {   // index: グローバルIndexに載せる・kw: 載せる名前（どちらも省略なら今のまま）
+    saveRegion(n, name, keywords) {   // keywords: グローバルIndexの名前の一覧（省略なら今のまま）
       if (!L.isRegionOnly(n)) return false;
       const d = regionDoc(), regions = { ...(d.regions || {}) };
-      const was = regions[n] || {};
-      regions[n] = { name: (name || '').trim(), index: index === undefined ? !!was.index : !!index, kw: kw === undefined ? (was.kw || '') : String(kw).trim() };
+      const was = regionList().find(x => x.n === String(n)) || { keywords: [] };
+      regions[n] = { name: (name || '').trim(), keywords: keywords === undefined ? was.keywords : [...new Set((keywords || []).map(k => String(k).trim()).filter(Boolean))] };
       docs.set('K_regions', { regions }); put(abs('K_regions.json'), JSON.stringify({ regions }, null, 1));
       rebuild(); return this.state();
     },
