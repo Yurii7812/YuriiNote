@@ -490,6 +490,7 @@ test('時系列記録: 上位を、いくつでも決められる（どの上位
   v.addRecord('仕事'); v.addRecord('学び'); v.addRecord('哲学メモ', ['仕事', '学び']);
   assert.deepStrictEqual(v.records().find(r => r.name === '哲学メモ').parents, ['仕事', '学び']);
   for (const k of ['仕事', '学び', '哲学メモ']) v.openDiary('2026-11-08', k);
+  v.saveDiary({ date: '2026-11-08', kind: '哲学メモ', body: '書いた' });   // 何も書いていない日は存在しない（2026-11-17）ので、下位に書く
   assert.deepStrictEqual(v.openDiary('2026-11-08', '仕事').lower, ['哲学メモ']);
   assert.deepStrictEqual(v.openDiary('2026-11-08', '学び').lower, ['哲学メモ']);
   assert.deepStrictEqual(v.openDiary('2026-11-08', '哲学メモ').parents, ['仕事', '学び']);

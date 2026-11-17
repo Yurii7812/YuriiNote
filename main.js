@@ -300,6 +300,7 @@ async function phoneTick() {
 ipcMain.handle('saveNote', (_e, n) => v.saveNote(n));
 ipcMain.handle('createNote', (_e, x) => v.createNote(x));
 ipcMain.handle('addPaperIndex', (_e, x) => v.addPaperIndex(x));
+ipcMain.handle('dropEmptyDay', (_e, date, kind) => v.dropEmptyDay(date, kind));
 ipcMain.handle('saveRegion', (_e, n, name, keywords) => v.saveRegion(n, name, keywords));
 ipcMain.handle('removePaperIndex', (_e, x) => v.removePaperIndex(x));
 ipcMain.handle('clearId', (_e, sp, id) => v.clearId(sp, id));

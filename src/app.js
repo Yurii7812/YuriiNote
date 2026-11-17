@@ -1059,14 +1059,22 @@ function place(t, keep) {
   if (keep && tabs[active]) return tabs[active];
   rememberPos();
   if (bgOpen) { tabs.push(t); newTab = false; return t; }                        // 背景で新しいタブ: 今のページは動かない
+  let left = null;
   if (newTab || active < 0 || !tabs[active]) { tabs.push(t); active = tabs.length - 1; }
   else {
-    const old = tabs[active];
+    const old = tabs[active]; left = old;
     if (!sameTab(old, t)) { t.back = [...(old.back || []), desc(old)].slice(-60); t.fwd = []; } else { t.back = old.back; t.fwd = old.fwd; }
     tabs[active] = t;
   }
   newTab = false;
+  if (left && left.k === 'diary') releaseDay(left.date, left.kind || '日記');   // 離れた日・記録が、まだ空なら、消す
   return t;
+}
+// 何も書かなかった日・記録（日記・メモ帳・夢…）は、閉じたら（別のページへ移ったら）消す。ほかのタブで開いていれば、そのまま
+async function releaseDay(date, kind) {
+  if (tabs.some(x => x.k === 'diary' && (x.kind || '日記') === kind && x.date === date)) return;
+  const d = getDiary(date, kind); if (!d || (d.title || '').trim() || (d.body || '').trim()) return;
+  try { await flush(); if (await api.dropEmptyDay(date, kind)) { diaries = diaries.filter(x => !((x.kind || '日記') === kind && x.date === date)); renderList(); } } catch { }
 }
 const sameTab = (a, b) => a && b && a.k === b.k && a.s === b.s && a.id === b.id && a.date === b.date && a.topic === b.topic && a.name === b.name;
 // 戻る・進む
@@ -1096,9 +1104,11 @@ function show(i) {
 function closeTab(i) {
   if (i < 0 || i >= tabs.length) return;
   if (i === active) rememberPos();
+  const gone = tabs[i];
   tabs.splice(i, 1);
   if (active > i || active >= tabs.length) active--;
   show(active < 0 && tabs.length ? 0 : active);
+  if (gone && gone.k === 'diary') releaseDay(gone.date, gone.kind || '日記');   // 閉じた日・記録が、まだ空なら、消す
 }
 const tabLabel = t => t.k === 'note' ? (n => `${n && icon(n) ? icon(n) + ' ' : ''}${n ? esc(titleOf(n).slice(0, 16)) : esc(t.id)}<small>${n && n.noid ? 'IDなし' : (t.s === 'p' ? '紙 ' : '') + esc(t.id)}</small>`)(get(t.s, t.id))
   : t.k === 'topic' ? `📑 ${esc(t.name)}` : t.k === 'region' ? `🗂️ ${esc(t.id)} <small>${esc((regions.find(x => x.n === t.id) || {}).name || '無名')}</small>` : t.k === 'diary' ? `${kindIcon(t.kind || '日記')} ${esc(t.date.slice(5))} <small>${esc(t.kind || '日記')}</small>` : t.k === 'similar' ? '🔍 類似' : t.k === 'rec' ? '🎙️ 録音' : t.k === 'tlist' ? `📑 ${esc(t.id)}` : t.k === 'export' ? '📤 エクスポート' : '新しいタブ';

@@ -21,6 +21,7 @@ contextBridge.exposeInMainWorld('api', {
   saveNote: n => r.invoke('saveNote', n),
   createNote: x => r.invoke('createNote', x),
   addPaperIndex: x => r.invoke('addPaperIndex', x),
+  dropEmptyDay: (date, kind) => r.invoke('dropEmptyDay', date, kind),
   saveRegion: (n, name, keywords) => r.invoke('saveRegion', n, name, keywords),
   removePaperIndex: x => r.invoke('removePaperIndex', x),
   clearId: (sp, id) => r.invoke('clearId', sp, id),
