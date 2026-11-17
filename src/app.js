@@ -1759,7 +1759,8 @@ function regionDialog(n) {
   $('#modal .box').innerHTML = `<div class="dlg-a"><h3>🗂️ 区画 ${esc(n)}</h3>
     <div class="da-lab">名前</div>
     <input id="rg-name" value="${esc(g.name)}" placeholder="例: 仏教">
-    <div class="da-bar"><span class="grow"></span><button id="rg-cancel">やめる</button><button id="rg-mk" title="この名前のトピックIndex（${esc(n)}-1）を作り、グローバルIndexに追加">➕ トピックIndexを作る（グローバルIndexに追加）</button><button id="rg-ok" class="p">保存</button></div></div>`;
+    <button id="rg-mk" class="da-wide" title="この名前のトピックIndexを作り、グローバルIndexに追加します">➕ 新しいトピックIndexを作る<small>グローバルIndexに追加します</small></button>
+    <div class="da-bar"><span class="grow"></span><button id="rg-cancel">やめる</button><button id="rg-ok" class="p">保存</button></div></div>`;
   $('#modal').style.display = 'flex'; $('#rg-name').focus();
   const close = () => { $('#modal').style.display = 'none'; };
   $('#rg-cancel').onclick = close;
