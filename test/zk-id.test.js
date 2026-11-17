@@ -59,3 +59,16 @@ test('区画: 番号と名前だけ。名前が無くても区画は出る。区
   assert.equal(v.state().notes.some(n => n.s === 'd' && n.id === '1'), false, '索引を作ってもノート 1 は増えない');
   assert.equal(v.saveRegion('1a', 'x'), false, '区画の番号の形でないものは不可');
 });
+
+test('区画の名前とトピックIndexは別。グローバルIndexへの追加は区画の印（index）で、外せる', () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'zkreg2-'));
+  const v = openVault(dir);
+  v.saveNote({ s: 'd', id: '1a', created: '2026-11-17 10:00:00', body: '本文' });
+  v.saveRegion('1', '仏教');
+  v.saveTopic({ name: '無名1-1', entry: { s: 'd', id: '1' }, keyword: '', text: '' });
+  assert.equal(v.state().regions[0].name, '仏教', 'トピックIndexを作っても区画の名前は変わらない');
+  assert.equal(v.state().regions[0].index, false);
+  assert.equal(v.saveRegion('1', '仏教', true).regions[0].index, true);
+  assert.equal(v.saveRegion('1', '仏教改').regions[0].index, true, '名前だけ保存しても、追加の印は残る');
+  assert.equal(v.saveRegion('1', '仏教改', false).regions[0].index, false, '外せる');
+});

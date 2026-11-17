@@ -396,6 +396,11 @@ function globalIndex() {
     if (!m.has(t.keyword)) m.set(t.keyword, { d: [], p: [] });
     if (!m.get(t.keyword).d.includes(t.entry.id)) m.get(t.keyword).d.push(t.entry.id);
   }
+  for (const r of regions) {   // グローバルIndexに載せた区画は、名前の下に区画の番号を出す
+    if (!r.index || !r.name) continue;
+    if (!m.has(r.name)) m.set(r.name, { d: [], p: [] });
+    if (!m.get(r.name).d.includes(r.n)) m.get(r.name).d.push(r.n);
+  }
   for (const e of PI.pendingEntries()) {   // まだ取り込んでいない紙のID
     if (!m.has(e.kw)) m.set(e.kw, { d: [], p: [] });
     for (const id of e.ids) if (!m.get(e.kw).p.includes(id)) m.get(e.kw).p.push(id);
@@ -1755,29 +1760,27 @@ function topicAddDialog(note) {
 const regionRow = r => { const g = regions.find(x => x.n === r) || { name: '' }; return `<div class="item region" data-region="${esc(r)}"><div class="nt">🗂️ <b>${esc(r)}</b> ${g.name ? esc(g.name) : '<small>（名前なし）</small>'}</div></div>`; };
 const uniqueTopics = list => [...new Map(list.map(t => [t.name, t])).values()];
 function regionDialog(n) {
-  const g = regions.find(x => x.n === n) || { name: '' };
+  const g = regions.find(x => x.n === n) || { name: '', index: false };
   $('#modal .box').innerHTML = `<div class="dlg-a"><h3>🗂️ 区画 ${esc(n)}</h3>
-    <div class="da-lab">名前</div>
+    <div class="da-lab">区画の名前（トピックIndexの名前とは別です）</div>
     <input id="rg-name" value="${esc(g.name)}" placeholder="例: 仏教">
-    <button id="rg-mk" class="da-wide" title="この名前のトピックIndexを作り、グローバルIndexに追加します">➕ 新しいトピックIndexを作る<small>グローバルIndexに追加します</small></button>
-    <div class="da-bar"><span class="grow"></span><button id="rg-cancel">やめる</button><button id="rg-ok" class="p">保存</button></div></div>`;
+    <button id="rg-mk" class="da-wide" title="この区画の下に、新しい索引（${esc(n)}-1, ${esc(n)}-2 …）を作ります">➕ 新しいトピックIndexを作る<small>${esc(n)}-${Math.max(0, ...topicsOf('d', n).map(t => t.num || 0)) + 1}（無名で作ります。名前は育ってから）</small></button>
+    <button id="rg-gi" class="da-wide" title="この区画を、名前で、グローバルIndexに載せます">${g.index ? '🔎 グローバルIndexから外す' : '🔎 グローバルIndexに追加'}<small>${g.index ? 'いま、名前「' + esc(g.name) + '」で載っています' : '名前で載ります（名前が必要です）'}</small></button>
+    <div class="da-bar"><span class="grow"></span><button id="rg-cancel">やめる</button><button id="rg-ok" class="p">名前を保存</button></div></div>`;
   $('#modal').style.display = 'flex'; $('#rg-name').focus();
   const close = () => { $('#modal').style.display = 'none'; };
+  const done = st => { if (!st) return alert('保存できませんでした（区画の番号の形が違います）'); applyState(st); close(); renderList(); };
   $('#rg-cancel').onclick = close;
-  $('#rg-ok').onclick = async () => {
-    const st = await api.saveRegion(n, $('#rg-name').value.trim());
-    if (!st) return alert('保存できませんでした（区画の番号の形が違います）');
-    applyState(st); close(); renderList();
-  };
-  $('#rg-mk').onclick = async () => {
+  $('#rg-ok').onclick = async () => done(await api.saveRegion(n, $('#rg-name').value.trim()));
+  $('#rg-gi').onclick = async () => {   // グローバルIndexに、区画の名前で載せる・外す
     const name = $('#rg-name').value.trim();
-    if (!name) return alert('名前を入れてください（グローバルIndexには、名前で出ます）');
-    if (topics.some(t => t.entry && t.entry.s === 'd' && t.entry.id === n && t.keyword === name)) return alert(`区画 ${n} に「${name}」の索引は、もうあります`);
-    if (topics.some(t => t.name === name)) return alert('その名前の索引は、既にあります');
-    await api.saveRegion(n, name);
-    const t = { name, entry: { s: 'd', id: n }, keyword: name, text: '' };
-    const sv = await api.saveTopic(t); if (!sv) return alert('保存できませんでした');
-    close(); const st = await api.state?.(); if (st) applyState(st); renderList();
+    if (!g.index && !name) return alert('名前を入れてください（グローバルIndexには、名前で出ます）');
+    done(await api.saveRegion(n, name, !g.index));
+  };
+  $('#rg-mk').onclick = async () => {   // 新しい索引は、無名で作る（番号だけで呼ぶ）
+    const t = { name: autoName('d', n), entry: { s: 'd', id: n }, keyword: '', text: '' };
+    const sv = await api.saveTopic(t); if (!sv) return alert('保存できませんでした');   // 区画の名前には触らない
+    close(); const st = await api.state(); if (st) applyState(st); renderList();
   };
   $('#modal').onkeydown = e => { if (e.key === 'Escape') close(); };
 }
