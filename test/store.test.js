@@ -120,7 +120,7 @@ test('v1（直下に <ID>.md / <ID>.jpg）も移す。添付の 5.png をノー�
   fs.writeFileSync(path.join(dir, '5.md'), '---\ndate: 2026 11 07\nkeywords: 古い\n---\n昔の本文\n');
   const v = openVault(dir);
   const old = v.state().notes.find(x => x.s === 'd' && x.id === '5');
-  assert.strictEqual(old.body, '2026-11-07 00:00:00 昔の本文');   // 日付の無い行には、そのノートの日時が付く
+  assert.strictEqual(old.body, '昔の本文<!--2026-11-07 00:00:00-->');   // 日付の無い行には、そのノートの日時が付く
    assert.strictEqual(old.created, '2026-11-07 00:00:00'); assert.deepStrictEqual(old.keywords, ['古い']);
   assert.ok(fs.existsSync(path.join(dir, old.stem + '.md')) && fs.existsSync(path.join(dir, '5.md.old')) && old.stem === '20261107000000');
   // 平らになったあとに入れた 7.png は、添付のまま（次に開いても紙の画像にならない）
@@ -676,11 +676,32 @@ test('日付の無い行には、そのノート（日記はその日）の日�
   fs.writeFileSync(path.join(dir, '.pkm-layout'), 'flat1\n');
   v = openVault(dir);
   const n = v.state().notes.find(x => x.id === '1'), d = v.state().diaries.find(x => x.kind === 'メモ帳' && x.date === '2026-10-11');
-  assert.strictEqual(n.body, '# 2026-10-10 11:12:30 題\n2026-10-10 11:12:30 本文\n```js\nコード\n```');
-  assert.match(d.body, /^2026-10-11 10:35:00 朝\n2026-10-11 \d{2}:\d{2}:\d{2} 時刻なしの行$/);
+  assert.strictEqual(n.body, '# 題<!--2026-10-10 11:12:30-->\n本文<!--2026-10-10 11:12:30-->\n```js\nコード\n```');
+  assert.match(d.body, /^朝<!--2026-10-11 10:35:00-->\n時刻なしの行<!--2026-10-11 \d{2}:\d{2}:\d{2}-->$/);
   assert.ok(fs.readFileSync(path.join(dir, '.pkm-layout'), 'utf8').includes('stamp1'));
   const again = openVault(dir).state().notes.find(x => x.id === '1');   // 二度目は、変えない
   assert.strictEqual(again.body, n.body);
+});
+
+test('行頭の日時（昔の形）は、開くたびに、本文のすぐ後ろの <!--日時--> に直る。直したあとは、変えない', () => {
+  const dir = tmp();
+  let v = openVault(dir);
+  v.saveNote({ s: 'd', id: '1', created: '2026-10-10 11:12:30', keywords: [], body: '# 2026-10-10 11:12:30 題\n- 2026-10-10 11:13:00 買い物 ->1a\n2026-10-10 11:14:00 (1)->説明\nそのまま' });
+  v.saveDiary({ date: '2026-10-11', kind: 'メモ帳', body: '2026-10-11 10:35:00 朝\n2026-10-11 10:36:00 昼' });
+  v.close && v.close();
+  fs.writeFileSync(path.join(dir, '.pkm-layout'), 'flat1\nstamp1\nstamp2\narrow1\n');   // 前の形のままの vault に戻す
+  v = openVault(dir);
+  const n = v.state().notes.find(x => x.id === '1'), d = v.state().diaries.find(x => x.kind === 'メモ帳');
+  assert.ok(n.body.startsWith('# 題<!--2026-10-10 11:12:30-->\n- 買い物 ->1a<!--2026-10-10 11:13:00-->\n(1)->説明<!--2026-10-10 11:14:00-->\n'), n.body);
+  assert.strictEqual(d.body, '朝<!--2026-10-11 10:35:00-->\n昼<!--2026-10-11 10:36:00-->');
+  assert.ok(fs.readFileSync(path.join(dir, '.pkm-layout'), 'utf8').includes('stamp3'));
+  const file = fs.readFileSync(path.join(dir, v.state().notes.find(x => x.id === '1').stem + '.md'), 'utf8');
+  assert.ok(file.includes('# 題<!--2026-10-10 11:12:30-->') && file.includes('(1)->説明<!--2026-10-10 11:14:00-->'), 'ファイルにも、本文の直後のコメントとして入る（md では見えない）');
+  const again = openVault(dir).state().notes.find(x => x.id === '1');
+  assert.strictEqual(again.body, n.body, '直したあとは、変えない');
+  // 古い画面が、行頭の形で書き戻してしまっても、次に開いたとき（印があっても）直る
+  v = openVault(dir); v.saveNote({ s: 'd', id: '1', body: '- 2026-10-10 12:00:00 古い画面が書いた行' });
+  assert.strictEqual(openVault(dir).state().notes.find(x => x.id === '1').body, '- 古い画面が書いた行<!--2026-10-10 12:00:00-->');
 });
 
 test('昔の :ID / ID: は、一度だけ ->ID / ID-> に直る（日記の「- :ID」だけの行は別の仕組み）', () => {

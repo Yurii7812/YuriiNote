@@ -1,4 +1,5 @@
-// 行ごとの「年月日＋時刻」（行の先頭の「2026-11-13 12:54 」）。オンなら薄く小さく見せ、オフなら隠す（ファイルには残る）。
+// 行ごとの「年月日＋時刻」。本文のすぐ後ろに、見えないコメント「<!--2026-11-13 12:54:30-->」で持つ。画面では、行の頭に薄く小さく出す（オフなら出さない。ファイルには残る）。
+// 書いている間も、コメントは消えない・変わらない: カーソルは、コメントの手前にだけ置ける。Delete・行の結合・Enter・範囲削除で外れたら、同じ編集の中で戻す。
 // 行を書いたら、自動で付く（書き始めた時刻）。表示のオン・オフは、PC でも スマホでも 1 つの設定
 import { EditorView, Decoration, ViewPlugin, WidgetType, keymap } from '@codemirror/view';
 import { StateField, StateEffect, EditorState, EditorSelection, Prec, Transaction } from '@codemirror/state';
@@ -17,7 +18,7 @@ const views = new Set();
 const refresh = StateEffect.define();
 export const stampsShown = () => show;
 // コピーボタンなどで外へ出す文章: 行ごとの時刻を出していないときは、時刻なしのまま出す
-export const clipText = text => show ? text : Stamp.strip(text);
+export const clipText = text => show ? Stamp.visible(text) : Stamp.strip(text);   // 時刻を出しているときは、行頭の見える形（- 2026-11-13 12:54:30 買い物）。出していないときは、時刻なし
 const refreshAll = () => { try { localStorage.setItem(PRESETS_KEY, JSON.stringify(presets)); } catch { } for (const v of views) { try { v.dispatch({ effects: refresh.of(null) }); } catch { } } };
 export const stampPresets = () => ({ current: presets.current, list: presets.list.map(x => ({ ...x })) });
 export const stampFormat = () => ({ ...curFmt() });
@@ -47,14 +48,15 @@ class SpacerWidget extends WidgetType {
   ignoreEvent() { return true; }
 }
 const markHidden = Decoration.replace({});
-// 見えている範囲の、日時の場所（見せる・隠す）。カーソルが入れないように、atomic にもする
+// 見えている範囲: 行末の日時コメントは隠す（atomic）。日時は、行の頭（記号のあと）に出す（オフなら出さない）
 function build(view) {
   const ranges = [], seen = new Set();
   for (const { from, to } of view.visibleRanges) {
     for (let pos = from; pos <= to;) {
       const ln = view.state.doc.lineAt(pos); pos = ln.to + 1; if (seen.has(ln.number)) continue; seen.add(ln.number);
-      const s = Stamp.parse(ln.text); if (!s || s.end <= s.p) continue;
-      ranges.push((show ? Decoration.replace({ widget: new StampWidget(s.at, curFmt()) }) : markHidden).range(ln.from + s.p, ln.from + s.end));
+      const t = Stamp.parse(ln.text); if (!t) continue;
+      ranges.push(markHidden.range(ln.from + t.cs, ln.from + t.ce));
+      if (show) ranges.push(Decoration.widget({ widget: new StampWidget(t.at, curFmt()), side: -1 }).range(ln.from + t.p));
     }
   }
   if (show) ranges.push(...spacers(view));
@@ -82,15 +84,56 @@ const display = ViewPlugin.fromClass(class {
   destroy() { views.delete(this.v); }
 }, { decorations: p => p.d, provide: p => EditorView.atomicRanges.of(v => v.plugin(p)?.d || Decoration.none) });
 
-// カーソル（選択なし）が日時の中や手前に来たら、日時のあと（本文の頭）へ。範囲選択はそのまま（コピーに日時が入るように）
+// 行の本文の終わり（行末の空白の手前）。日時コメントを入れる位置
+const textEnd = text => text.replace(/[ \t]+$/, '').length;
+const ANNO = [Transaction.userEvent.of('stamp'), Transaction.addToHistory.of(false)];
+
+// ---- 日時コメントを、いつも「行の本文のすぐ後ろに、1 つ」に保つ（編集と同じ変更の中で直す）
+//  ・本文の途中に残った・2 つ以上ある → いちばん前のものを、行末に 1 つだけ（行をつないだとき、前の行の日時が残る）
+//  ・日時だけが残った行（Enter で行末から改行したとき）→ 日時を外し、前の行に日時が無ければ、前の行へ
+//  ・消された日時 → その行に本文が残っていれば、前の日時を戻す（Delete・範囲削除でも、時刻は変わらない）
+//  ・昔の形（行頭の日時）の文字を貼ったとき → 行末の形に
+const fix = EditorState.transactionFilter.of(tr => {
+  if (!tr.docChanged || tr.isUserEvent('stamp')) return tr;
+  const doc = tr.newDoc, old = tr.startState.doc, lines = new Set(), carry = new Map(), edits = [];
+  tr.changes.iterChangedRanges((_fa, _fb, ta, tb) => { for (let n = doc.lineAt(ta).number, e = doc.lineAt(Math.min(tb, doc.length)).number; n <= e; n++) lines.add(n); });
+  tr.changes.iterChanges((fa, fb, ta) => {   // 消した範囲に、日時コメントが丸ごと入っていて、その行の本文が手前に残るなら、戻す時刻として覚える
+    if (fb <= fa) return;
+    const ol = old.lineAt(fa), t = Stamp.parse(ol.text); if (!t) return;
+    if (fa > ol.from && fa <= ol.from + t.cs && fb >= ol.from + t.ce && ol.text.slice(Stamp.prefixLen(ol.text), fa - ol.from).trim()) carry.set(doc.lineAt(ta).number, t.at);
+  });
+  const attach = (n, at) => { const ln = doc.line(n); edits.push({ from: ln.from + textEnd(ln.text), insert: '<!--' + at + '-->' }); };
+  for (const n of [...lines].sort((a, b) => a - b)) {
+    const ln = doc.line(n), cs = Stamp.all(ln.text);
+    if (cs.length) {
+      if (Stamp.textless(ln.text)) {   // 日時だけが残った行
+        for (const c of cs) edits.push({ from: ln.from + c.from, to: ln.from + c.to });
+        if (n > 1) { const pl = doc.line(n - 1); if (!Stamp.parse(pl.text) && !Stamp.textless(pl.text)) { attach(n - 1, cs[0].at); } }
+        continue;
+      }
+      const tail = Stamp.parse(ln.text), ok = cs.length === 1 && tail && tail.cs === cs[0].from;
+      if (!ok) { for (const c of cs) edits.push({ from: ln.from + c.from, to: ln.from + c.to }); attach(n, cs[0].at); }
+      continue;
+    }
+    const h = Stamp.parseHead(ln.text);
+    if (h) { edits.push({ from: ln.from + h.p, to: ln.from + h.end }); attach(n, h.at); continue; }
+    if (carry.has(n) && Stamp.stampable(ln.text)) attach(n, carry.get(n));
+  }
+  if (!edits.length) return tr;
+  // 同じ位置の重なりを避ける（前の行へ付ける印と、その行自身の直しが同じ場所になったとき）
+  const seen = new Set(), uniq = edits.filter(e => { const k = e.from + ':' + (e.to ?? '') + ':' + (e.insert || ''); if (seen.has(k)) return false; seen.add(k); return true; });
+  return [tr, { changes: uniq, sequential: true }];
+});
+
+// カーソル（選択なし）が日時コメントの中・後ろに来たら、コメントの手前（本文の終わり）へ。範囲選択はそのまま（コピーに日時が入るように）
 const snap = EditorState.transactionFilter.of(tr => {
   if (!tr.selection && !tr.docChanged) return tr;
   const doc = tr.newDoc, sel = tr.newSelection; let changed = false;
   const ranges = sel.ranges.map(r => {
     if (!r.empty) return r;
-    const ln = doc.lineAt(r.head), s = Stamp.parse(ln.text); if (!s) return r;
-    const a = ln.from + s.p, b = ln.from + s.end;
-    if (r.head >= a && r.head < b) { changed = true; return EditorSelection.cursor(b); }
+    const ln = doc.lineAt(r.head), t = Stamp.parse(ln.text); if (!t) return r;
+    const a = ln.from + t.cs;
+    if (r.head > a) { changed = true; return EditorSelection.cursor(a); }
     return r;
   });
   return changed ? [tr, { selection: EditorSelection.create(ranges, sel.mainIndex) }] : tr;
@@ -116,7 +159,6 @@ const dirty = StateField.define({
     return out;
   }
 });
-const annos = [Transaction.userEvent.of('stamp'), Transaction.addToHistory.of(false)];
 function flush(view, keepCurrent) {
   if (view.composing || view.state.readOnly || !view.dom.isConnected) return;
   const st = view.state, d = st.field(dirty, false); if (!d || !d.length) return;
@@ -130,22 +172,19 @@ function flush(view, keepCurrent) {
   const changes = [];
   for (const [at, set] of groups) {
     const res = Stamp.add(text, at, set).split('\n');
-    for (const i of set) { if (res[i] === orig[i]) continue; changes.push({ from: doc.line(i + 1).from + Stamp.prefixLen(orig[i]), insert: at + ' ' }); }
+    for (const i of set) { if (res[i] === orig[i]) continue; changes.push({ from: doc.line(i + 1).from + textEnd(orig[i]), insert: '<!--' + at + '-->' }); }   // 本文のすぐ後ろ
   }
-  view.dispatch({ changes, effects: setDirty.of(left), annotations: annos });
+  view.dispatch({ changes, effects: setDirty.of(left), annotations: ANNO });
 }
-// 昔の形（行末の <!--…-->）を、先頭の形に直す
+// 昔の形（行頭の日時・空白つきの行末）を、いまの形（本文のすぐ後ろ）に直す。開いたときに 1 度
 function normalize(view) {
   if (view.composing || view.state.readOnly || !view.dom.isConnected) return;
-  const doc = view.state.doc, text = doc.toString();
-  if (!text.includes('<!--')) return;
-  const next = Stamp.migrate(text); if (next === text) return;
-  const changes = [];
+  const doc = view.state.doc, changes = [];
   for (let n = 1; n <= doc.lines; n++) {
-    const ln = doc.line(n); if (!ln.text.includes('<!--')) continue;
+    const ln = doc.line(n); if (!/\d{4}-\d{2}-\d{2} \d{2}:\d{2}/.test(ln.text)) continue;
     const fixed = Stamp.migrate(ln.text); if (fixed !== ln.text) changes.push({ from: ln.from, to: ln.to, insert: fixed });
   }
-  if (changes.length) view.dispatch({ changes, annotations: [Transaction.userEvent.of('stamp'), Transaction.addToHistory.of(false)] });
+  if (changes.length) view.dispatch({ changes, annotations: ANNO });
 }
 const auto = ViewPlugin.fromClass(class {
   constructor(view) { this.v = view; this.t = null; setTimeout(() => normalize(view), 0); }
@@ -163,21 +202,14 @@ const auto = ViewPlugin.fromClass(class {
   compositionend() { const v = this.v; setTimeout(() => flush(v, true), 0); }
 } });
 
-// 日時のすぐあと（本文の頭）での ← と Backspace: ← は前の行の終わりへ。Backspace は、記号のない行なら前の行につなぐ。記号（- など）のある行は、記号ごと外す
-const keys = Prec.highest(keymap.of([
-  { key: 'ArrowLeft', run: v => {
-    const s = v.state.selection.main; if (!s.empty) return false;
-    const ln = v.state.doc.lineAt(s.head), st = Stamp.parse(ln.text); if (!st || s.head !== ln.from + st.end || ln.number === 1) return false;
-    v.dispatch({ selection: { anchor: ln.from - 1 }, scrollIntoView: true }); return true;
-  } },
-  { key: 'Backspace', run: v => {
-    const s = v.state.selection.main; if (!s.empty) return false;
-    const doc = v.state.doc, ln = doc.lineAt(s.head), st = Stamp.parse(ln.text); if (!st || s.head !== ln.from + st.end) return false;
-    if (st.p === 0 && ln.number > 1) v.dispatch({ changes: { from: ln.from - 1, to: ln.from + st.end }, selection: { anchor: ln.from - 1 }, userEvent: 'delete.backward' });
-    else v.dispatch({ changes: { from: ln.from, to: ln.from + st.end }, userEvent: 'delete.backward' });
-    return true;
-  } }
-]));
+// Delete（行の終わりで）: 日時コメントを消さずに、次の行とつなぐ（つないだ行は、前の行の日時のまま）
+const deleteKey = v => {
+  const s = v.state.selection.main; if (!s.empty) return false;
+  const doc = v.state.doc, ln = doc.lineAt(s.head), t = Stamp.parse(ln.text); if (!t || s.head !== ln.from + t.cs) return false;
+  if (ln.number < doc.lines) v.dispatch({ changes: { from: ln.to, to: ln.to + 1 }, userEvent: 'delete.forward' });
+  return true;
+};
+const keys = Prec.highest(keymap.of([{ key: 'Delete', run: deleteKey }, { key: 'Mod-Delete', run: deleteKey }]));
 // 時刻の表示がオフのときは、コピー・切り取りした文字にも、時刻を入れない
 const clip = EditorView.domEventHandlers({
   copy(e, view) { return clipOut(e, view, false); },
@@ -191,4 +223,4 @@ function clipOut(e, view, cut) {
   if (cut && !st.readOnly) view.dispatch({ changes: rs.map(r => ({ from: r.from, to: r.to })), scrollIntoView: true, userEvent: 'delete.cut' });
   return true;
 }
-export const stampExtensions = [keys, snap, dirty, display, auto, clip];
+export const stampExtensions = [keys, fix, snap, dirty, display, auto, clip];

@@ -14,7 +14,7 @@ export function init(docs) {
 }
 export const allLinks = () => links.items;
 export const memos = () => ctx.memos?.() || [];
-export const sources = () => [...ctx.notes().map(n=>({...n,kind:'note',text:n.body||''})), ...memos().map(m=>({...m,kind:'memo',title:(m.text||'').split('\n')[0],body:m.text||''})), ...(ctx.diaries?.()||[]).map(d=>({...d,recordKind:d.kind,kind:'diary',id:d.stem,title:d.title||d.date,text:d.body||''}))];
+export const sources = () => [...ctx.notes().map(n=>({...n,kind:'note',text:Stamp.visible(n.body||'')})), ...memos().map(m=>({...m,kind:'memo',title:(m.text||'').split('\n')[0],body:m.text||''})), ...(ctx.diaries?.()||[]).map(d=>({...d,recordKind:d.kind,kind:'diary',id:d.stem,title:d.title||d.date,text:d.body||''}))];
 const saveLinks = () => { ctx.saveDocument('doc:links','K_links',links); version++; refresh(); };
 const saveDisplay = () => ctx.saveDocument('doc:display','K_display',display);
 const href = link => `[${Core.safeTitle(link.title)}](link:${link.id})`;

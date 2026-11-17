@@ -148,7 +148,7 @@ async function recPlace(x) {
   await flushRenderer();
   const n = v.state().notes.find(m => m.s === x.target.s && m.id === x.target.id); if (!n) return false;
   const body = String(n.body || '').replace(/\s+$/, '');
-  v.saveNote({ s: n.s, id: n.id, body: (body ? body + '\n\n' : '') + x.lines.join('\n') }); return true;
+  v.saveNote({ s: n.s, id: n.id, body: (body ? body + '\n\n' : '') + require('./stamp').migrate(x.lines.join('\n')) }); return true;   // 録音の行は、内部では行頭の日時。ノートには、本文のすぐ後ろの形で入れる
 }
 // ===== 音声入力の言葉（voice-words.js）。直したら覚える・次から使う。K_voicewords.json =====
 const VW = require('./voice-words');
@@ -185,7 +185,8 @@ function recLearnNotes() {
     if (!x.placed || !x.target || !x.lines) continue;
     const n = st.notes.find(m => m.s === x.target.s && m.id === x.target.id); if (!n) continue;
     const body = String(n.body || '').split('\n');
-    const now = x.lines.map(l => { const sp = l.slice(0, 19); return body.find(b => b.startsWith(sp)) ?? l; });
+    const S = require('./stamp'), head = b => { const at = S.stampOf(b); return at ? at + ' ' + S.stripLine(b).replace(/\s+$/, '') : b; };   // ノートの行（日時は後ろ）を、内部の形（行頭）に戻して比べる
+    const now = x.lines.map(l => { const sp = l.slice(0, 19), hit = body.find(b => S.stampOf(b) === sp); return hit ? head(hit) : l; });
     if (now.join('\n') !== x.lines.join('\n')) { vwLearn(x.lines.join('\n'), now.join('\n')); x.lines = now; ch = true; }
   }
   if (ch) recSave(doc);

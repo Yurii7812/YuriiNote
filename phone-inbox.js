@@ -29,7 +29,7 @@ function importInbox(v, files, { papers, seen, named, pmemo, audio, suggest, ids
     try {
       if (d.type === 'memo' && String(d.text || '').trim()) {
         const at = stampAt(d.at), date = at.slice(0, 10);
-        v.appendToDay('メモ帳', date, `${at} ${oneLine(d.text)}`); sum.memos++; done.push(f.name);
+        v.appendToDay('メモ帳', date, Stamp.line(oneLine(d.text), at)); sum.memos++; done.push(f.name);   // 日時は、本文のすぐ後ろ（<!--…-->）
       } else if (d.type === 'diary' && isDate(d.date) && String(d.text || '').trim()) {
         v.appendToDay(d.kind || '日記', d.date, Stamp.add(String(d.text).replace(/\s+$/, ''), stampAt(d.at))); sum.diaries++; done.push(f.name);
       } else if (d.type === 'note' && String(d.body || '').trim()) {

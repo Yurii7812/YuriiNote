@@ -818,7 +818,7 @@ $('#pane').addEventListener('click', async e => {
     else if (b.dataset.r === 'ins') {
       if (!(cur && cur.k === 'note') || !lastView || !lastView.dom.isConnected) return toast('先に、入れたいノートを開いてください');
       const doc = lastView.state.doc, pre = doc.length && !/\n\n$/.test(doc.toString()) ? (doc.toString().endsWith('\n') ? '\n' : '\n\n') : '';
-      lastView.dispatch({ changes: { from: doc.length, insert: pre + x.lines.join('\n') } }); toast('↪️ 今のノートの末尾に入れました'); close();
+      lastView.dispatch({ changes: { from: doc.length, insert: pre + Stamp.migrate(x.lines.join('\n')) } }); toast('↪️ 今のノートの末尾に入れました'); close();
     }
     else if (b.dataset.r === 'retry') { await api.recRetry(id); recDraw(); }
     else if (b.dataset.r === 'audio') { if (confirm('音声のファイルを消しますか？（.trash へ。文字は残ります）')) { await api.recDelete(id, true); recDraw(); } }

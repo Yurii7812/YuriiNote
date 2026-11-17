@@ -21,8 +21,8 @@ test('スマホの受信箱: メモ帳・日記・ノート・紙を取り込み
   const r = importInbox(v, files, { papers: (name, buf) => got.push([name, buf.length]) });
   assert.deepStrictEqual(r.sum, { memos: 3, diaries: 1, notes: 1, papers: 1, named: 0, pmemos: 0, audios: 0, marks: 0, kinds: 0, skipped: 2, already: 0 });
   const memo = v.state().diaries.find(d => d.kind === 'メモ帳' && d.date === '2026-11-13').body;
-  assert.strictEqual(memo, '2026-11-13 08:12:00 朝の考え\n2026-11-13 10:40:00 二つ目 の続き\n2026-11-13 11:00:00 時刻なし');   // いつも秒まで   // 1件1行・改行は空白に・全部に年月日と時刻
-  assert.match(v.state().diaries.find(d => d.kind === '日記' && d.date === '2026-11-13').body, /\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2} 今日は読書をした。/);
+  assert.strictEqual(memo, '朝の考え<!--2026-11-13 08:12:00-->\n二つ目 の続き<!--2026-11-13 10:40:00-->\n時刻なし<!--2026-11-13 11:00:00-->');   // いつも秒まで   // 1件1行・改行は空白に・全部に年月日と時刻
+  assert.match(v.state().diaries.find(d => d.kind === '日記' && d.date === '2026-11-13').body, /今日は読書をした。<!--\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}-->/);
   const note = v.state().notes.find(n => /読書メモの書き方/.test(n.body));
   assert.ok(note && note.s === 'd' && note.id === note.stem && /^\d{14}$/.test(note.id));   // ID なし（ファイル名が ID 代わり）＝未所属
   assert.deepStrictEqual(got, [['paper-6-f.jpg', 3]]);
@@ -36,13 +36,13 @@ test('スマホの受信箱: 消さずに残してあるファイルは、二度
   const first = importInbox(v, files.slice(0, 1));
   const second = importInbox(v, files, { seen: new Set(first.done) });
   assert.strictEqual(second.sum.memos, 1); assert.strictEqual(second.sum.already, 1);
-  assert.strictEqual(v.state().diaries.find(d => d.kind === 'メモ帳').body, '2026-11-13 08:12:00 一度だけ\n2026-11-13 09:00:00 新しい');
+  assert.strictEqual(v.state().diaries.find(d => d.kind === 'メモ帳').body, '一度だけ<!--2026-11-13 08:12:00-->\n新しい<!--2026-11-13 09:00:00-->');
 });
 
 test('スマホの受信箱: 時刻の順に入る・分岐/並列の ID・名前つきの紙・紙のメモ帳・録音・メンションの印', () => {
   const v = openVault(tmp());
   v.saveNote({ s: 'd', id: '1', body: '数学' }); v.saveNote({ s: 'd', id: '1a', body: '掛け算' });
-  v.appendToDay('メモ帳', '2026-11-15', '2026-11-15 11:30:00 もとからPCにあった文');
+  v.appendToDay('メモ帳', '2026-11-15', 'もとからPCにあった文<!--2026-11-15 11:30:00-->');
   const ids = {}, pm = [], au = [], named = [];
   const files = [
     J('memo-1.json', { type: 'memo', at: '2026-11-15 10:30:00', text: '取り込まれた文' }),
@@ -58,7 +58,7 @@ test('スマホの受信箱: 時刻の順に入る・分岐/並列の ID・名�
   const r = importInbox(v, files, { ids, suggest: sug, named: d => { named.push(d.name.id); return true; }, pmemo: d => pm.push([d.book, d.page]), audio: d => au.push([d.at, d.sec]) });
   assert.strictEqual(r.sum.notes, 3); assert.strictEqual(r.sum.named, 1); assert.strictEqual(r.sum.pmemos, 1); assert.strictEqual(r.sum.audios, 1); assert.strictEqual(r.sum.marks, 1);
   const memo = v.state().diaries.find(d => d.kind === 'メモ帳' && d.date === '2026-11-15').body;
-  assert.strictEqual(memo, '2026-11-15 10:30:00 取り込まれた文\n2026-11-15 11:30:00 もとからPCにあった文 (2)');   // 時刻の順・印
+  assert.strictEqual(memo, '取り込まれた文<!--2026-11-15 10:30:00-->\nもとからPCにあった文 (2)<!--2026-11-15 11:30:00-->');   // 時刻の順・印
   const has = id => v.state().notes.some(n => n.s === 'd' && n.id === id);
   assert.ok(has('1a1') && has('1a1a') && has('1b'), JSON.stringify(v.state().notes.map(n => n.id)));
   assert.deepStrictEqual(ids, { 'note-10.json': '1a1', 'note-11.json': '1a1a', 'note-12.json': '1b' });

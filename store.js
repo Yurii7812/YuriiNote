@@ -655,6 +655,10 @@ function openVault(vault) {
     for (const d of diaries.values()) if (d.body) d.body = Stamp.secs(d.body);
     put(abs(MARK), fs.readFileSync(abs(MARK), 'utf8').replace(/\n*$/, '\n') + 'stamp2\n');
   }
+  // 行頭の日時（昔の形）は、開くたびに、本文のすぐ後ろの「<!--日時-->」に直す（2026-11-17。古い画面が書いたものも直る）。直す前の中身は、ファイルごとに .history に残る
+  for (const n of notes.values()) if ((!n.kind || n.kind === 'text') && n.body) n.body = Stamp.migrate(n.body);
+  for (const d of diaries.values()) if (d.body) d.body = Stamp.migrate(d.body);
+  if (!fs.readFileSync(abs(MARK), 'utf8').includes('stamp3')) put(abs(MARK), fs.readFileSync(abs(MARK), 'utf8').replace(/\n*$/, '\n') + 'stamp3\n');
   rebuild();
   return {
     vault,
@@ -700,7 +704,8 @@ function openVault(vault) {
       const lines = (d.body || '').split('\n'), key = Stamp.full(at);
       const i = lines.findIndex(l => { const s = Stamp.stampOf(l); return s && Stamp.full(s) === key; }); if (i < 0) return false;
       if (new RegExp('[(（]' + n + '[)）]').test(lines[i])) return true;
-      lines[i] = lines[i].replace(/\s+$/, '') + ` (${n})`; d.body = lines.join('\n'); d.updated = L.now(); rebuild(); return true;
+      const t = Stamp.parse(lines[i]);   // 日時のコメントは行末のまま。(n) は、その前（本文のあと）に足す
+      lines[i] = t ? lines[i].slice(0, t.cs).replace(/\s+$/, '') + ` (${n})` + lines[i].slice(t.cs) : lines[i].replace(/\s+$/, '') + ` (${n})`; d.body = lines.join('\n'); d.updated = L.now(); rebuild(); return true;
     },
     // 紙の日記（「日記」だけ）: スキャン画像を P_<日付>.jpg（2枚目以降 _2 _3 …）に保存し、日記の最後の「紙の日記」に挿入する
     addDiaryScan(date, buf) {
