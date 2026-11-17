@@ -648,7 +648,7 @@ function renderList() {
     const byFz = sortBy === 'fz' && tab !== 'u';
     if (byFz && (tab === 'd' || tab === 'p')) for (const t of topics.filter(x => (!x.entry || !get(x.entry.s, x.entry.id)) && !(x.entry && x.entry.s === 'd' && L.isRegionOnly(x.entry.id)) && (x.entry ? x.entry.s : 'd') === tab).sort((a, b) => a.name.localeCompare(b.name, 'ja'))) out.push(topicRow(t)); // 親のノートがまだないもの（取り込み前の紙の番号など）は、その側の先頭
     // デジタルは、区画（1, 2 …）の行を、そのノートの手前に出す（初めて出てくるところ。残りは最後）。区画の下に、その索引（1-1…）
-    const shownRegion = new Set(), regionHead = r => { shownRegion.add(r); out.push(regionRow(r)); for (const t of uniqueTopics(topicsOf('d', r).filter(topicVisible))) out.push(topicRow(t)); };
+    const shownRegion = new Set(), regionHead = r => { shownRegion.add(r); for (const t of uniqueTopics(topicsOf('d', r).filter(topicVisible))) out.push(topicRow(t)); out.push(regionRow(r)); };   // 区画の索引（1-1…）は、区画の行の上に出す
     for (const n of list) {
       if (byFz && foldIds.size && fzHidden(n)) continue;   // たたまれた親の下は、出さない
       if (tab === 'd' && !n.noid && !shownRegion.has(String(L.region(n.id)))) regionHead(String(L.region(n.id)));
