@@ -646,7 +646,7 @@ function renderList() {
   } else {
     const list = sortNotes((tab === 'u' ? notes.filter(n => n.noid) : notes.filter(n => n.s === tab && !n.noid)), tab);
     const byFz = sortBy === 'fz' && tab !== 'u';
-    if (byFz && (tab === 'd' || tab === 'p')) for (const t of topics.filter(x => (!x.entry || !get(x.entry.s, x.entry.id)) && (x.entry ? x.entry.s : 'd') === tab).sort((a, b) => a.name.localeCompare(b.name, 'ja'))) out.push(topicRow(t)); // 親のノートがまだないもの（取り込み前の紙の番号など）は、その側の先頭
+    if (byFz && (tab === 'd' || tab === 'p')) for (const t of topics.filter(x => (!x.entry || !get(x.entry.s, x.entry.id)) && !(x.entry && x.entry.s === 'd' && L.isRegionOnly(x.entry.id)) && (x.entry ? x.entry.s : 'd') === tab).sort((a, b) => a.name.localeCompare(b.name, 'ja'))) out.push(topicRow(t)); // 親のノートがまだないもの（取り込み前の紙の番号など）は、その側の先頭
     // デジタルは、区画（1, 2 …）の行を、そのノートの手前に出す（初めて出てくるところ。残りは最後）。区画の下に、その索引（1-1…）
     const shownRegion = new Set(), regionHead = r => { shownRegion.add(r); out.push(regionRow(r)); for (const t of uniqueTopics(topicsOf('d', r).filter(topicVisible))) out.push(topicRow(t)); };
     for (const n of list) {
@@ -2522,7 +2522,7 @@ function loaded(st) {
   if (pendingLang) { settings.lang = pendingLang; pendingLang = null; saveSettings(); }
   vault = st.vault; recovery = new Persistence.RecoveryJournal(localStorage, vault); restoreRecovery(st);
   LC.init(st.docs || {});
-  ({ notes, topics, vault } = st); readings = st.readings || {}; diaries = st.diaries || []; records = st.records || records; PI.init(st.docs || {}); cur = null; tabs = []; active = -1; refreshFiles();
+  ({ notes, topics, vault } = st); regions = st.regions || []; readings = st.readings || {}; diaries = st.diaries || []; records = st.records || records; PI.init(st.docs || {}); cur = null; tabs = []; active = -1; refreshFiles();
   $('#vault').textContent = '📁 ' + vault.split('/').pop(); $('#vault').title = vault + '\n（Brave では Index.md を開くと全部たどれます）';
   try {
     const saved = JSON.parse(localStorage.getItem('pkm-tabs:' + vault) || 'null');
