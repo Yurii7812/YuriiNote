@@ -255,11 +255,12 @@ aside.sort1 #dlist .dtop{padding-right:50px}
 .item{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .item{border-bottom:0}.item:hover,.item.on,.ix.on{background:var(--hl)}
 .item b{color:var(--acc);margin-right:7px}.item small{color:var(--sub)}
-.item.note,.item.topicrow{white-space:normal;display:flex;align-items:center;gap:6px;padding:6px 14px;border:0}
+.item.note,.item.topicrow,.item.region{white-space:normal;display:flex;align-items:center;gap:6px;padding:6px 14px;border:0}
 .nrow{min-width:0;flex:1}.nt{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:14.5px;line-height:1.35}
 .ns{font-size:11.5px;color:var(--sub);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.item.note.on .nt{color:var(--acc)}
+.item.note.on .nt,.item.region.on .nt{color:var(--acc)}
 .item.topicrow{background:var(--tint)}.item.topicrow:hover{background:#e4ecfd}.item.topicrow .nt{color:#3b4b8a}
+.item.region{background:#fff6d9}.item.region:hover{background:#ffefba}.item.region.on{background:#ffe9a3}.item.region .nt{color:#6b4e00}.item.region.on .nt{color:#6b4e00}
 .tbadge{font-size:10px;color:#fff;background:#6b86d6;border-radius:4px;padding:0 5px;margin-right:6px;vertical-align:1px}
 .ntitle{flex:1;min-width:120px;font:inherit;font-size:18px;font-weight:600;border:1px solid transparent;border-radius:6px;padding:2px 8px}
 .ntitle:hover,.ntitle:focus{border-color:var(--line)}
@@ -463,7 +464,7 @@ aside{width:280px}
 #tabs{gap:6px;padding:14px 12px 10px}
 #tabs button{font-size:14.5px;padding:5px 10px;border-radius:8px;color:#5d6270;background:none}
 #tabs button:hover{background:var(--hl)}#tabs button.on{background:#e3e9fb;color:#2338a8;font-weight:700;box-shadow:none}
-.item.note,.item.topicrow{padding:9px 16px}
+.item.note,.item.topicrow,.item.region{padding:9px 16px}
 .nt{font-size:16px;line-height:1.4;color:#23262d}.ns{font-size:12.5px;color:#6a6f7d;margin-top:1px}
 .item.note.on{background:#e8e9ee;box-shadow:inset 3px 0 var(--acc)}.item.note.on .nt{color:#23262d;font-weight:700}
 .item.topicrow .nt{color:#2c3f8f;font-weight:500}
