@@ -258,8 +258,8 @@ async function runPhoneImport() {
   fs.writeFileSync(seenFile, JSON.stringify({ names: keep }));
   const m1 = await P.markInbox(keep);
   const st = v.state();
-  // PC のノート・記録の種類・メモ帳の最後のページは、スマホへは送らない（スマホに映さない）。返すのは、取り込み済みの印だけ
-  const m2 = { ok: true };
+  // PC のノート・メモ帳の最後のページは、スマホへは送らない（スマホに映さない）。返すのは、取り込み済みの印と、時系列記録の種類（項目の名前だけ。2026-11-17 に、利用者が同期を指示）
+  const m2 = await P.sendKinds(v.records().map(x => x.name).filter(k => k !== '日記' && k !== 'メモ帳'));
   recPump();
   const sum = { ...out.sum, chats: out.sum.memos, days: out.sum.diaries, scans: out.sum.papers };
   const msg = I.summary(out.sum) ? 'スマホから取り込みました: ' + I.summary(out.sum) : 'スマホに、新しいものはありませんでした';

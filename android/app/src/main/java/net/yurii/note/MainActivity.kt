@@ -41,8 +41,8 @@ class MainActivity : Activity() {
     @SuppressLint("SetJavaScriptEnabled", "JavascriptInterface")
     override fun onCreate(b: Bundle?) {
         super.onCreate(b)
-        // PC のノート・記録の種類・メモ帳の最後のページは、スマホには映さない（前の版が置いたものは、消す）
-        for (n in listOf("notes.json", "kinds.json", "pmemo.json", "pc_memos.json")) File(root, n).delete()
+        // PC のノート・メモ帳の最後のページは、スマホには映さない（前の版が置いたものは、消す）。時系列記録の種類（kinds.json。名前だけ）は、同期するので消さない
+        for (n in listOf("notes.json", "pmemo.json", "pc_memos.json")) File(root, n).delete()
         web = WebView(this)
         setContentView(web)
         web.settings.apply {
@@ -193,7 +193,7 @@ class MainActivity : Activity() {
         @JavascriptInterface fun writeB64(name: String, b64: String): Boolean = put(name, Base64.decode(b64, Base64.DEFAULT))
         @JavascriptInterface fun remove(name: String): Boolean = safe(name) && File(inbox, name).delete()
         // PC が置いたもの（取り込み済みの印だけ）
-        @JavascriptInterface fun meta(name: String): String = if (name == "imported.json") File(root, name).takeIf { it.isFile }?.readText() ?: "" else ""
+        @JavascriptInterface fun meta(name: String): String = if (name == "imported.json" || name == "kinds.json") File(root, name).takeIf { it.isFile }?.readText() ?: "" else ""   // kinds.json: PC の時系列記録の種類（項目の名前だけ）
         @JavascriptInterface fun url(name: String): String = if (safe(name)) "https://$host/inbox/$name" else ""
         // 紙の写真: 文書スキャナー（縁を見つけて切り取る。四隅は指で直せる）。mode: card（カード）／spread（メモ帳の見開き → 2 ページ）
         @JavascriptInterface fun scan(mode: String) = runOnUiThread {

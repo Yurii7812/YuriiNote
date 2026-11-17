@@ -19,7 +19,7 @@ test('スマホの受信箱: メモ帳・日記・ノート・紙を取り込み
     { name: 'broken.json', buf: Buffer.from('{') }, J('memo-7-g.json', { type: 'memo', at: '2026-11-13 12:00', text: '   ' })
   ];
   const r = importInbox(v, files, { papers: (name, buf) => got.push([name, buf.length]) });
-  assert.deepStrictEqual(r.sum, { memos: 3, diaries: 1, notes: 1, papers: 1, named: 0, pmemos: 0, audios: 0, marks: 0, skipped: 2, already: 0 });
+  assert.deepStrictEqual(r.sum, { memos: 3, diaries: 1, notes: 1, papers: 1, named: 0, pmemos: 0, audios: 0, marks: 0, kinds: 0, skipped: 2, already: 0 });
   const memo = v.state().diaries.find(d => d.kind === 'メモ帳' && d.date === '2026-11-13').body;
   assert.strictEqual(memo, '2026-11-13 08:12:00 朝の考え\n2026-11-13 10:40:00 二つ目 の続き\n2026-11-13 11:00:00 時刻なし');   // いつも秒まで   // 1件1行・改行は空白に・全部に年月日と時刻
   assert.match(v.state().diaries.find(d => d.kind === '日記' && d.date === '2026-11-13').body, /\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2} 今日は読書をした。/);
@@ -73,4 +73,14 @@ test('スマホの受信箱: メモ帳のページの「撮り直し（replace�
   ];
   const r = importInbox(v, files, { pmemo: d => got.push([d.book, d.page, !!d.replace]) });
   assert.strictEqual(r.sum.pmemos, 2); assert.deepStrictEqual(got, [['A', 14, true], ['A', 15, false]]);
+});
+
+test('スマホの受信箱: 時系列記録の種類は、項目だけ取り込む（PC に無いものを足す。あるもの・使えない名前は、そのまま）', () => {
+  const v = openVault(tmp()); v.addRecord('仕事');
+  const r = importInbox(v, [J('kinds-1-a.json', { type: 'kinds', kinds: ['夢', '仕事', '日記', '', 'a/b', '学び'] }), J('kinds-2-b.json', { type: 'kinds', kinds: ['夢'] })]);
+  assert.strictEqual(r.sum.kinds, 2, '夢・学び だけ新しく（仕事は元からあり、日記は固定、空・使えない名前は足さない。2 つ目の 夢 は既にある）');
+  assert.deepStrictEqual(v.records().map(x => x.name).sort(), ['メモ帳', '仕事', '学び', '夢', '日記'].sort());
+  assert.deepStrictEqual(r.done.sort(), ['kinds-1-a.json', 'kinds-2-b.json'], '取り込み済みの印を返せる（スマホが自分で消す）');
+  assert.match(summary(r.sum), /時系列記録の種類 2 件/);
+  assert.deepStrictEqual(v.state().diaries, [], '種類を足しても、日・記録のノートは作らない');
 });

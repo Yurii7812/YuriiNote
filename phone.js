@@ -201,7 +201,12 @@ async function markInbox(names) {
   const r = await ready(); if (r.error) return { ok: false, message: r.error };
   return { ok: await putFile(r, 'files/imported.json', JSON.stringify({ version: 3, names }), PKG) };
 }
-// スマホで選べるように、PC の記録の種類と、ノートの一覧（ID と題）を渡す
+// 時系列記録の種類（項目の名前だけ）を、スマホへ返す。スマホの「種類」の一覧に、PC の種類も出る。ノートの一覧などは、送らない（スマホ → PC の一方向）
+async function sendKinds(kinds) {
+  const r = await ready(); if (r.error) return { ok: false, message: r.error };
+  return { ok: await putFile(r, 'files/kinds.json', JSON.stringify({ version: 4, kinds }), PKG) };
+}
+// スマホで選べるように、PC の記録の種類と、ノートの一覧（ID と題）を渡す（今は使わない）
 async function sendMeta({ kinds, notes, pmemo }) {
   const r = await ready(); if (r.error) return { ok: false, message: r.error };
   const a = await putFile(r, 'files/kinds.json', JSON.stringify({ version: 3, kinds }), PKG);
@@ -224,4 +229,4 @@ async function installedSha(serial) {
 }
 // 入れようとしている APK の指紋。前に入れたものと違えば、更新が必要（バージョン番号を上げ忘れても、分かる）
 function apkSha() { const f = apkPath(); if (!f) return null; try { return require('crypto').createHash('sha256').update(fs.readFileSync(f)).digest('hex'); } catch { return null; } }
-module.exports = { parseLs, pullInbox, markInbox, sendMeta, listDevices, apkSha, installedSha, sendPaperIndex, sendPcMemos, install, findAdb, apkPath, parseDevices, PKG, pull, mark, sendRecords };
+module.exports = { parseLs, pullInbox, markInbox, sendKinds, sendMeta, listDevices, apkSha, installedSha, sendPaperIndex, sendPcMemos, install, findAdb, apkPath, parseDevices, PKG, pull, mark, sendRecords };

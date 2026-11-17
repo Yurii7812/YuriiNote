@@ -157,7 +157,7 @@ main{flex:1;min-height:0;display:flex;flex-direction:column;position:relative}
 </style>
 </head>
 <body>
-<div class="top"><h1 id="ttl">メモ帳</h1><button class="ib" id="b-stamp" aria-label="行ごとの時刻を表示・非表示">⏱️</button><button class="ib" id="b-alarm" aria-label="定期の通知（アラーム）">⏰</button></div>
+<div class="top"><h1 id="ttl">メモ帳</h1><button class="ib" id="b-stamp" aria-label="行ごとの時刻を表示・非表示">⏱️</button><button class="ib" id="b-alarm" aria-label="定期の通知（アラーム）">⏰</button><button class="ib" id="b-clear" aria-label="PC に取り込み済みのものを、全部、スマホから消す" title="PC に取り込み済みのものを、全部消す">🗑️</button></div>
 <main>
   <section class="pane on" id="p-memo">
     <div class="datebar"><button class="ib" data-day="-1" data-for="memo" aria-label="前の日">◀</button><label class="datebtn"><b id="memo-date"></b><input type="date" id="memo-pick" aria-label="日付を選ぶ"></label><button class="chip" data-today="memo" id="memo-today" hidden>今日へ</button><button class="ib" data-day="1" data-for="memo" aria-label="次の日">▶</button></div>
@@ -324,7 +324,19 @@ function load() {
   }
   const meta = n => { try { return JSON.parse(Native.meta(n) || 'null'); } catch { return null; } };
   imported = new Set((meta('imported.json') || {}).names || []);
-  kindsPc = jget('myKinds', []);   // 時系列記録の種類は、スマホで作ったものだけ（PC のものは映さない）
+  // 時系列記録の種類は、項目だけ PC と同期する（2026-11-17）。PC の種類（kinds.json。名前だけ）と、スマホで作った種類の両方を出す
+  const pcNow = ((meta('kinds.json') || {}).kinds || []).filter(k => typeof k === 'string' && k);
+  if (pcNow.length) Native.setPref('pcKinds', JSON.stringify(pcNow));   // 覚えておく（kinds.json は PC が次に来るまで無いことがある）
+  kindsPc = [...new Set([...jget('myKinds', []), ...jget('pcKinds', []), ...pcNow])];
+  for (const it of items) if (it.d.type === 'kinds' && imported.has(it.name)) Native.remove(it.name);   // 種類の知らせは、PC が取り込んだら、消す（見せない）
+  items = items.filter(it => it.d.type !== 'kinds');
+  syncKinds();
+}
+// スマホで作った種類を、PC へ知らせる（項目の名前だけ。増えたときだけ、新しいファイルを 1 つ書く）
+function syncKinds() {
+  const mine = jget('myKinds', []).filter(k => k && k !== '日記' && k !== 'メモ帳');
+  if (!mine.length || Native.pref('kindsSent') === JSON.stringify(mine)) return;
+  if (Native.write(`kinds-${rid()}.json`, JSON.stringify({ type: 'kinds', kinds: mine }))) Native.setPref('kindsSent', JSON.stringify(mine));
 }
 const isSent = it => imported.has(it.name);
 const save = (name, d) => Native.write(name, JSON.stringify(d));
@@ -481,12 +493,22 @@ $('#act-x').onclick = () => { $('#act').hidden = true; };
 document.addEventListener('click', e => {
   const d = e.target.closest('[data-day]'); if (d) { const n = +d.dataset.day; if (d.dataset.for === 'memo') memoDay = shiftDay(memoDay, n); else diaryDay = shiftDay(diaryDay, n); draw(); return; }
   const k = e.target.closest('[data-kind]'); if (k) { kind = k.dataset.kind; Native.setPref('kind', kind); draw(); return; }
-  if (e.target.id === 'kind-add') { const name = (prompt && prompt('新しい時系列記録の名前') || '').trim(); if (name && !/[\\/:*?"<>|()（）]/.test(name)) { kind = name; Native.setPref('kind', kind); Native.setPref('myKinds', JSON.stringify([...new Set([...jget('myKinds', []), name])])); draw(); } return; }
+  if (e.target.id === 'kind-add') { const name = (prompt && prompt('新しい時系列記録の名前') || '').trim(); if (name && !/[\\/:*?"<>|()（）]/.test(name)) { kind = name; Native.setPref('kind', kind); Native.setPref('myKinds', JSON.stringify([...new Set([...jget('myKinds', []), name])])); syncKinds(); draw(); } return; }
   const td = e.target.closest('[data-today]'); if (td) { if (td.dataset.today === 'memo') memoDay = today(); else diaryDay = today(); draw(); return; }
   const c = e.target.closest('[data-clear]'); if (c) { clearImported(c); return; }
 });
 // 取り込み済みを、スマホから消す（消すかどうかは、利用者が決める）
 const CLEAR = { chat: t => t === 'memo' || t === 'diary' || t === 'mark', note: t => t === 'note', paper: t => t === 'paper', pmemo: t => t === 'pmemo', rec: t => t === 'audio' };
+// 取り込み済みを、種類をまたいで、全部、スマホから消す（上のバーの 🗑️）。消すかどうかは、利用者が決める
+function clearAllImported() {
+  const ok = t => Object.values(CLEAR).some(f => f(t));
+  const targets = items.filter(it => isSent(it) && ok(it.d.type));
+  if (!targets.length) return toast('PC に取り込み済みのものは、ありません');
+  if (!confirm(`PC に取り込み済みの ${targets.length} 件を、スマホから全部消しますか？\n（PC のものは消えません。スマホから消すだけです）`)) return;
+  for (const it of targets) { Native.remove(it.name); for (const f of [it.d.image, it.d.file]) if (f) Native.remove(f); }
+  load(); draw(); toast(`🗑️ 取り込み済みの ${targets.length} 件を、スマホから消しました`);
+}
+$('#b-clear').onclick = clearAllImported;
 function clearImported(btn) {
   if (btn.dataset.sure !== '1') { btn.dataset.sure = '1'; btn.textContent = '本当に消す？ もう一度押す'; setTimeout(() => { if (btn.isConnected) { btn.dataset.sure = ''; btn.textContent = '🗑️ スマホから消す'; } }, 4000); return; }
   const ok = CLEAR[btn.dataset.clear] || (() => false);
