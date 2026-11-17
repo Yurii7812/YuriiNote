@@ -1839,13 +1839,16 @@ function regionDialog(n) {
 }
 function topicNewDialog(kw = '', presetId = '', side = 'd') {
   const rootFree = sp => X.nextRoot(notes, sp);
+  const nextNum = (sp, id) => Math.max(0, ...topicsOf(sp, id).map(t => t.num || 0)) + 1;   // その番号の次の索引（1-1 のあとは 1-2）
+  const parseNo = str => { const m = /^(.+?)(?:-(\d+))?$/.exec(String(str || '').trim().toLowerCase()); return m ? { id: m[1], n: m[2] ? +m[2] : 0 } : { id: '', n: 0 }; };   // 「3a-2」→ 番号 3a の 2 個目
   const idsOf = k => { const v = globalIndex().find(x => x[0] === k); return v ? v[1] : { d: [], p: [] }; };
   $('#modal .box').innerHTML = `<div class="dlg-a">
     <h3>➕ トピックIndexを作る</h3>
     <div class="da-lab">🏷️ キーワード（任意）。同じキーワードのIDが2つ以上あるとき、それらをまとめます</div>
     <input id="tn-kw" list="tn-kws" value="${esc(kw)}" placeholder="例: GUI"><datalist id="tn-kws">${globalIndex().filter(([, v]) => v.d.length + v.p.length >= 2).map(([k]) => `<option value="${esc(k)}">`).join('')}</datalist>
-    <div class="da-lab">🌳 番号（ID）。その番号のノートが無くても作れます（索引は、ただのデータです）</div>
-    <div class="row"><select id="tn-s"><option value="d">デジタル</option><option value="p">紙</option></select><input id="tn-id" style="width:100px"><span id="tn-note" class="sub"></span></div>
+    <div class="da-lab">🌳 トピックIndexの番号（例: 1-1・3a-2）。「-」の前は番号（ID）、後ろは何個目か（省略すると、次の番号）。その番号のノートが無くても作れます（索引は、ただのデータです）</div>
+    <div class="row"><select id="tn-s"><option value="d">デジタル</option><option value="p">紙</option></select><input id="tn-id" list="tn-ids" style="width:150px" placeholder="例: 1-1" autocomplete="off"><datalist id="tn-ids"></datalist></div>
+    <div id="tn-note" class="sub"></div>
     <div class="da-lab">📝 名前（空のままで。育ってから、つけます）</div>
     <input id="tn-name" placeholder="無名">
     <div id="tn-pre" class="sub"></div>
@@ -1854,19 +1857,28 @@ function topicNewDialog(kw = '', presetId = '', side = 'd') {
   const close = () => { $('#modal').style.display = 'none'; };
   let nameTouched = false;
   const refresh = () => {
-    const k = $('#tn-kw').value.trim(), sp = $('#tn-s').value, id = $('#tn-id').value.trim().toLowerCase();
-    const exists = !!get(sp, id), region = sp === 'd' && L.isRegionOnly(id);
-    $('#tn-note').textContent = !id ? '' : region ? `区画 ${id} の索引（ノートは作りません）` : exists ? `既存のノート ${id} の索引にします` : `${sp === 'p' ? '紙' : ''}${id} のノートは、まだありません（ノートは作らず、索引だけ作ります）`;
+    const k = $('#tn-kw').value.trim(), sp = $('#tn-s').value, { id, n } = parseNo($('#tn-id').value);
+    const exists = !!get(sp, id), region = sp === 'd' && L.isRegionOnly(id), num = n || (id ? nextNum(sp, id) : 0);
+    $('#tn-note').textContent = !id ? '' : !L.isId(id) ? 'IDの形が違います（例: 12 や 3a）' : topicsOf(sp, id).some(t => (t.num || 0) === num) ? `${sp === 'p' ? '紙 ' : ''}${id}-${num} は、もうあります` : `${sp === 'p' ? '紙 ' : ''}${id}-${num} を作ります。` + (region ? `区画 ${id} の索引（ノートは作りません）` : exists ? `既存のノート ${id} の索引になります` : `${id} のノートは、まだありません（ノートは作らず、索引だけ作ります）`);
     const v = k ? idsOf(k) : null;
     $('#tn-pre').textContent = v ? (v.d.length + v.p.length >= 2 ? `${k} ${[...v.d, ...v.p.map(x => '紙' + x)].join(' ')}` + (exists && !(sp === 'd' ? v.d : v.p).includes(id) || !exists ? ` ${sp === 'p' ? '紙' : ''}${id}` : '') + `　→ ${sp === 'p' ? '紙' : ''}${id} の上に赤い点が付きます` : 'このキーワードのIDは2つ未満です') : '';
   };
-  $('#tn-s').value = side === 'p' ? 'p' : 'd'; $('#tn-id').value = presetId || rootFree($('#tn-s').value);
-  $('#tn-s').onchange = () => { $('#tn-id').value = rootFree($('#tn-s').value); refresh(); };
+  const fillIds = () => {   // 選べる番号（候補）: いまある番号と、それぞれの次の索引（1a-1 など）
+    const sp = $('#tn-s').value, ids = [...new Set([...notes.filter(n => n.s === sp && !n.noid).map(n => n.id), ...(sp === 'd' ? regions.map(r => r.n) : [])])].sort(L.cmpId).slice(0, 600);
+    $('#tn-ids').innerHTML = ids.map(i => `<option value="${esc(i + '-' + nextNum(sp, i))}">`).join('');
+  };
+  $('#tn-s').value = side === 'p' ? 'p' : 'd';
+  { const id0 = presetId || rootFree($('#tn-s').value); $('#tn-id').value = id0 + '-' + nextNum($('#tn-s').value, id0); }
+  fillIds();
+  $('#tn-s').onchange = () => { const id0 = rootFree($('#tn-s').value); $('#tn-id').value = id0 + '-' + nextNum($('#tn-s').value, id0); fillIds(); refresh(); };
   $('#tn-kw').oninput = refresh; $('#tn-id').oninput = refresh;
   $('#tn-name').oninput = () => { nameTouched = true; };
   $('#tn-ok').onclick = async () => {
-    const k = $('#tn-kw').value.trim(), sp = $('#tn-s').value, id = $('#tn-id').value.trim().toLowerCase(), name = $('#tn-name').value.trim() || autoName(sp, id);
+    const k = $('#tn-kw').value.trim(), sp = $('#tn-s').value, { id, n } = parseNo($('#tn-id').value);
     if (!L.isId(id)) return alert('IDの形が違います（例: 12 や 3a）');
+    const num = n || nextNum(sp, id);
+    if (topicsOf(sp, id).some(t => (t.num || 0) === num)) return alert(`${id}-${num} の索引は、もうあります`);
+    const auto = `無名${id}-${num}` + (sp === 'p' ? 'p' : ''), name = $('#tn-name').value.trim() || (topics.find(t => t.name === auto) ? autoName(sp, id) : auto);
     if (topics.find(t => t.name === name)) return alert('その名前は既にあります');
     let v = null;
     if (k) {
@@ -1874,7 +1886,7 @@ function topicNewDialog(kw = '', presetId = '', side = 'd') {
       if (v.d.length + v.p.length < 2) return alert('キーワードは、IDが2つ以上あるものだけです');
     }
     if (get(sp, id)) await ensureKeyword(sp, id, k);   // 索引はただのデータ: 番号のノートが無くても、ノートは作らない
-    const t = { name, entry: { s: sp, id }, keyword: k, text: v ? idsText(k, v, sp) : '' };
+    const t = { name, entry: { s: sp, id }, keyword: k, num, text: v ? idsText(k, v, sp) : '' };   // num: 指定した番号（1-3 の 3）
     const sv = await api.saveTopic(t); if (!sv) return alert('保存できませんでした');
     t.num = sv === true ? 0 : sv; topics.push(t); close(); renderList(); newTab = true; openTopic(name, 'edit');
   };

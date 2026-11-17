@@ -108,3 +108,28 @@ test('右クリックしても、いまのタブは変わらない（左クリ�
     assert.ok(a.w.document.querySelector('#tabs [data-tab="d"].on'), 'デジタルのまま');
   } finally { a.close(); }
 });
+
+test('トピックIndexの番号は「ID-何個目」で選ぶ・打つ（1a-1・5c-3）。候補が出る。既にある番号は断る', async () => {
+  const a = await app();
+  try {
+    await rightClick(a, '#tabs [data-tab="d"]');
+    a.w.document.querySelector('.popmenu div').click(); await tick(200);
+    const input = a.w.document.querySelector('#tn-id');
+    assert.match(input.value, /^\d+a?-1$/, '最初から「番号-1」の形: ' + input.value);
+    const opts = [...a.w.document.querySelectorAll('#tn-ids option')].map(o => o.value);
+    assert.ok(opts.includes('1a-1'), '今ある番号の「次の索引」が、候補に出る: ' + opts.join(','));
+    // 5c の 3 個目を、直接指定
+    input.value = '5c-3'; input.dispatchEvent(new a.w.Event('input', { bubbles: true }));
+    assert.match(a.w.document.querySelector('#tn-note').textContent, /5c-3 を作ります/);
+    a.w.document.querySelector('#tn-ok').click(); await tick(400);
+    let t = a.store.state().topics.find(x => x.entry && x.entry.id === '5c');
+    assert.ok(t && t.num === 3, '3 個目として作られる（番号 5c-3）: ' + JSON.stringify(t && t.num));
+    // 同じ番号は、もう一度作れない
+    await rightClick(a, '#tabs [data-tab="d"]'); a.w.document.querySelector('.popmenu div').click(); await tick(200);
+    const i2 = a.w.document.querySelector('#tn-id'); i2.value = '5c-3'; i2.dispatchEvent(new a.w.Event('input', { bubbles: true }));
+    assert.match(a.w.document.querySelector('#tn-note').textContent, /5c-3 は、もうあります/);
+    // 省略すると、次の番号（5c-4）
+    i2.value = '5c'; i2.dispatchEvent(new a.w.Event('input', { bubbles: true }));
+    assert.match(a.w.document.querySelector('#tn-note').textContent, /5c-4 を作ります/);
+  } finally { a.close(); }
+});
