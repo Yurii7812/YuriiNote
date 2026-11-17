@@ -53,13 +53,23 @@ test('グローバルIndex: 前回選んだ側で開く。紙のときの「＋�
   } finally { a.close(); }
 });
 
-test('Index の「＋」から、トピックIndexも作れる。番号を指定でき、その番号のノートが無くても作れる（ノートは作らない）', async () => {
+test('トピックIndexは、ノート一覧（紙・デジタルのタブ）の 📑＋ から作る。グローバルIndexの「＋」からではない', async () => {
   const a = await app({ 'yn-ixside': 'p' });
   try {
+    assert.ok(a.w.document.querySelector('#ti-add').hidden, 'グローバルIndexの画面には、出ない');
     a.w.document.querySelector('#ix-add').click(); await tick(150);
-    assert.ok(a.w.document.querySelector('#ni-topic'), '「トピックIndex」の切り替えがある');
-    a.w.document.querySelector('#ni-topic').click(); await tick(200);
-    assert.strictEqual(a.w.document.querySelector('#tn-s').value, 'p', '紙に切り替えているので、紙');
+    assert.ok(!a.w.document.querySelector('#ni-topic'), 'Index の「＋」の画面に、トピックIndexの切り替えは無い');
+    a.w.document.querySelector('#modal').style.display = 'none';
+  } finally { a.close(); }
+});
+
+test('紙のタブの 📑＋: 番号を指定して作れる。その番号のノートが無くても作れる（ノートは作らない）', async () => {
+  const a = await app();
+  try {
+    a.w.document.querySelector('#tabs [data-tab="p"]').click(); await tick(200);
+    const btn = a.w.document.querySelector('#ti-add'); assert.ok(!btn.hidden, '紙のタブに出る');
+    btn.click(); await tick(200);
+    assert.strictEqual(a.w.document.querySelector('#tn-s').value, 'p', '紙のタブなので、紙');
     a.w.document.querySelector('#tn-id').value = '9z'; a.w.document.querySelector('#tn-id').dispatchEvent(new a.w.Event('input', { bubbles: true }));
     assert.match(a.w.document.querySelector('#tn-note').textContent, /ノートは、まだありません/);
     a.w.document.querySelector('#tn-ok').click(); await tick(400);
@@ -71,16 +81,18 @@ test('Index の「＋」から、トピックIndexも作れる。番号を指定
   } finally { a.close(); }
 });
 
-test('デジタルのトピックIndexも、ノートの無い番号で作れる', async () => {
+test('デジタルのタブの 📑＋: ノートの無い番号でも作れる。未整理のタブには出ない', async () => {
   const a = await app();
   try {
-    a.w.document.querySelector('#ix-add').click(); await tick(150);
-    a.w.document.querySelector('#ni-topic').click(); await tick(200);
+    a.w.document.querySelector('#tabs [data-tab="d"]').click(); await tick(200);
+    a.w.document.querySelector('#ti-add').click(); await tick(200);
     assert.strictEqual(a.w.document.querySelector('#tn-s').value, 'd');
     a.w.document.querySelector('#tn-id').value = '5c'; a.w.document.querySelector('#tn-id').dispatchEvent(new a.w.Event('input', { bubbles: true }));
     a.w.document.querySelector('#tn-ok').click(); await tick(400);
     const st = a.store.state();
     assert.ok(st.topics.some(x => x.entry && x.entry.s === 'd' && x.entry.id === '5c'));
     assert.ok(!st.notes.some(n => n.s === 'd' && n.id === '5c'), 'デジタルでも、ノートは作らない');
+    a.w.document.querySelector('#tabs [data-tab="u"]').click(); await tick(200);
+    assert.ok(a.w.document.querySelector('#ti-add').hidden, '未整理（IDなし）のタブには出ない');
   } finally { a.close(); }
 });

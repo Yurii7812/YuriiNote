@@ -606,6 +606,7 @@ function renderList() {
   const indexTab = onNotes && tab === 'i';   // グローバルインデックスの画面: 検索欄は、その中の検索（キーワードだけ）。＋は、その行の右端
   $('#q').style.display = searchTab || indexTab || fileTab ? '' : 'none'; $('#searchbox').style.display = searchTab || indexTab || fileTab ? '' : 'none';
   $('#q').placeholder = '検索';
+  $('#ti-add').hidden = !(dpu && (tab === 'd' || tab === 'p')); $('#ti-add').title = `${tab === 'p' ? '紙の' : 'デジタルの'}トピックIndexを作る（番号を指定。その番号のノートが無くても作れます）`;
   $('#ix-add').hidden = !(indexTab || fileTab); $('#ix-add').title = fileTab ? 'ファイルを取り込む' : ixSide === 'p' || paperOnly ? '新しい紙のキーワードを作る' : '新しいデジタルのキーワードを作る';
   if (!searchTab && !indexTab && !fileTab && $('#q').value) $('#q').value = '';
   const q = $('#q').value.trim().toLowerCase(), out = []; searchQ = $('#q').value.trim();   // 演算子の OR / NOT は大文字で書くので、検索語は、小文字にする前の形で渡す
@@ -695,6 +696,7 @@ function onOpenClick(e) {
   }
   const row = e.target.closest('#list .item');
   if (selMode && row) { if (row.matches('.note[data-s][data-id]')) togglePick(row, e.shiftKey); return; }
+  if (e.target.closest('#ti-add')) return topicNewDialog('', '', tab === 'p' ? 'p' : 'd');   // ノート一覧（デジタル・紙）から、トピックIndexを作る
   if (e.target.closest('#ix-add')) return tab === 'f' && mode === 'notes' ? pick(true, f => attach(null, f), '*') : newIndexDialog();
   const t = e.target.closest('[data-topic]'); if (t) return openTopic(t.dataset.topic, 'view', false, cur && cur.k === 'note' ? { s: cur.s, id: cur.id } : null);
   const n = e.target.closest('[data-id][data-s]');
@@ -909,7 +911,7 @@ $('#list').addEventListener('click', e => {
 $('#list').addEventListener('dragstart', e => { const n = e.target.closest('[data-id]'); if (n) e.dataTransfer.setData('text/plain', n.dataset.id); });
 $('#list').addEventListener('click', e => { const p = e.target.closest('[data-ff]'); if (p) { fileFilter = p.dataset.ff; renderList(); } });
 $('#list').addEventListener('change', e => { if (e.target.id === 'sb-by') { sortBy = e.target.value; savePrefs(); renderList(); } });
-$('#tabs').onclick = e => { const b = e.target.closest('button'); if (b) { tab = b.dataset.tab; $('#q').value = ''; renderList(); } };
+$('#tabs').onclick = e => { const b = e.target.closest('button[data-tab]'); if (b) { tab = b.dataset.tab; $('#q').value = ''; renderList(); } };   // タブのボタンだけ（📑＋ などは、タブを変えない）
 $('#q').oninput = renderList;
 $('#q').onkeydown = e => { if (e.key === 'Escape') { $('#q').value = ''; $('#q').blur(); renderList(); if (lastView && cur && cur.k === 'note') lastView.focus(); searchMark(); } };
 document.addEventListener('keydown', e => {
@@ -1656,14 +1658,12 @@ async function createNoid(kind) {
 function newIndexDialog() {
   const paper = ixSide === 'p' || paperOnly;   // 紙に切り替えているときは、紙のキーワード
   dialog(`<div class="dlg-a"><h3>➕ ${paper ? '紙の' : 'デジタルの'}キーワードを作る</h3>
-    <div class="ixside" style="padding:0 0 6px;position:static"><button class="on" type="button">🏷️ キーワード</button><button id="ni-topic" type="button">📑 トピックIndex</button></div>
     <div class="da-lab">🏷️ キーワード</div><input id="ni-kw" autocomplete="off">
     <div class="da-lab">🔤 よみ（自動）</div><input id="ni-rd" autocomplete="off">
     <div class="da-lab">ID（空白で区切る。例: 12 12a）${paper ? '。まだ取り込んでいない紙のIDでもよい' : '。今あるデジタルのノートのID'}</div><input id="ni-ids" autocomplete="off">
     <div class="da-bar"><span class="grow"></span><button id="ni-no">やめる</button><button class="p" id="ni-ok">➕ 作る</button></div></div>`, close => {
     let touched = false, timer = null;
     $('#ni-kw').focus(); $('#ni-no').onclick = close;
-    $('#ni-topic').onclick = () => { close(); topicNewDialog('', '', paper ? 'p' : 'd'); };   // トピックIndex（番号を指定。ノートが無くても作れる）
     $('#ni-rd').oninput = () => { touched = !!$('#ni-rd').value; };
     $('#ni-kw').oninput = () => { clearTimeout(timer); timer = setTimeout(async () => { if (touched) return; const k = $('#ni-kw').value.trim(); $('#ni-rd').value = k ? await api.suggest(k) : ''; }, 220); };
     const ok = async () => {
