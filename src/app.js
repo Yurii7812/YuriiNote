@@ -29,7 +29,7 @@ const $ = s => document.querySelector(s);
 const esc = s => String(s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
 const SP = { d: 'デジタル', p: '紙' };
 
-let notes = [], topics = [], readings = {}, tab = 'd', cur = null, vault = '';
+let notes = [], topics = [], readings = {}, tab = 'd', cur = null, vault = '', regions = [];
 // 開いているタブ（Obsidian 風）。cur は今のタブ
 let tabs = [], active = -1, newTab = false, bgOpen = false;
 let mode = 'notes', diaries = [], records = [{ name: '日記', parent: '' }], lastNote = null, curKind = (() => { try { return localStorage.getItem('pkm-kind') || '日記'; } catch { return '日記'; } })(); // 左の列で選んでいる種類（ノート・日記…）
@@ -641,11 +641,15 @@ function renderList() {
     const list = sortNotes((tab === 'u' ? notes.filter(n => n.noid) : notes.filter(n => n.s === tab && !n.noid)), tab);
     const byFz = sortBy === 'fz' && tab !== 'u';
     if (byFz && (tab === 'd' || tab === 'p')) for (const t of topics.filter(x => (!x.entry || !get(x.entry.s, x.entry.id)) && (x.entry ? x.entry.s : 'd') === tab).sort((a, b) => a.name.localeCompare(b.name, 'ja'))) out.push(topicRow(t)); // 親のノートがまだないもの（取り込み前の紙の番号など）は、その側の先頭
+    // デジタルは、区画（1, 2 …）の行を、そのノートの手前に出す（初めて出てくるところ。残りは最後）。区画の下に、その索引（1-1…）
+    const shownRegion = new Set(), regionHead = r => { shownRegion.add(r); out.push(regionRow(r)); for (const t of topicsOf('d', r).filter(topicVisible)) out.push(topicRow(t)); };
     for (const n of list) {
       if (byFz && foldIds.size && fzHidden(n)) continue;   // たたまれた親の下は、出さない
+      if (tab === 'd' && !n.noid && !shownRegion.has(String(L.region(n.id)))) regionHead(String(L.region(n.id)));
       if (byFz) for (const t of topicsOf(n.s, n.id).filter(topicVisible)) out.push(topicRow(t)); // 「1-1」「1-2」は、ノート 1 の手前
       out.push(noteRow(n));
     }
+    if (tab === 'd') { for (const r of regions) if (!shownRegion.has(r.n)) regionHead(r.n); out.push(`<div class="item region new" data-region="new"><div class="nt">＋ 新しい区画</div></div>`); }
     if (!list.length) out.push(`<div class="none">${tab === 'p' ? '「📷 スキャン取り込み」で紙を入れます' : tab === 'u' ? 'IDなしで書いたノートが、ここに並びます。あとでIDを付けて整理します' : '「＋ 新規」で書き始めます'}</div>`);
   }
   const keep = tab === 'i' && $('#pi') ? ['pi-kw', 'pi-rd', 'pi-ids'].map(i => [i, $('#' + i).value, document.activeElement && document.activeElement.id === i]) : [];
@@ -664,6 +668,12 @@ document.addEventListener('mouseup', e => { if (e.button === 3) { e.preventDefau
 function onOpenClick(e) {
   if (e.target.closest('#modal') || e.target.closest('#selbar')) return;
   const dd = e.target.closest('[data-diary]'); if (dd && !e.target.closest('.cm-editor')) return openDiary(dd.dataset.diary, undefined, dd.dataset.kind || '日記');
+  const rg = e.target.closest('[data-region]');
+  if (rg && tab === 'd' && mode === 'notes') {   // 区画の行: 名前を付ける・その区画の索引を作る・新しい区画
+    if (rg.dataset.region === 'new') return regionDialog(String(Math.max(0, ...regions.map(r => +r.n)) + 1));
+    if (e.target.closest('.ri')) return topicNewDialog('', rg.dataset.region);
+    return regionDialog(rg.dataset.region);
+  }
   const row = e.target.closest('#list .item');
   if (selMode && row) { if (row.matches('.note[data-s][data-id]')) togglePick(row, e.shiftKey); return; }
   if (e.target.closest('#ix-add')) return tab === 'f' && mode === 'notes' ? pick(true, f => attach(null, f), '*') : newIndexDialog();
@@ -1736,8 +1746,26 @@ function topicAddDialog(note) {
 }
 // 索引を単独で作る。親は新しいノート（新しいID）か、既存のノート
 // キーワードを指定すると、そのキーワードのIDが最初から入り、Index に赤い点が付く（IDが2つ以上のときだけ）
-function topicNewDialog(kw = '') {
-  const rootFree = sp => { const r = notes.filter(n => n.s === sp && /^\d+$/.test(n.id)).map(n => +n.id); return free(sp, String((r.length ? Math.max(...r) : 0) + 1)); };
+// 区画の行（デジタルの一覧）。番号と名前だけ。クリックで名前を付ける・変える。＋索引で、その区画の索引（1-1…）を作る
+const regionRow = r => { const g = regions.find(x => x.n === r) || { name: '' }; return `<div class="item region" data-region="${esc(r)}"><div class="nt">🗂️ <b>${esc(r)}</b> ${g.name ? esc(g.name) : '<small>（名前なし）</small>'}</div><button class="ri" title="この区画の索引（${esc(r)}-1…）を作る">＋索引</button></div>`; };
+function regionDialog(n) {
+  const g = regions.find(x => x.n === n) || { name: '' };
+  $('#modal .box').innerHTML = `<div class="dlg-a"><h3>🗂️ 区画 ${esc(n)}</h3>
+    <div class="da-lab">名前（区画は、番号と名前だけです。あとからいつでも変えられます）</div>
+    <input id="rg-name" value="${esc(g.name)}" placeholder="例: 仏教">
+    <div class="da-bar"><span class="grow"></span><button id="rg-cancel">やめる</button><button id="rg-ok" class="p">保存</button></div></div>`;
+  $('#modal').style.display = 'flex'; $('#rg-name').focus();
+  const close = () => { $('#modal').style.display = 'none'; };
+  $('#rg-cancel').onclick = close;
+  $('#rg-ok').onclick = async () => {
+    const st = await api.saveRegion(n, $('#rg-name').value.trim());
+    if (!st) return alert('保存できませんでした（区画の番号の形が違います）');
+    applyState(st); close(); renderList();
+  };
+  $('#modal').onkeydown = e => { if (e.key === 'Escape') close(); };
+}
+function topicNewDialog(kw = '', presetId = '') {
+  const rootFree = sp => X.nextRoot(notes, sp);
   const idsOf = k => { const v = globalIndex().find(x => x[0] === k); return v ? v[1] : { d: [], p: [] }; };
   $('#modal .box').innerHTML = `<div class="dlg-a">
     <h3>➕ 索引を作る</h3>
@@ -1755,13 +1783,13 @@ function topicNewDialog(kw = '') {
   let nameTouched = false;
   const refresh = () => {
     const k = $('#tn-kw').value.trim(), sp = $('#tn-s').value, id = $('#tn-id').value.trim().toLowerCase();
-    const exists = !!get(sp, id);
+    const exists = !!get(sp, id), region = sp === 'd' && L.isRegionOnly(id);
     $('#tn-laterw').style.display = sp === 'p' && id && !exists ? 'flex' : 'none';
-    $('#tn-note').textContent = !id ? '' : exists ? `既存のノート ${id} を親にします` : sp === 'p' && $('#tn-later').checked ? `紙 ${id} はまだ取り込んでいません（ノートが無くても作れます）` : `新しいノート ${id} を作ります`;
+    $('#tn-note').textContent = !id ? '' : region ? `区画 ${id} の索引（ノートは作りません）` : exists ? `既存のノート ${id} を親にします` : sp === 'p' && $('#tn-later').checked ? `紙 ${id} はまだ取り込んでいません（ノートが無くても作れます）` : `新しいノート ${id} を作ります`;
     const v = k ? idsOf(k) : null;
     $('#tn-pre').textContent = v ? (v.d.length + v.p.length >= 2 ? `${k} ${[...v.d, ...v.p.map(x => '紙' + x)].join(' ')}` + (exists && !(sp === 'd' ? v.d : v.p).includes(id) || !exists ? ` ${sp === 'p' ? '紙' : ''}${id}` : '') + `　→ ${sp === 'p' ? '紙' : ''}${id} の上に赤い点が付きます` : 'このキーワードのIDは2つ未満です') : '';
   };
-  $('#tn-s').value = 'd'; $('#tn-id').value = rootFree('d');
+  $('#tn-s').value = 'd'; $('#tn-id').value = presetId || rootFree('d');
   $('#tn-s').onchange = () => { $('#tn-id').value = rootFree($('#tn-s').value); refresh(); };
   $('#tn-kw').oninput = refresh; $('#tn-id').oninput = refresh; $('#tn-later').onchange = refresh;
   $('#tn-name').oninput = () => { nameTouched = true; };
@@ -1774,7 +1802,7 @@ function topicNewDialog(kw = '') {
       v = idsOf(k);
       if (v.d.length + v.p.length < 2) return alert('キーワードは、IDが2つ以上あるものだけです');
     }
-    if (!get(sp, id) && !(sp === 'p' && $('#tn-later').checked)) notes.push(await api.saveNote({ s: sp, id, created: L.now(), keywords: k ? [k] : [], body: '' }));
+    if (!get(sp, id) && !(sp === 'p' && $('#tn-later').checked) && !(sp === 'd' && L.isRegionOnly(id))) notes.push(await api.saveNote({ s: sp, id, created: L.now(), keywords: k ? [k] : [], body: '' }));
     else if (get(sp, id)) await ensureKeyword(sp, id, k);
     const t = { name, entry: { s: sp, id }, keyword: k, text: v ? idsText(k, v, sp) : '' };
     const sv = await api.saveTopic(t); if (!sv) return alert('保存できませんでした');
@@ -1993,7 +2021,7 @@ function openTopicList(s, id, keep) {
 // ↪️ 独立させる: キーワードを、新しいIDの索引に。元の索引の行に赤点（*新ID）と「|> キーワード 新ID」、新しい索引に「<| 元の索引 番号」を、一度に書く
 function topicIndependDialog(t) {
   const s = t.entry && t.entry.s === 'p' ? 'p' : 'd', kws = L.mergeTopic(t).rows.map(r => r.kw).filter(Boolean);
-  const rootFree = () => { const r = notes.filter(n => n.s === s && /^\d+$/.test(n.id)).map(n => +n.id); return free(s, String((r.length ? Math.max(...r) : 0) + 1)); };
+  const rootFree = () => X.nextRoot(notes, s);
   $('#modal .box').innerHTML = `<div class="dlg-a"><h3>↪️ 独立させる</h3>
     <div class="da-lab">独立させるキーワード</div>
     <input id="ti-kw" list="ti-kws" placeholder="例: 掛け算"><datalist id="ti-kws">${kws.map(k => `<option value="${esc(k)}">`).join('')}</datalist>
@@ -2784,6 +2812,7 @@ function applyState(st, since = saves.revision) {
   const protect = key => saves.has(key) || saves.changedSince(key, since);
   notes = Persistence.reconcile(notes, st.notes, noteKey, protect);
   topics = Persistence.reconcile(topics, st.topics, t => 't' + t.name, protect);
+  regions = st.regions || [];
   if (st.diaries) diaries = Persistence.reconcile(diaries, st.diaries, diaryKey, protect);
   syncEditors();
   const title = $('#f-title'), note = cur?.k === 'note' && get(cur.s, cur.id);

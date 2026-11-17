@@ -565,6 +565,15 @@ function openVault(vault) {
     for (const t of topics.values()) files.set(topicFile(t.name), topicMd(t));
     for (const [f, c] of files) if (cache.get(f) !== c) { put(abs(f), c); cache.set(f, c); }
   }
+  // 区画（2026-11-17）: 番号と名前だけの入れ物。K_regions.json = { regions: { "1": { name } } }。
+  // ノートや索引が 1… を持つときも、区画として出す（名前が無ければ空）
+  const regionDoc = () => docs.get('K_regions') || { regions: {} };
+  function regionList() {
+    const set = new Set(Object.keys(regionDoc().regions || {}).map(Number));
+    for (const n of notes.values()) if (n.s === 'd' && validId(n.id) && !L.isNoid(n.id)) set.add(L.region(n.id));
+    for (const t of topics.values()) if (t.entry && t.entry.s === 'd' && L.isRegionOnly(t.entry.id)) set.add(+t.entry.id);
+    return [...set].filter(Boolean).sort((a, b) => a - b).map(n => ({ n: String(n), name: (regionDoc().regions || {})[n]?.name || '' }));
+  }
   // 対応表（旧 → 新）でIDを付け替える（ノート・子・トピックの入口と索引・本文の ->ID・日記・canvas の節点）。rename と移行が使う
   function applyIdMap(s, map) {
     const moving = [...map].map(([o, nw]) => [get(s, o), nw]);
@@ -645,7 +654,7 @@ function openVault(vault) {
   return {
     vault,
     state() { return { vault, notes: [...notes.values()].map(pub), topics: [...topics.values()], readings: { ...readings },
-      diaries: [...diaries.values()].map(pubDiary), records: this.records(), docs: Object.fromEntries(docs), warnings: [...warnings] }; },
+      diaries: [...diaries.values()].map(pubDiary), records: this.records(), docs: Object.fromEntries(docs), warnings: [...warnings], regions: regionList() }; },
     diaryState: () => [...diaries.values()].map(pubDiary),
     // ===== 日記（と、夢・ビジネスなどの記録）=====
     // kind の date のノートを作る（無ければ）。日記なら、その日に作ったノートで、まだ入っていないものも足す
@@ -837,6 +846,14 @@ function openVault(vault) {
       // IDなしだった親に ID が付いたら、その下に分岐していたノートにも、順に ID が付く（1c → 1ca, 1cb …。孫も同じように）
       if (s === 'd' && L.isNoid(from)) { let prev = null; for (const c of [...notes.values()].filter(x => x.s === 'd' && x.parentStem && x.parentStem === n.stem).sort((a, b) => (a.created || '').localeCompare(b.created || ''))) { let id = prev ? L.sibling(prev) : L.child(to); while (get('d', id)) id = L.sibling(id); const cur = c.id; c.parentStem = ''; this.rename('d', cur, id); prev = id; } }
       rebuild(); return pub(n);
+    },
+    // 区画の名前（番号だけの入れ物）。name が空でも、区画は残る（索引を作れる）
+    saveRegion(n, name) {
+      if (!L.isRegionOnly(n)) return false;
+      const d = regionDoc(), regions = { ...(d.regions || {}) };
+      regions[n] = { name: (name || '').trim() };
+      docs.set('K_regions', { regions }); put(abs('K_regions.json'), JSON.stringify({ regions }, null, 1));
+      rebuild(); return this.state();
     },
     // 旧い番号 → 区画とトピックの番号（2026-11-17。デジタルのノートだけ。紙は古い番号のまま）。対応表は L.zkMigrate
     migrateDigitalIds() {
