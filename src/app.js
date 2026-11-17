@@ -1751,14 +1751,16 @@ function topicAddDialog(note) {
 const regionRow = r => { const g = regions.find(x => x.n === r) || { name: '' }; return `<div class="item region${cur && cur.k === 'region' && cur.id === r ? ' on' : ''}" data-region="${esc(r)}"><div class="nt">🗂️ <b>${esc(r)}</b> ${g.name ? esc(g.name) : '<small>（名前なし）</small>'}</div></div>`; };
 const uniqueTopics = list => [...new Map(list.map(t => [t.name, t])).values()];
 // 区画のページ（左の一覧の「1」を押すと開く）: 名前・グローバルIndexの名前・子ノート（直接の子だけ。タイトル付き）・トピックIndex
+// 区画の新しい子ノートの番号: 最後の子の次（1a の次は 1b）。子が無ければ a
+const nextRegionKid = n => { const ks = regionKids(n), id = ks.length ? L.sibling(ks[ks.length - 1].id) : n + 'a'; return free('d', id); };
 function regionKids(n) { const has = x => !!get('d', x); return notes.filter(m => m.s === 'd' && !m.noid && String(L.region(m.id)) === n && !L.parentIn(m.id, has)).sort((a, b) => L.cmpId(a.id, b.id)); }
 function openRegion(n, keep) {
   cur = place({ k: 'region', id: n }, keep); mode = 'notes';
   if (!inPreview && !$('#q').value) tab = 'd';
   const g = regions.find(x => x.n === n) || { name: '', keywords: [] }, kids = regionKids(n), ts = uniqueTopics(topicsOf('d', n).filter(topicVisible));
   const trow = t => `<tr><td><span class="chip t" data-topic="${esc(t.name)}">${esc(topicLabel(t))}</span></td><td class="sub">${esc(L.mergeTopic(t).rows.map(r => r.kw).filter(Boolean).slice(0, 8).join('　'))}</td></tr>`;
-  $('#pane').innerHTML = `<div class="row thead"><span class="ti-ic">🗂️</span><h2 class="tname" data-act="rgset" title="押して、名前を変える・グローバルIndexに登録">${esc(n)} ${g.name ? esc(g.name) : '<small class="sub">（名前を付ける）</small>'}</h2><span class="grow"></span>
-      <button class="tbtn" data-act="rgset" title="名前・グローバルIndexの名前を変える">⚙️ 名前・登録</button><button class="tbtn" data-act="rgmk" title="この区画の下に、無名のトピックIndexを作る">➕ トピックIndex</button></div>
+  $('#pane').innerHTML = `<div class="row thead rgh"><span class="ti-ic">🗂️</span><h2 class="tname" data-act="rgset" title="押して、名前を変える・グローバルIndexに登録">${esc(n)} ${g.name ? esc(g.name) : '<small class="sub">（名前を付ける）</small>'}</h2><span class="grow"></span>
+      <button class="tbtn" data-act="rgnote" title="この区画の下に、新しいノートを作る">📝 新しい子ノート <small>${esc(nextRegionKid(n))}</small></button><button class="tbtn" data-act="rgset" title="名前・グローバルIndexの名前を変える">⚙️ 名前・登録</button><button class="tbtn" data-act="rgmk" title="この区画の下に、無名のトピックIndexを作る">➕ トピックIndex</button></div>
     ${(g.keywords || []).length ? `<div class="row tmeta"><span class="tm"><span class="sub" title="グローバルIndexの名前">🏷️</span>${g.keywords.map(k => `<span class="chip k">${esc(k)}</span>`).join('')}</span></div>` : ''}
     <div class="tkh">🌱 子ノート <small class="sub">${kids.length}</small></div>
     <table class="ti tkids">${kids.map(m => `<tr class="trel"><td class="kidt" data-s="d" data-id="${esc(m.id)}">${esc(titleOf(m) || '（無題）')}</td><td>${chip('d', m.id)}</td></tr>`).join('') || '<tr><td class="none">まだノートがありません</td></tr>'}</table>
@@ -1770,6 +1772,7 @@ const regionRefresh = n => { if (cur && cur.k === 'region' && cur.id === n) open
 async function regionAct(act) {
   const n = cur.id;
   if (act === 'rgset') return regionDialog(n);
+  if (act === 'rgnote') return create('d', nextRegionKid(n));   // 新しい子ノート（区画の次の番号。ノートが開く）
   if (act === 'rgmk') {   // 無名で作る（番号だけで呼ぶ）
     const t = { name: autoName('d', n), entry: { s: 'd', id: n }, keyword: '', text: '' };
     const sv = await api.saveTopic(t); if (!sv) return alert('保存できませんでした');
