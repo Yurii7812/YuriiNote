@@ -166,7 +166,7 @@ button.ic.dj{width:34px;height:34px;font-size:17px;border:1px solid var(--line);
 #rail button.on{opacity:1}#rail button:hover{opacity:1}
 #rail #more{height:44px;width:44px;font-size:20px;opacity:.55}
 #tabs button{display:inline-flex;align-items:center;gap:5px}
-#tabs{align-items:center}#tabs .tiadd{margin-left:6px;flex:none;height:30px;padding:0 10px;border:1px solid var(--line);border-radius:8px;background:var(--bg);color:var(--fg);font-size:13px;cursor:pointer;white-space:nowrap}#tabs .tiadd:hover{background:var(--hl)}#tabs .tiadd[hidden]{display:none}#tabs .tsort{margin-left:auto;display:flex;gap:4px}#searchbox .tsort{display:flex;gap:4px}#searchbox #ix-add{flex:none;width:32px;height:32px;padding:0;font-size:17px;border:0;border-radius:8px;background:var(--hl)}
+#tabs{align-items:center}#tabs .tsort{margin-left:auto;display:flex;gap:4px}#searchbox .tsort{display:flex;gap:4px}#searchbox #ix-add{flex:none;width:32px;height:32px;padding:0;font-size:17px;border:0;border-radius:8px;background:var(--hl)}
 #tabs .tsort .ic,#searchbox .tsort .ic{flex:none;width:32px;height:32px;font-size:15px;background:var(--hl);border:0;border-radius:8px;padding:0}
 /* 日記・メモ: 余白を詰める。上の選び方（メモ帳には無い）、今日・日付は 1 行、日の一覧は低く */
 aside>.tsort .ic[hidden]{display:none!important}
@@ -758,7 +758,7 @@ body{-webkit-user-select:none;user-select:none}
     <button id="more" class="ic" title="メニュー">🧰</button>
   </nav>
   <aside>
-    <div id="tabs"><button data-tab="d" title="デジタル"><span class="te">💻</span></button><button data-tab="p" title="紙"><span class="te">📜</span></button><button data-tab="u" title="未整理（IDなし）"><span class="te">📥</span></button><button id="ti-add" class="tiadd" hidden aria-label="トピックIndexを作る">📑＋</button></div>
+    <div id="tabs"><button data-tab="d" title="デジタル（右クリックで、トピックIndexを作る）"><span class="te">💻</span></button><button data-tab="p" title="紙（右クリックで、トピックIndexを作る）"><span class="te">📜</span></button><button data-tab="u" title="未整理（IDなし）"><span class="te">📥</span></button></div>
     <div id="searchbox"><input id="q" placeholder="検索" title="Ctrl+F（今のページの中は Ctrl+E）　Esc でやめる&#10;書き方: 空白=かつ　a OR b / a | b=または　-a=除く　&quot;a b&quot;=並びのまま　( )=まとめる&#10;id:1a　fz:1a（子孫も）　kw:GUI　title:題　body:本文　date:2026-11　date:2026-11-01..2026-11-13　is:paper/digital/noid　has:kw/link"><button id="ix-add" class="tbtn" hidden>＋</button></div>
 <span class="tsort"><button id="sort-key" class="ic"></button><button id="sort-dir" class="ic"></button></span>
     <div id="selbar"></div>

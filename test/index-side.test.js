@@ -53,23 +53,28 @@ test('グローバルIndex: 前回選んだ側で開く。紙のときの「＋�
   } finally { a.close(); }
 });
 
-test('トピックIndexは、ノート一覧（紙・デジタルのタブ）の 📑＋ から作る。グローバルIndexの「＋」からではない', async () => {
+const rightClick = (a, sel) => { const el = a.w.document.querySelector(sel); el.dispatchEvent(new a.w.MouseEvent('contextmenu', { bubbles: true, cancelable: true, clientX: 60, clientY: 40 })); return tick(100); };
+
+test('トピックIndexは、紙・デジタルのボタンの右クリックから作る。グローバルIndexの「＋」からではない', async () => {
   const a = await app({ 'yn-ixside': 'p' });
   try {
-    assert.ok(a.w.document.querySelector('#ti-add').hidden, 'グローバルIndexの画面には、出ない');
     a.w.document.querySelector('#ix-add').click(); await tick(150);
     assert.ok(!a.w.document.querySelector('#ni-topic'), 'Index の「＋」の画面に、トピックIndexの切り替えは無い');
+    assert.ok(!a.w.document.querySelector('#ti-add'), '📑＋ のボタンは無い');
     a.w.document.querySelector('#modal').style.display = 'none';
+    await rightClick(a, '#tabs [data-tab="u"]');
+    assert.ok(!a.w.document.querySelector('.popmenu'), '未整理（IDなし）のボタンでは、出ない');
   } finally { a.close(); }
 });
 
-test('紙のタブの 📑＋: 番号を指定して作れる。その番号のノートが無くても作れる（ノートは作らない）', async () => {
+test('紙のボタンを右クリック: 番号を指定して作れる。その番号のノートが無くても作れる（ノートは作らない）', async () => {
   const a = await app();
   try {
-    a.w.document.querySelector('#tabs [data-tab="p"]').click(); await tick(200);
-    const btn = a.w.document.querySelector('#ti-add'); assert.ok(!btn.hidden, '紙のタブに出る');
-    btn.click(); await tick(200);
-    assert.strictEqual(a.w.document.querySelector('#tn-s').value, 'p', '紙のタブなので、紙');
+    await rightClick(a, '#tabs [data-tab="p"]');
+    const item = a.w.document.querySelector('.popmenu div'); assert.ok(item, '右クリックのメニューが出る');
+    assert.match(item.textContent, /紙のトピックIndexを作る/);
+    item.click(); await tick(200);
+    assert.strictEqual(a.w.document.querySelector('#tn-s').value, 'p', '紙のボタンなので、紙');
     a.w.document.querySelector('#tn-id').value = '9z'; a.w.document.querySelector('#tn-id').dispatchEvent(new a.w.Event('input', { bubbles: true }));
     assert.match(a.w.document.querySelector('#tn-note').textContent, /ノートは、まだありません/);
     a.w.document.querySelector('#tn-ok').click(); await tick(400);
@@ -81,18 +86,25 @@ test('紙のタブの 📑＋: 番号を指定して作れる。その番号の�
   } finally { a.close(); }
 });
 
-test('デジタルのタブの 📑＋: ノートの無い番号でも作れる。未整理のタブには出ない', async () => {
+test('デジタルのボタンを右クリック: ノートの無い番号でも作れる', async () => {
   const a = await app();
   try {
-    a.w.document.querySelector('#tabs [data-tab="d"]').click(); await tick(200);
-    a.w.document.querySelector('#ti-add').click(); await tick(200);
+    await rightClick(a, '#tabs [data-tab="d"]');
+    a.w.document.querySelector('.popmenu div').click(); await tick(200);
     assert.strictEqual(a.w.document.querySelector('#tn-s').value, 'd');
     a.w.document.querySelector('#tn-id').value = '5c'; a.w.document.querySelector('#tn-id').dispatchEvent(new a.w.Event('input', { bubbles: true }));
     a.w.document.querySelector('#tn-ok').click(); await tick(400);
     const st = a.store.state();
     assert.ok(st.topics.some(x => x.entry && x.entry.s === 'd' && x.entry.id === '5c'));
     assert.ok(!st.notes.some(n => n.s === 'd' && n.id === '5c'), 'デジタルでも、ノートは作らない');
-    a.w.document.querySelector('#tabs [data-tab="u"]').click(); await tick(200);
-    assert.ok(a.w.document.querySelector('#ti-add').hidden, '未整理（IDなし）のタブには出ない');
+  } finally { a.close(); }
+});
+
+test('右クリックしても、いまのタブは変わらない（左クリックだけがタブを切り替える）', async () => {
+  const a = await app();
+  try {
+    a.w.document.querySelector('#tabs [data-tab="d"]').click(); await tick(200);
+    await rightClick(a, '#tabs [data-tab="p"]');
+    assert.ok(a.w.document.querySelector('#tabs [data-tab="d"].on'), 'デジタルのまま');
   } finally { a.close(); }
 });

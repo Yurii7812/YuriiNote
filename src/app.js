@@ -606,7 +606,6 @@ function renderList() {
   const indexTab = onNotes && tab === 'i';   // グローバルインデックスの画面: 検索欄は、その中の検索（キーワードだけ）。＋は、その行の右端
   $('#q').style.display = searchTab || indexTab || fileTab ? '' : 'none'; $('#searchbox').style.display = searchTab || indexTab || fileTab ? '' : 'none';
   $('#q').placeholder = '検索';
-  $('#ti-add').hidden = !(dpu && (tab === 'd' || tab === 'p')); $('#ti-add').title = `${tab === 'p' ? '紙の' : 'デジタルの'}トピックIndexを作る（番号を指定。その番号のノートが無くても作れます）`;
   $('#ix-add').hidden = !(indexTab || fileTab); $('#ix-add').title = fileTab ? 'ファイルを取り込む' : ixSide === 'p' || paperOnly ? '新しい紙のキーワードを作る' : '新しいデジタルのキーワードを作る';
   if (!searchTab && !indexTab && !fileTab && $('#q').value) $('#q').value = '';
   const q = $('#q').value.trim().toLowerCase(), out = []; searchQ = $('#q').value.trim();   // 演算子の OR / NOT は大文字で書くので、検索語は、小文字にする前の形で渡す
@@ -696,7 +695,6 @@ function onOpenClick(e) {
   }
   const row = e.target.closest('#list .item');
   if (selMode && row) { if (row.matches('.note[data-s][data-id]')) togglePick(row, e.shiftKey); return; }
-  if (e.target.closest('#ti-add')) return topicNewDialog('', '', tab === 'p' ? 'p' : 'd');   // ノート一覧（デジタル・紙）から、トピックIndexを作る
   if (e.target.closest('#ix-add')) return tab === 'f' && mode === 'notes' ? pick(true, f => attach(null, f), '*') : newIndexDialog();
   const t = e.target.closest('[data-topic]'); if (t) return openTopic(t.dataset.topic, 'view', false, cur && cur.k === 'note' ? { s: cur.s, id: cur.id } : null);
   const n = e.target.closest('[data-id][data-s]');
@@ -911,6 +909,12 @@ $('#list').addEventListener('click', e => {
 $('#list').addEventListener('dragstart', e => { const n = e.target.closest('[data-id]'); if (n) e.dataTransfer.setData('text/plain', n.dataset.id); });
 $('#list').addEventListener('click', e => { const p = e.target.closest('[data-ff]'); if (p) { fileFilter = p.dataset.ff; renderList(); } });
 $('#list').addEventListener('change', e => { if (e.target.id === 'sb-by') { sortBy = e.target.value; savePrefs(); renderList(); } });
+// 紙・デジタルのボタンを右クリック: トピックIndexを作る（番号を指定。その番号のノートが無くても作れる）
+$('#tabs').oncontextmenu = e => {
+  const b = e.target.closest('button[data-tab]'); if (!b || !['d', 'p'].includes(b.dataset.tab)) return;
+  e.preventDefault(); const side = b.dataset.tab;
+  popMenu(e, [[`📑 ${side === 'p' ? '紙の' : 'デジタルの'}トピックIndexを作る…`, () => topicNewDialog('', '', side)]]);
+};
 $('#tabs').onclick = e => { const b = e.target.closest('button[data-tab]'); if (b) { tab = b.dataset.tab; $('#q').value = ''; renderList(); } };   // タブのボタンだけ（📑＋ などは、タブを変えない）
 $('#q').oninput = renderList;
 $('#q').onkeydown = e => { if (e.key === 'Escape') { $('#q').value = ''; $('#q').blur(); renderList(); if (lastView && cur && cur.k === 'note') lastView.focus(); searchMark(); } };
