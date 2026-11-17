@@ -49,6 +49,12 @@ const kwTopic = k => topics.find(t => t.keyword === k);
 const prefs = (() => { try { return JSON.parse(localStorage.getItem('pkm-list-prefs') || '{}'); } catch { return {}; } })();
 const paperOnly = false;   // 「全体を紙だけにする」は廃止（ボタンを外した。以前の設定が残っていても使わない。下の条件は、すべて「紙だけではない」として動く）
 const isVisS = sp => !paperOnly || sp === 'p';
+// グローバルIndexの、紙とデジタルの切り替え（「全体を紙だけにする」の代わり。Index の中だけ）: all（すべて）/ d（デジタル）/ p（紙）。覚えておく
+let ixSide = (() => { try { const v = localStorage.getItem('yn-ixside'); return ['all', 'd', 'p'].includes(v) ? v : 'all'; } catch { return 'all'; } })();
+const setIxSide = v => { ixSide = v; try { localStorage.setItem('yn-ixside', v); } catch { } renderList(); };
+// 切り替えに合わせた、グローバルIndexの行（その側のIDが無いキーワードは出さない）
+const ixView = () => ixSide === 'all' ? globalIndex() : globalIndex().map(([k, v]) => [k, { d: ixSide === 'p' ? [] : v.d, p: ixSide === 'd' ? [] : v.p }]).filter(([, v]) => v.d.length + v.p.length);
+const ixBar = () => `<div class="ixside" role="group" aria-label="紙とデジタルの切り替え">${[['all', 'すべて'], ['d', '💻 デジタル'], ['p', '📜 紙']].map(([k, t]) => `<button data-ixs="${k}" class="${ixSide === k ? 'on' : ''}">${t}</button>`).join('')}</div>`;
 let sortBy = prefs.by || 'fz', sortDir = prefs.dir || 'asc';
 let diarySortDir = prefs.diaryDir || 'asc';   // 日記の並び（ノートの並びとは別。日記は日付順なので、向きだけ）
 const savePrefs = () => { try { localStorage.setItem('pkm-list-prefs', JSON.stringify({ by: sortBy, dir: sortDir, diaryDir: diarySortDir })); } catch { } };
@@ -600,7 +606,7 @@ function renderList() {
   const indexTab = onNotes && tab === 'i';   // グローバルインデックスの画面: 検索欄は、その中の検索（キーワードだけ）。＋は、その行の右端
   $('#q').style.display = searchTab || indexTab || fileTab ? '' : 'none'; $('#searchbox').style.display = searchTab || indexTab || fileTab ? '' : 'none';
   $('#q').placeholder = '検索';
-  $('#ix-add').hidden = !(indexTab || fileTab); $('#ix-add').title = fileTab ? 'ファイルを取り込む' : paperOnly ? '新しい紙のキーワードを作る' : '新しいデジタルのキーワードを作る';
+  $('#ix-add').hidden = !(indexTab || fileTab); $('#ix-add').title = fileTab ? 'ファイルを取り込む' : ixSide === 'p' || paperOnly ? '新しい紙のキーワードを作る' : '新しいデジタルのキーワードを作る';
   if (!searchTab && !indexTab && !fileTab && $('#q').value) $('#q').value = '';
   const q = $('#q').value.trim().toLowerCase(), out = []; searchQ = $('#q').value.trim();   // 演算子の OR / NOT は大文字で書くので、検索語は、小文字にする前の形で渡す
   const qm = q ? Q.matcher(searchQ) : null;   // 検索の書き方（演算子）も使える
@@ -609,8 +615,8 @@ function renderList() {
   if (!q && mode === 'diary') { $('#list').innerHTML = diaryList(); renderSelbar(); return; }   // 並び替えは、「今日」と日付と、同じ行の右端に
   if (q && indexTab) {   // グローバルインデックスの中の検索（キーワードと、よみ）
     const hq = L.toHira(q), kwf = k => ({ id: '', s: 'd', noid: true, title: k, body: '', kw: [k], readings: readings[k] || '', created: '' });
-    const gi = globalIndex().filter(([k]) => qm(kwf(k)) || (!/\s|[()|"]/.test(q) && (readings[k] || '').includes(hq)));
-    out.push(...gi.map(ixRow)); if (!out.length) out.push('<div class="none">見つかりません</div>');
+    const gi = ixView().filter(([k]) => qm(kwf(k)) || (!/\s|[()|"]/.test(q) && (readings[k] || '').includes(hq)));
+    out.push(ixBar(), ...gi.map(ixRow)); if (!gi.length) out.push('<div class="none">見つかりません</div>');
   } else if (q && !fileTab) {
     // 1. Index  2. 索引  3. ノート
     const rank = k => (k.toLowerCase() === q ? 0 : k.toLowerCase().startsWith(q) ? 1 : 2);
@@ -642,13 +648,13 @@ function renderList() {
   } else if (tab === 'i') {
     // Index: グローバルIndex（キーワードの一覧）
     {
-      let row = null;
-      for (const e of globalIndex()) {
+      let row = null; out.push(ixBar());
+      for (const e of ixView()) {
         const r = L.kanaRow(readingOf(e[0]));
         if (r !== row) { out.push(`<h4>${r}</h4>`); row = r; }
         out.push(ixRow(e));
       }
-      if (out.length === 0) out.push(`<div class="none">${paperOnly ? '紙のキーワードはまだありません。右上の＋で作ります' : 'ノートにキーワードを書くと、ここに並びます。右上の＋でも作れます'}</div>`);
+      if (out.length === 1) out.push(`<div class="none">${ixSide === 'p' ? '紙のキーワードはまだありません。右上の＋で作ります' : ixSide === 'd' ? 'デジタルのキーワードはまだありません。ノートにキーワードを書くか、右上の＋で作ります' : 'ノートにキーワードを書くと、ここに並びます。右上の＋でも作れます'}</div>`);
     }
   } else {
     const list = sortNotes((tab === 'u' ? notes.filter(n => n.noid) : notes.filter(n => n.s === tab && !n.noid)), tab);
@@ -681,6 +687,7 @@ document.addEventListener('mouseup', e => { if (e.button === 3) { e.preventDefau
 function onOpenClick(e) {
   if (e.target.closest('#modal') || e.target.closest('#selbar')) return;
   const dd = e.target.closest('[data-diary]'); if (dd && !e.target.closest('.cm-editor')) return openDiary(dd.dataset.diary, undefined, dd.dataset.kind || '日記');
+  const sb = e.target.closest('[data-ixs]'); if (sb) { e.stopPropagation(); return setIxSide(sb.dataset.ixs); }
   const pen = e.target.closest('[data-ixedit]'); if (pen && mode === 'notes') { e.stopPropagation(); return ixEditDialog(pen.dataset.ixedit); }
   const rg = e.target.closest('[data-region]');
   if (rg && mode === 'notes') {   // 区画の行・区画のチップ: 名前と、トピックIndex（グローバルIndexに追加）
@@ -1647,14 +1654,16 @@ async function createNoid(kind) {
 }
 // Index タブの＋: グローバルなら新しいキーワード（📜 のときは紙、ふだんはデジタル）、グループなら新しいグループIndex
 function newIndexDialog() {
-  const paper = paperOnly;
+  const paper = ixSide === 'p' || paperOnly;   // 紙に切り替えているときは、紙のキーワード
   dialog(`<div class="dlg-a"><h3>➕ ${paper ? '紙の' : 'デジタルの'}キーワードを作る</h3>
+    <div class="ixside" style="padding:0 0 6px;position:static"><button class="on" type="button">🏷️ キーワード</button><button id="ni-topic" type="button">📑 トピックIndex</button></div>
     <div class="da-lab">🏷️ キーワード</div><input id="ni-kw" autocomplete="off">
     <div class="da-lab">🔤 よみ（自動）</div><input id="ni-rd" autocomplete="off">
     <div class="da-lab">ID（空白で区切る。例: 12 12a）${paper ? '。まだ取り込んでいない紙のIDでもよい' : '。今あるデジタルのノートのID'}</div><input id="ni-ids" autocomplete="off">
     <div class="da-bar"><span class="grow"></span><button id="ni-no">やめる</button><button class="p" id="ni-ok">➕ 作る</button></div></div>`, close => {
     let touched = false, timer = null;
     $('#ni-kw').focus(); $('#ni-no').onclick = close;
+    $('#ni-topic').onclick = () => { close(); topicNewDialog('', '', paper ? 'p' : 'd'); };   // トピックIndex（番号を指定。ノートが無くても作れる）
     $('#ni-rd').oninput = () => { touched = !!$('#ni-rd').value; };
     $('#ni-kw').oninput = () => { clearTimeout(timer); timer = setTimeout(async () => { if (touched) return; const k = $('#ni-kw').value.trim(); $('#ni-rd').value = k ? await api.suggest(k) : ''; }, 220); };
     const ok = async () => {
@@ -1828,16 +1837,15 @@ function regionDialog(n) {
   };
   $('#modal').onkeydown = e => { if (e.key === 'Escape') close(); };
 }
-function topicNewDialog(kw = '', presetId = '') {
+function topicNewDialog(kw = '', presetId = '', side = 'd') {
   const rootFree = sp => X.nextRoot(notes, sp);
   const idsOf = k => { const v = globalIndex().find(x => x[0] === k); return v ? v[1] : { d: [], p: [] }; };
   $('#modal .box').innerHTML = `<div class="dlg-a">
-    <h3>➕ 索引を作る</h3>
+    <h3>➕ トピックIndexを作る</h3>
     <div class="da-lab">🏷️ キーワード（任意）。同じキーワードのIDが2つ以上あるとき、それらをまとめます</div>
     <input id="tn-kw" list="tn-kws" value="${esc(kw)}" placeholder="例: GUI"><datalist id="tn-kws">${globalIndex().filter(([, v]) => v.d.length + v.p.length >= 2).map(([k]) => `<option value="${esc(k)}">`).join('')}</datalist>
-    <div class="da-lab">🌳 親のノート。無いIDなら、新しいノートを作ります</div>
+    <div class="da-lab">🌳 番号（ID）。その番号のノートが無くても作れます（索引は、ただのデータです）</div>
     <div class="row"><select id="tn-s"><option value="d">デジタル</option><option value="p">紙</option></select><input id="tn-id" style="width:100px"><span id="tn-note" class="sub"></span></div>
-    <label class="rad" id="tn-laterw" style="display:none"><input type="checkbox" id="tn-later" checked> 紙のノートは、まだ作らない（取り込む前の番号。取り込んだら、つながります）</label>
     <div class="da-lab">📝 名前（空のままで。育ってから、つけます）</div>
     <input id="tn-name" placeholder="無名">
     <div id="tn-pre" class="sub"></div>
@@ -1848,14 +1856,13 @@ function topicNewDialog(kw = '', presetId = '') {
   const refresh = () => {
     const k = $('#tn-kw').value.trim(), sp = $('#tn-s').value, id = $('#tn-id').value.trim().toLowerCase();
     const exists = !!get(sp, id), region = sp === 'd' && L.isRegionOnly(id);
-    $('#tn-laterw').style.display = sp === 'p' && id && !exists ? 'flex' : 'none';
-    $('#tn-note').textContent = !id ? '' : region ? `区画 ${id} の索引（ノートは作りません）` : exists ? `既存のノート ${id} を親にします` : sp === 'p' && $('#tn-later').checked ? `紙 ${id} はまだ取り込んでいません（ノートが無くても作れます）` : `新しいノート ${id} を作ります`;
+    $('#tn-note').textContent = !id ? '' : region ? `区画 ${id} の索引（ノートは作りません）` : exists ? `既存のノート ${id} の索引にします` : `${sp === 'p' ? '紙' : ''}${id} のノートは、まだありません（ノートは作らず、索引だけ作ります）`;
     const v = k ? idsOf(k) : null;
     $('#tn-pre').textContent = v ? (v.d.length + v.p.length >= 2 ? `${k} ${[...v.d, ...v.p.map(x => '紙' + x)].join(' ')}` + (exists && !(sp === 'd' ? v.d : v.p).includes(id) || !exists ? ` ${sp === 'p' ? '紙' : ''}${id}` : '') + `　→ ${sp === 'p' ? '紙' : ''}${id} の上に赤い点が付きます` : 'このキーワードのIDは2つ未満です') : '';
   };
-  $('#tn-s').value = 'd'; $('#tn-id').value = presetId || rootFree('d');
+  $('#tn-s').value = side === 'p' ? 'p' : 'd'; $('#tn-id').value = presetId || rootFree($('#tn-s').value);
   $('#tn-s').onchange = () => { $('#tn-id').value = rootFree($('#tn-s').value); refresh(); };
-  $('#tn-kw').oninput = refresh; $('#tn-id').oninput = refresh; $('#tn-later').onchange = refresh;
+  $('#tn-kw').oninput = refresh; $('#tn-id').oninput = refresh;
   $('#tn-name').oninput = () => { nameTouched = true; };
   $('#tn-ok').onclick = async () => {
     const k = $('#tn-kw').value.trim(), sp = $('#tn-s').value, id = $('#tn-id').value.trim().toLowerCase(), name = $('#tn-name').value.trim() || autoName(sp, id);
@@ -1866,8 +1873,7 @@ function topicNewDialog(kw = '', presetId = '') {
       v = idsOf(k);
       if (v.d.length + v.p.length < 2) return alert('キーワードは、IDが2つ以上あるものだけです');
     }
-    if (!get(sp, id) && !(sp === 'p' && $('#tn-later').checked) && !(sp === 'd' && L.isRegionOnly(id))) notes.push(await api.saveNote({ s: sp, id, created: L.now(), keywords: k ? [k] : [], body: '' }));
-    else if (get(sp, id)) await ensureKeyword(sp, id, k);
+    if (get(sp, id)) await ensureKeyword(sp, id, k);   // 索引はただのデータ: 番号のノートが無くても、ノートは作らない
     const t = { name, entry: { s: sp, id }, keyword: k, text: v ? idsText(k, v, sp) : '' };
     const sv = await api.saveTopic(t); if (!sv) return alert('保存できませんでした');
     t.num = sv === true ? 0 : sv; topics.push(t); close(); renderList(); newTab = true; openTopic(name, 'edit');
