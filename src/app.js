@@ -1679,8 +1679,7 @@ function topicAddDialog(note) {
   let sel = null;
   $('#modal .box').innerHTML = `<div class="dlg-a">
     <h3>🗂️ ${esc(name)} を索引に入れる</h3>
-    <div class="da-bar"><input id="ta-q" placeholder="🔎 索引を探す" style="flex:1;min-width:0"><button id="ta-new" title="トピックインデックスを追加（何個でも作れます）" aria-label="トピックインデックスを追加" aria-expanded="false">＋</button></div>
-    <div id="ta-create" hidden><div class="da-lab">新しいトピックインデックスの名前</div><div class="da-bar"><input id="ta-name" placeholder="名前（例: GUI）" style="flex:1;min-width:0"><button id="ta-create-cancel">やめる</button><button id="ta-create-ok" class="p">追加</button></div><div id="ta-create-error" role="alert"></div></div>
+    <div class="da-bar"><input id="ta-q" placeholder="🔎 索引を探す" style="flex:1;min-width:0"><button id="ta-new" title="トピックインデックスを追加（無名で作ります。何個でも作れます）" aria-label="トピックインデックスを追加" aria-expanded="false">＋</button></div>
     <div id="ta-list" class="ta-list"></div>
     <div class="da-lab">🏷️ キーワード（索引の中の行の名前）</div>
     <input id="ta-kw" list="ta-kws" placeholder="例: 英雄伝"><datalist id="ta-kws"></datalist>
@@ -1731,32 +1730,19 @@ function topicAddDialog(note) {
     await api.saveTopic(sel); close(); renderMeta(note);
   };
   $('#ta-cancel').onclick = close;
-  if ($('#ta-new')) {
-    const hideCreate = () => { $('#ta-create').hidden = true; $('#ta-new').setAttribute('aria-expanded', 'false'); $('#ta-q').focus(); };
-    $('#ta-new').onclick = () => { $('#ta-create').hidden = false; $('#ta-new').setAttribute('aria-expanded', 'true'); $('#ta-name').focus(); };
-    $('#ta-create-cancel').onclick = hideCreate;
-    $('#ta-name').onkeydown = e => {
-      if (e.key === 'Enter' && !e.isComposing) { e.preventDefault(); $('#ta-create-ok').click(); }
-      if (e.key === 'Escape') { e.stopPropagation(); hideCreate(); }
-    };
-    $('#ta-create-ok').onclick = async () => {
-      const nm = $('#ta-name').value.trim(), error = $('#ta-create-error'), button = $('#ta-create-ok');
-      if (!nm) { error.textContent = '名前を入力してください'; return $('#ta-name').focus(); }
-      if (/[\\/:*?"<>|]/.test(nm) || nm === '.' || nm === '..') { error.textContent = 'ファイル名に使えない文字が含まれています'; return; }
-      if (topics.some(t => t.name === nm)) { error.textContent = 'その名前は既にあります'; return; }
-      button.disabled = true; error.textContent = '';
+  if ($('#ta-new')) {   // 自分のトピックIndexは、名前を聞かずに、無名で作る（名前は、育ってから、題を押して付ける）
+    $('#ta-new').onclick = async () => {
+      const button = $('#ta-new'); button.disabled = true;
       try {
         await flush();
-        const t = { name: nm, entry: { s: note.s, id: note.id }, keyword: '', text: '' };
+        const nm = autoName(note.s, note.id), t = { name: nm, entry: { s: note.s, id: note.id }, keyword: '', text: '' };
         const saved = await api.saveTopic(t); if (!saved) throw new Error('保存できませんでした');
         if (typeof saved === 'number') t.num = saved;   // 同じノートの2つ目以降は 1-2, 1-3 …
         topics.push(t); rememberTopic(nm); close(); renderMeta(note);
         newTab = true; openTopic(nm, 'edit');
-      } catch (e) { error.textContent = e.message; button.disabled = false; }
+      } catch (e) { button.disabled = false; alert(e.message); }
     };
   }
-  $('#modal').onkeydown = e => { if (e.key === 'Escape') close(); };
-  draw(); $('#ta-q').focus();
 }
 // 索引を単独で作る。親は新しいノート（新しいID）か、既存のノート
 // キーワードを指定すると、そのキーワードのIDが最初から入り、Index に赤い点が付く（IDが2つ以上のときだけ）
@@ -2143,8 +2129,8 @@ async function topicAct(act) {
   if (act === 'tcancel') return openTopic(t.name, 'view', true);
   if (act === 'tdel') return deleteTopicNamed(t.name);
   if (act === 'tsave') {
-    const name = $('#t-name').value.trim(), s = $('#t-s').value, id = $('#t-id').value.trim().toLowerCase();
-    if (!name) return alert('名前を入れてください');
+    const s = $('#t-s').value, id = $('#t-id').value.trim().toLowerCase();
+    const name = $('#t-name').value.trim() || (isAuto(t.name) ? t.name : autoName(s, id));   // 空なら、無名
     if (name !== t.name && topics.find(x => x.name === name)) return alert('その名前は既にあります');
     if (!get(s, id) && !(s === 'd' && L.isRegionOnly(id))) return alert(`${SP[s]} ${id} というノートはありません`);   // 区画の番号（ノートなし）は、親にできる
     const kw = t.keyword || '';   // 点のキーワードは、この画面では変えない（赤い点は、右クリックや ID の前の * で付ける）
