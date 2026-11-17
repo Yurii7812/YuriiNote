@@ -391,6 +391,11 @@ function globalIndex() {
     if (!m.has(k)) m.set(k, { d: [], p: [] });
     m.get(k)[n.s].push(n.id);
   }
+  for (const t of topics) {   // 区画の索引（キーワードつき）は、そのキーワードの下に区画の番号を出す（グローバルIndex）
+    if (!t.keyword || !t.entry || t.entry.s !== 'd' || !L.isRegionOnly(t.entry.id)) continue;
+    if (!m.has(t.keyword)) m.set(t.keyword, { d: [], p: [] });
+    if (!m.get(t.keyword).d.includes(t.entry.id)) m.get(t.keyword).d.push(t.entry.id);
+  }
   for (const e of PI.pendingEntries()) {   // まだ取り込んでいない紙のID
     if (!m.has(e.kw)) m.set(e.kw, { d: [], p: [] });
     for (const id of e.ids) if (!m.get(e.kw).p.includes(id)) m.get(e.kw).p.push(id);
@@ -402,6 +407,7 @@ function globalIndex() {
 // id は 1a のほか 1a(1) も（(番号) は、ノートの中のその場所へ）
 const chip = (s, raw, dot) => {
   const { id, n } = L.splitAnchor(raw);
+  if (s === 'd' && L.isRegionOnly(id) && !get(s, id)) return `<span class="chip region" data-region="${esc(id)}" title="区画 ${esc(id)}">${esc(raw)}</span>`;   // 区画（ノートではない）
   return `<span class="chip ${s}${get(s, id) ? '' : ' miss'}${dot ? ' dot' : ''}" data-s="${s}" data-id="${esc(id)}"${n ? ` data-n="${n}"` : ''}>${s === 'p' ? '紙' : ''}${esc(raw)}</span>`;
 };
 const rowChips = r => [['d', r.d], ['p', r.p]].filter(([s]) => isVisS(s)).map(([s, l]) => l.map(x => chip(s, x, !!(r.dot && r.dot.s === s && L.splitAnchor(x).id === r.dot.id))).join('')).join('') + (r.t || []).map(tnoChip).join('');
@@ -642,7 +648,7 @@ function renderList() {
     const byFz = sortBy === 'fz' && tab !== 'u';
     if (byFz && (tab === 'd' || tab === 'p')) for (const t of topics.filter(x => (!x.entry || !get(x.entry.s, x.entry.id)) && (x.entry ? x.entry.s : 'd') === tab).sort((a, b) => a.name.localeCompare(b.name, 'ja'))) out.push(topicRow(t)); // 親のノートがまだないもの（取り込み前の紙の番号など）は、その側の先頭
     // デジタルは、区画（1, 2 …）の行を、そのノートの手前に出す（初めて出てくるところ。残りは最後）。区画の下に、その索引（1-1…）
-    const shownRegion = new Set(), regionHead = r => { shownRegion.add(r); out.push(regionRow(r)); for (const t of topicsOf('d', r).filter(topicVisible)) out.push(topicRow(t)); };
+    const shownRegion = new Set(), regionHead = r => { shownRegion.add(r); out.push(regionRow(r)); for (const t of uniqueTopics(topicsOf('d', r).filter(topicVisible))) out.push(topicRow(t)); };
     for (const n of list) {
       if (byFz && foldIds.size && fzHidden(n)) continue;   // たたまれた親の下は、出さない
       if (tab === 'd' && !n.noid && !shownRegion.has(String(L.region(n.id)))) regionHead(String(L.region(n.id)));
@@ -669,9 +675,8 @@ function onOpenClick(e) {
   if (e.target.closest('#modal') || e.target.closest('#selbar')) return;
   const dd = e.target.closest('[data-diary]'); if (dd && !e.target.closest('.cm-editor')) return openDiary(dd.dataset.diary, undefined, dd.dataset.kind || '日記');
   const rg = e.target.closest('[data-region]');
-  if (rg && tab === 'd' && mode === 'notes') {   // 区画の行: 名前を付ける・その区画の索引を作る・新しい区画
+  if (rg && mode === 'notes') {   // 区画の行・区画のチップ: 名前と、トピックIndex（グローバルIndexに追加）
     if (rg.dataset.region === 'new') return regionDialog(String(Math.max(0, ...regions.map(r => +r.n)) + 1));
-    if (e.target.closest('.ri')) return topicNewDialog('', rg.dataset.region);
     return regionDialog(rg.dataset.region);
   }
   const row = e.target.closest('#list .item');
@@ -1747,13 +1752,14 @@ function topicAddDialog(note) {
 // 索引を単独で作る。親は新しいノート（新しいID）か、既存のノート
 // キーワードを指定すると、そのキーワードのIDが最初から入り、Index に赤い点が付く（IDが2つ以上のときだけ）
 // 区画の行（デジタルの一覧）。番号と名前だけ。クリックで名前を付ける・変える。＋索引で、その区画の索引（1-1…）を作る
-const regionRow = r => { const g = regions.find(x => x.n === r) || { name: '' }; return `<div class="item region" data-region="${esc(r)}"><div class="nt">🗂️ <b>${esc(r)}</b> ${g.name ? esc(g.name) : '<small>（名前なし）</small>'}</div><button class="ri" title="この区画の索引（${esc(r)}-1…）を作る">＋索引</button></div>`; };
+const regionRow = r => { const g = regions.find(x => x.n === r) || { name: '' }; return `<div class="item region" data-region="${esc(r)}"><div class="nt">🗂️ <b>${esc(r)}</b> ${g.name ? esc(g.name) : '<small>（名前なし）</small>'}</div></div>`; };
+const uniqueTopics = list => [...new Map(list.map(t => [t.name, t])).values()];
 function regionDialog(n) {
   const g = regions.find(x => x.n === n) || { name: '' };
   $('#modal .box').innerHTML = `<div class="dlg-a"><h3>🗂️ 区画 ${esc(n)}</h3>
-    <div class="da-lab">名前（区画は、番号と名前だけです。あとからいつでも変えられます）</div>
+    <div class="da-lab">名前</div>
     <input id="rg-name" value="${esc(g.name)}" placeholder="例: 仏教">
-    <div class="da-bar"><span class="grow"></span><button id="rg-cancel">やめる</button><button id="rg-ok" class="p">保存</button></div></div>`;
+    <div class="da-bar"><span class="grow"></span><button id="rg-cancel">やめる</button><button id="rg-mk" title="この名前のトピックIndex（${esc(n)}-1）を作り、グローバルIndexに追加">➕ トピックIndexを作る（グローバルIndexに追加）</button><button id="rg-ok" class="p">保存</button></div></div>`;
   $('#modal').style.display = 'flex'; $('#rg-name').focus();
   const close = () => { $('#modal').style.display = 'none'; };
   $('#rg-cancel').onclick = close;
@@ -1761,6 +1767,16 @@ function regionDialog(n) {
     const st = await api.saveRegion(n, $('#rg-name').value.trim());
     if (!st) return alert('保存できませんでした（区画の番号の形が違います）');
     applyState(st); close(); renderList();
+  };
+  $('#rg-mk').onclick = async () => {
+    const name = $('#rg-name').value.trim();
+    if (!name) return alert('名前を入れてください（グローバルIndexには、名前で出ます）');
+    if (topics.some(t => t.entry && t.entry.s === 'd' && t.entry.id === n && t.keyword === name)) return alert(`区画 ${n} に「${name}」の索引は、もうあります`);
+    if (topics.some(t => t.name === name)) return alert('その名前の索引は、既にあります');
+    await api.saveRegion(n, name);
+    const t = { name, entry: { s: 'd', id: n }, keyword: name, text: '' };
+    const sv = await api.saveTopic(t); if (!sv) return alert('保存できませんでした');
+    close(); const st = await api.state?.(); if (st) applyState(st); renderList();
   };
   $('#modal').onkeydown = e => { if (e.key === 'Escape') close(); };
 }
