@@ -64,12 +64,10 @@ test('renderer: rapid switching, mounted editor refresh, save failure/retry and 
     assert.equal(f.store.state().notes.find(n => n.id === '1').body, '失敗しても保持する');
     c.click('[data-act="tadd"]');
     const $ = s => c.w.document.querySelector(s);
-    assert.equal($('#ta-create').hidden, true);
+    assert.ok(!$('#ta-create'), '名前の入力欄は無い（自分のトピックIndexは、無名で作る）');
     assert.equal($('#ta-q').parentElement, $('#ta-new').parentElement); assert.ok(!$('.da-sep'));
-    c.click('#ta-new'); assert.equal(c.w.document.activeElement.id, 'ta-name');
-    c.click('#ta-create-ok'); assert.match($('#ta-create-error').textContent, /名前を入力/);
-    $('#ta-name').value = '自分の索引'; c.click('#ta-create-ok'); await tick();
-    assert.ok(f.store.state().topics.some(t => t.name === '自分の索引' && t.entry.id === '1'));
+    c.click('#ta-new'); await tick(); await tick();
+    assert.ok(f.store.state().topics.some(t => /^無名1-\d+/.test(t.name) && t.entry.id === '1'), '押すと、名前を聞かず、無名で作る');
     await c.callbacks.onFlush(); assert.deepEqual(c.errors, []);
   } finally { c.close(); f.cleanup(); }
 });
