@@ -1761,7 +1761,7 @@ function openRegion(n, keep) {
       <button class="tbtn" data-act="rgset" title="名前・グローバルIndexの名前を変える">⚙️ 名前・登録</button><button class="tbtn" data-act="rgmk" title="この区画の下に、無名のトピックIndexを作る">➕ トピックIndex</button></div>
     ${(g.keywords || []).length ? `<div class="row tmeta"><span class="tm"><span class="sub" title="グローバルIndexの名前">🏷️</span>${g.keywords.map(k => `<span class="chip k">${esc(k)}</span>`).join('')}</span></div>` : ''}
     <div class="tkh">🌱 子ノート <small class="sub">${kids.length}</small></div>
-    <table class="ti tkids">${kids.map(m => `<tr class="trel"><td>${chip('d', m.id)}</td><td class="kidt" data-s="d" data-id="${esc(m.id)}">${esc(titleOf(m) || '（無題）')}</td></tr>`).join('') || '<tr><td class="none">まだノートがありません</td></tr>'}</table>
+    <table class="ti tkids">${kids.map(m => `<tr class="trel"><td class="kidt" data-s="d" data-id="${esc(m.id)}">${esc(titleOf(m) || '（無題）')}</td><td>${chip('d', m.id)}</td></tr>`).join('') || '<tr><td class="none">まだノートがありません</td></tr>'}</table>
     <div class="tkh">📑 トピックIndex <small class="sub">${ts.length}</small></div>
     <table class="ti">${ts.map(trow).join('') || '<tr><td class="none">まだありません</td></tr>'}</table>`;
   renderTabs(); renderList();
