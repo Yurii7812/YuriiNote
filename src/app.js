@@ -990,7 +990,7 @@ document.addEventListener('keydown', e => {
   if (k === 'Escape') return;
   if (k === 'o') { // 決めたノート（Enter で決めた・開いたもの）へ戻る。一覧の真ん中に
     if (!decided) return; e.preventDefault(); const d = decided;
-    if (d.k === 'note' && get(d.s, d.id)) kbMove({ dataset: { s: d.s, id: d.id } }); else if (d.k === 'topic' && topics.find(t => t.name === d.name)) kbMove({ dataset: { topic: d.name } });
+    if (d.k === 'note' && get(d.s, d.id)) kbMove({ dataset: { s: d.s, id: d.id } }); else if (d.k === 'topic' && topics.find(t => t.name === d.name)) kbMove({ dataset: { topic: d.name } }); else if (d.k === 'region') openRegion(d.id);
     centerOn('#list .item.on', true);   // o で戻るときは、一覧の真ん中に
     return;
   }
@@ -1747,7 +1747,7 @@ function topicAddDialog(note) {
 // 索引を単独で作る。親は新しいノート（新しいID）か、既存のノート
 // キーワードを指定すると、そのキーワードのIDが最初から入り、Index に赤い点が付く（IDが2つ以上のときだけ）
 // 区画の行（デジタルの一覧）。番号と名前だけ。クリックで名前を付ける・変える。＋索引で、その区画の索引（1-1…）を作る
-const regionRow = r => { const g = regions.find(x => x.n === r) || { name: '' }; return `<div class="item region${cur && cur.k === 'region' && cur.id === r ? ' on' : ''}" data-region="${esc(r)}"><div class="nrow"><div class="nt"><b>${esc(r)}</b> ${g.name ? esc(g.name) : '<span class="sub">無名</span>'}</div></div></div>`; };
+const regionRow = r => { const g = regions.find(x => x.n === r) || { name: '' }; return `<div class="item region${cur && cur.k === 'region' && cur.id === r ? ' on' : ''}${decided && decided.k === 'region' && decided.id === r ? ' decided' : ''}" data-region="${esc(r)}"><div class="nrow"><div class="nt"><b>${esc(r)}</b> ${g.name ? esc(g.name) : '<span class="sub">無名</span>'}</div></div></div>`; };
 const uniqueTopics = list => [...new Map(list.map(t => [t.name, t])).values()];
 // 区画のページ（左の一覧の「1」を押すと開く）: 名前・グローバルIndexの名前・子ノート（直接の子だけ。タイトル付き）・トピックIndex
 // 区画の新しい子ノートの番号: 最後の子の次（1a の次は 1b）。子が無ければ a
@@ -1755,6 +1755,7 @@ const nextRegionKid = n => { const ks = regionKids(n), id = ks.length ? L.siblin
 function regionKids(n) { const has = x => !!get('d', x); return notes.filter(m => m.s === 'd' && !m.noid && String(L.region(m.id)) === n && !L.parentIn(m.id, has)).sort((a, b) => L.cmpId(a.id, b.id)); }
 function openRegion(n, keep) {
   cur = place({ k: 'region', id: n }, keep); mode = 'notes';
+  if (!inPreview) decided = { k: 'region', id: n };   // 選んでいる行（黄色い枠）は、1 か所だけ。直前のノートの枠は外れる
   if (!inPreview && !$('#q').value) tab = 'd';
   const g = regions.find(x => x.n === n) || { name: '', keywords: [] }, kids = regionKids(n), ts = uniqueTopics(topicsOf('d', n).filter(topicVisible));
   const trow = t => `<tr><td><span class="chip t" data-topic="${esc(t.name)}">${esc(topicLabel(t))}</span></td><td class="sub">${esc(L.mergeTopic(t).rows.map(r => r.kw).filter(Boolean).slice(0, 8).join('　'))}</td></tr>`;
