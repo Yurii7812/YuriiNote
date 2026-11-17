@@ -453,6 +453,7 @@ const qTermsCache = new Map(), qTerms = q => { let t = qTermsCache.get(q); if (!
 const mk = (text, q) => { const ts = q ? qTerms(q) : []; return !ts.length ? esc(text) : String(text).split(new RegExp('(' + ts.map(escRe).join('|') + ')', 'ig')).map((p, i) => i % 2 ? `<mark>${esc(p)}</mark>` : esc(p)).join(''); };
 // 本文の中の、最初に一致した所の周辺（前後を省略して）。一致が無ければ ''
 function snippet(body, q) {
+  body = Stamp.strip(body || '');   // 行ごとの日時（本文の後ろのコメント）は、抜粋に入れない
   const low = body.toLowerCase(); let i = -1, len = 0;
   for (const t of qTerms(q)) { const k = low.indexOf(t.toLowerCase()); if (k >= 0 && (i < 0 || k < i)) { i = k; len = t.length; } }
   if (i < 0) return '';
@@ -1428,6 +1429,7 @@ document.addEventListener('keydown', e => {
 // キーワードと索引（ボタンで足す）
 const refContexts = (body, id, own = 'd', target = own) => { // id（target の側）を指している所の、周辺の文章（ハイライトなし）。own は、この本文のある側。リンクだけの行は出さない
   const out = [];
+  body = Stamp.strip(body || '');   // 行ごとの日時（本文の後ろのコメント）は、周辺の文章に入れない
   for (const t of L.tokens(body)) {
     if (t.k !== 'ref' || t.id !== id || (t.sp || own) !== target) continue;
     const ls = body.lastIndexOf('\n', t.from - 1) + 1, e0 = body.indexOf('\n', t.to), le = e0 < 0 ? body.length : e0;

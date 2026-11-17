@@ -130,3 +130,22 @@ test('時刻は、行の一番頭に出る（見出し・箇条書きの記号�
     }
   } finally { e.close(); }
 });
+
+test('バックリンクの周辺の文章に、時刻のコメントが入らない', async () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'bl-')), store = openVault(dir);
+  store.saveNote({ s: 'd', id: '7a', created: '2026-11-17 09:00:00', body: '相手のノート' });
+  store.saveNote({ s: 'd', id: '1a', created: '2026-11-17 09:00:00', body: `前の文 ->7a 後ろの文${c(T1)}\n次の行${c(T2)}` });
+  const dom = new JSDOM(html, { url: 'http://localhost/', runScripts: 'outside-only', pretendToBeVisual: true, virtualConsole: new VirtualConsole() });
+  const w = dom.window;
+  w.matchMedia = () => ({ matches: false, addEventListener() {}, removeEventListener() {} }); w.ResizeObserver = class { observe() {} unobserve() {} disconnect() {} };
+  w.HTMLElement.prototype.scrollIntoView = function () {}; w.Range.prototype.getClientRects = () => []; w.Range.prototype.getBoundingClientRect = () => ({ left: 0, right: 0, top: 0, bottom: 0, width: 0, height: 0 });
+  w.confirm = () => true; w.alert = () => {};
+  w.api = new Proxy({}, { get(_, key) { if (String(key).startsWith('on')) return () => {}; if (key === 'load' || key === 'state') return async () => structuredClone(store.state()); if (typeof store[key] === 'function') return async (...a) => structuredClone(store[key](...structuredClone(a))); return async () => null; } });
+  try {
+    w.eval(bundled); await tick(300);
+    w.document.querySelector('#list .item.note[data-id="7a"]').click(); await tick(500);
+    const text = w.document.querySelector('#meta, #right, .meta, aside.right, #panel')?.textContent || w.document.body.textContent;
+    assert.ok(text.includes('後ろの文'), 'バックリンクに、周りの文章が出る');
+    assert.ok(!/<!--|&lt;!--|2026-11-17 10:00:00-->/.test(w.document.body.innerHTML.replace(/<span class="stamp"[^>]*>.*?<\/span>/g, '')), 'コメントは出ない');
+  } finally { w.close(); }
+});
