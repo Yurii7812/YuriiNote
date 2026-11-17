@@ -913,6 +913,13 @@ document.addEventListener('keydown', e => {
   if (e.key === 't') { e.preventDefault(); tabs.push({ k: 'empty' }); show(tabs.length - 1); }
   if (e.key === 'Tab' && tabs.length) { e.preventDefault(); show((active + (e.shiftKey ? -1 : 1) + tabs.length) % tabs.length); }
 });
+// Ctrl+K: いまのページの、書き終わりの場所へ（日記・時系列記録は自分の文章の最後、ふつうのノートは最後に 1 行あけて）。キーの位置で見るので、日本語入力がオンでも効く
+document.addEventListener('keydown', e => {
+  if (!(e.ctrlKey || e.metaKey) || e.altKey || e.shiftKey || e.code !== 'KeyK') return;
+  if ($('#modal').style.display === 'flex' || $('#scan').style.display === 'flex' || !cur || !['note', 'diary'].includes(cur.k)) return;
+  const v = lastView; if (!v || !v.dom.isConnected) return;
+  e.preventDefault(); e.stopImmediatePropagation(); goWriteEnd(v, cur.k === 'diary' ? 'diary' : 'note'); v.focus();
+}, true);
 // Ctrl+D（Diary）: どこからでも、今日の日記を開く。キーの位置で見るので、日本語入力がオンでも効く
 document.addEventListener('keydown', e => {
   if (!(e.ctrlKey || e.metaKey) || e.altKey || e.shiftKey || e.code !== 'KeyD') return;
@@ -979,7 +986,7 @@ function kbNav(k) {
 document.addEventListener('keydown', e => {
   if (e.ctrlKey || e.metaKey || e.altKey || e.isComposing || $('#modal').style.display === 'flex' || $('#idpop')) return;
   const ae = document.activeElement, editing = ae && (/^(INPUT|TEXTAREA|SELECT)$/.test(ae.tagName) || ae.isContentEditable);
-  if (editing) { if (e.key === 'Escape' && ae.closest && ae.closest('.cm-editor') && !e.defaultPrevented) { ae.blur(); e.preventDefault(); } return; }   // 候補（: や ->）を閉じたときの Esc は、ここまで届けない（書く状態は、そのまま）   // Esc で書く状態から抜けると、キー操作が使える
+  if (editing) { if (e.key === 'Escape' && ae.closest && !e.defaultPrevented && (ae.closest('.cm-editor') || (/^(INPUT|TEXTAREA)$/.test(ae.tagName) && ae.closest('#pane')))) { ae.blur(); e.preventDefault(); } return; }   // 本文・題・入力欄の Esc: 書く状態をやめて、ノーマルモード（キー操作）へ   // 候補（: や ->）を閉じたときの Esc は、ここまで届けない（書く状態は、そのまま）   // Esc で書く状態から抜けると、キー操作が使える
   const k = e.key;
   if (k === 'Backspace' && !$('#q').value) { e.preventDefault(); go(-1); const off = () => { const a = document.activeElement; if (a && a !== document.body && (a.closest('.cm-editor') || /^(INPUT|TEXTAREA)$/.test(a.tagName))) a.blur(); }; off(); setTimeout(off, 0); setTimeout(off, 80); return; }   // 戻っても入力状態にならない（続けて Backspace で戻れる）   // 前に開いていたものへ（戻るボタンと同じ）
   if (k === 'o' && !decided && cur && ['note', 'topic'].includes(cur.k)) { e.preventDefault(); return locateCur(); }   // 黄色（決めたもの）が無いときは、いま開いているものを一覧の真ん中に
@@ -2331,14 +2338,29 @@ async function openDiary(date, keep, kind) {
   $('#d-title').oninput = e => { d.title = e.target.value; saveDiary(d); renderList(); };
   document.querySelectorAll('[data-dparpick]').forEach(c => c.onclick = () => parentPickDialog(kind, date));
   renderTabs(); renderList();
-  // 自由に書く部分（最初の「## 」より前）にカーソル。節で始まる日記は、その前に空行を足して書く場所を作る
-  let text = view.state.doc.toString(), base = 0;
-  const ls = text.split('\n');
-  if (ls[0].trim() === '## 今日の記録') { let j = 1; while (j < ls.length && (!ls[j].trim() || /^\s*(-\s+)?\[[^\]]*\]\([^)]*\)\s*$/.test(ls[j]))) j++; base = ls.slice(0, j).join('\n').length + (j < ls.length ? 1 : 0); }   // 一番上の「今日の記録」の下が、書く場所
-  if (/^## /.test(text.slice(base))) { view.dispatch({ changes: { from: base, insert: base > 0 ? '\n\n' : '\n\n\n' } }); text = view.state.doc.toString(); }   // 本文は onChange で d.body に入る（上下に空行）
-  const h2 = text.slice(base).search(/^## /m), at = h2 > 0 ? base + h2 - 2 : text.length; // 見出しの前の、真ん中の空行
+  // 書く場所は、自分の文章の最後（自動で入る節の手前に、空行・カーソル・空行）。前に開いていた位置があれば、そこ
   if (cur.pos != null && keep) view.dispatch({ selection: { anchor: Math.min(cur.pos, view.state.doc.length) } });
-  else { view.dispatch({ selection: { anchor: at } }); view.focus(); }
+  else { goWriteEnd(view, 'diary'); view.focus(); }
+}
+// 書き終わりの場所へ（Ctrl+D・Ctrl+K・日記を開いたとき）。diary: 日記・時系列記録・メモ帳 … 自分の文章の最後。自動で入る節（今日のノート・紙の日記・今日のチャットメモ一覧）の手前に、
+// 「本文 / 空行 / カーソルの行 / 空行 / 節」の形を作る。note: ふつうのノート … 最後の文の下に 1 行あけて、カーソル
+const AUTO_BOTTOM = /^##\s+(今日のノート|紙の日記|今日のチャットメモ一覧)\s*$/;
+function writeEndPlan(text, kind) {
+  if (kind === 'note') { const body = text.replace(/\s+$/, ''), want = body ? body + '\n\n' : ''; return { from: body.length, to: text.length, insert: body ? '\n\n' : '', anchor: want.length, same: text === want }; }
+  const ls = text.split('\n'); let i = 0;
+  if (ls[0] && ls[0].trim() === '## 今日の記録') { i = 1; while (i < ls.length && (!ls[i].trim() || /^\s*(-\s+)?\[[^\]]*\]\([^)]*\)\s*$/.test(ls[i]))) i++; }   // 上の自動の部分（今日の記録）は、とばす
+  let j = ls.findIndex((l, n) => n >= i && AUTO_BOTTOM.test(l)); if (j < 0) j = ls.length;
+  let last = j - 1; while (last >= i && !ls[last].trim()) last--;   // 自分の文章の、最後の行
+  const off = n => ls.slice(0, n).reduce((x, l) => x + l.length + 1, 0);
+  const headStart = j < ls.length ? off(j) : text.length;
+  if (last >= i) { const from = off(last) + ls[last].length, sep = j < ls.length ? '\n\n\n\n' : '\n\n'; return { from, to: headStart, insert: sep, anchor: from + 2, same: text.slice(from, headStart) === sep }; }
+  const from = i > 0 ? off(i - 1) + ls[i - 1].length : 0, sep = j < ls.length ? (i > 0 ? '\n\n\n\n' : '\n\n') : (i > 0 ? '\n\n' : '');   // 文章がまだ無い
+  return { from, to: headStart, insert: sep, anchor: from + (i > 0 ? 2 : 0), same: text.slice(from, headStart) === sep };
+}
+function goWriteEnd(view, kind) {
+  const p = writeEndPlan(view.state.doc.toString(), kind);
+  view.dispatch(p.same ? { selection: { anchor: p.anchor } } : { changes: { from: p.from, to: p.to, insert: p.insert }, selection: { anchor: p.anchor } });
+  view.dispatch({ effects: EditorView.scrollIntoView(p.anchor, { y: 'center' }) });
 }
 $('#pane').addEventListener('click', e => { const k = e.target.closest('[data-dkind]'); if (k && cur && cur.k === 'diary') openDiary(cur.date, false, k.dataset.dkind); });
 async function diaryAct(act) {
@@ -2731,7 +2753,7 @@ function settingsDialog() {
 }
 // ⌨️ キー一覧（Ctrl に統一。割り当てを足したら、ここにも書く）
 const KEYS = [
-  ['書く', [['Ctrl+M', '新しい (n) を、カーソルの位置に入れる'], ['Ctrl+P', '(p) を入れる'], ['Ctrl+I', ':ID を入れる'], ['Ctrl+R', '行ごとの時刻の、オン・オフ'], ['Ctrl+↑ / ↓', '行を動かす']]],
+  ['書く', [['Ctrl+D', '今日の日記を開く（本文の最後にカーソル）'], ['Ctrl+K', '書き終わりへ（日記・時系列記録は自分の文章の最後、ふつうのノートは最後に 1 行あけて）'], ['Esc', '入力欄・本文から出る（ノーマルモード）'], ['Ctrl+M', '新しい (n) を、カーソルの位置に入れる'], ['Ctrl+P', '(p) を入れる'], ['Ctrl+I', ':ID を入れる'], ['Ctrl+R', '行ごとの時刻の、オン・オフ'], ['Ctrl+↑ / ↓', '行を動かす']]],
   ['ノートを作る', [['Ctrl+N', 'IDなしの新しいノート'], ['Ctrl+H', '並列のノート'], ['Ctrl+B', '分岐（子）のノート']]],
   ['探す・移る', [['Ctrl+F', '左の検索'], ['Ctrl+E', '今のページの中の検索・置換'], ['Ctrl+J', '左の一覧の折りたたみを、全部たたむ・ひらく'], ['Ctrl+,  /  Ctrl+.', '戻る・進む'], ['Ctrl+\\', '右パネルの、出し入れ']]],
   ['タブ', [['Ctrl+T', '新しいタブ'], ['Ctrl+W', '閉じる']]],
