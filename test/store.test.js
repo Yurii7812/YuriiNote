@@ -380,7 +380,7 @@ test('日記の「今日のノート」: 無いノート（IDなしの日時の�
 
 test('昔の日記（D_日付.md）は、日時の名前＋YAML に移る。戻ってきても増えない', () => {
   const dir = tmp(), w = (f, t) => fs.writeFileSync(path.join(dir, f), t), old = '<!-- pkm-diary {"title":"旅"} -->\n# 2026-11-07-旅\n\n<!-- body -->\n朝は晴れ\n<!-- nav -->\n';
-  w('.pkm-layout', 'flat1\nstamp1\n'); w('D_2026-11-07-旅.md', old);
+  w('.pkm-layout', 'flat1\nstamp1\nstamp4\n'); w('D_2026-11-07-旅.md', old);
   let v = openVault(dir), d = v.state().diaries;
   assert.strictEqual(d.length, 1); assert.deepStrictEqual([d[0].kind, d[0].date, d[0].title, d[0].body], ['日記', '2026-11-07', '旅', '朝は晴れ']);
   assert.match(d[0].stem, /^\d{14}$/); assert.ok(!fs.existsSync(path.join(dir, 'D_2026-11-07-旅.md')));
@@ -704,12 +704,27 @@ test('行頭の日時（昔の形）は、開くたびに、本文のすぐ後�
   assert.strictEqual(openVault(dir).state().notes.find(x => x.id === '1').body, '- 古い画面が書いた行<!--2026-10-10 12:00:00-->');
 });
 
+test('日時が抜けたまま残っている行（昔の編集）には、一度だけ、すぐ前の行の日時を引き継いで補う', () => {
+  const dir = tmp();
+  let v = openVault(dir);
+  v.saveDiary({ date: '2026-11-16', kind: '日記', body: '## オナニー<!--2026-11-16 17:50:31-->\n7a-> １週間に１回って決めたけど\n\n## 粘土板<!--2026-11-16 17:50:18-->\n今日は調査<!--2026-11-16 17:23:58-->\nつづき' });
+  v.saveNote({ s: 'd', id: '1', created: '2026-11-15 13:01:37', keywords: [], body: '最初の行\n二行目' });   // 別の日のノート（この日の日記の「今日のノート」には入らない）
+  v.close && v.close();
+  fs.writeFileSync(path.join(dir, '.pkm-layout'), 'flat1\nstamp1\narrow1\nstamp2\nstamp3\n');   // 補う前の vault に戻す
+  v = openVault(dir);
+  const d = v.state().diaries.find(x => x.kind === '日記');
+  assert.strictEqual(d.body, '## オナニー<!--2026-11-16 17:50:31-->\n7a-> １週間に１回って決めたけど<!--2026-11-16 17:50:31-->\n\n## 粘土板<!--2026-11-16 17:50:18-->\n今日は調査<!--2026-11-16 17:23:58-->\nつづき<!--2026-11-16 17:23:58-->');
+  assert.strictEqual(v.state().notes.find(x => x.id === '1').body, '最初の行<!--2026-11-15 13:01:37-->\n二行目<!--2026-11-15 13:01:37-->', '時刻が1つも無いノートは、作った日時');
+  assert.ok(fs.readFileSync(path.join(dir, '.pkm-layout'), 'utf8').includes('stamp4'));
+  assert.strictEqual(openVault(dir).state().diaries.find(x => x.kind === '日記').body, d.body, '二度目は、変えない');
+});
+
 test('昔の :ID / ID: は、一度だけ ->ID / ID-> に直る（日記の「- :ID」だけの行は別の仕組み）', () => {
   const dir = tmp();
   let v = openVault(dir);
   v.saveNote({ s: 'd', id: '1', created: '2026-10-10 11:12:30', keywords: [], body: '続き :1a と 1a: と :(1) (1): と `:1a` 12:30' });
   v.close && v.close();
-  fs.writeFileSync(path.join(dir, '.pkm-layout'), 'flat1\nstamp1\n');   // 昔の vault に戻す
+  fs.writeFileSync(path.join(dir, '.pkm-layout'), 'flat1\nstamp1\nstamp4\n');   // 昔の vault に戻す
   v = openVault(dir);
   assert.strictEqual(v.state().notes.find(x => x.id === '1').body, '続き ->1a と 1a-> と ->(1) (1)-> と `:1a` 12:30');
   assert.ok(fs.readFileSync(path.join(dir, '.pkm-layout'), 'utf8').includes('arrow1'));

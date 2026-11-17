@@ -35,7 +35,7 @@ function importInbox(v, files, { papers, seen, named, pmemo, audio, suggest, ids
       } else if (d.type === 'note' && String(d.body || '').trim()) {
         const base = d.parentName ? (ids && ids[d.parentName]) : d.parent;
         const id = base && (d.rel === 'child' || d.rel === 'sibling') && suggest ? suggest(base, d.rel) || undefined : undefined;
-        const n = v.createNote({ kind: 'text', id, created: d.created || undefined, body: String(d.body).replace(/\s+$/, '') }); sum.notes++; done.push(f.name);
+        const n = v.createNote({ kind: 'text', id, created: d.created || undefined, body: Stamp.add(String(d.body).replace(/\s+$/, ''), stampAt(d.created)) }); /* ノートの各行にも、書いた日時（スマホで作った時刻）を付ける */ sum.notes++; done.push(f.name);
         if (ids && n && n.id && !n.noid) ids[f.name] = n.id;
       } else if (d.type === 'paper' && d.image && by.has(d.image)) {
         const buf = by.get(d.image).buf;

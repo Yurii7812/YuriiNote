@@ -56,7 +56,7 @@ function build(view) {
       const ln = view.state.doc.lineAt(pos); pos = ln.to + 1; if (seen.has(ln.number)) continue; seen.add(ln.number);
       const t = Stamp.parse(ln.text); if (!t) continue;
       ranges.push(markHidden.range(ln.from + t.cs, ln.from + t.ce));
-      if (show) ranges.push(Decoration.widget({ widget: new StampWidget(t.at, curFmt()), side: -1 }).range(ln.from + t.p));
+      if (show) ranges.push(Decoration.widget({ widget: new StampWidget(t.at, curFmt()), side: -1 }).range(ln.from));   // 行の一番頭（見出し・箇条書きの記号より前）
     }
   }
   if (show) ranges.push(...spacers(view));
@@ -74,7 +74,7 @@ function spacers(view) {
     const probe = orig.slice(); if (!ln.text.trim()) probe[n - 1] = 'x';   // 空の行は、字を 1 つ書いたとして、日時が付く行か調べる
     const res = Stamp.add(probe.join('\n'), at, new Set([n - 1])).split('\n');
     if (res[n - 1] === probe[n - 1]) continue;   // 日時が付かない行（囲みの中・表・区切り線など）
-    out.push(Decoration.widget({ widget: new SpacerWidget(at, curFmt()), side: -1 }).range(ln.from + Stamp.prefixLen(orig[n - 1])));
+    out.push(Decoration.widget({ widget: new SpacerWidget(at, curFmt()), side: -1 }).range(ln.from));
   }
   return out;
 }

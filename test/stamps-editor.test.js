@@ -107,3 +107,26 @@ test('昔の形（行頭の日時）の文字を貼ると、行末の形に直�
     assert.strictEqual(e.line(5).text, `- 箇条書き${c('2026-11-17 09:01:00')}`);
   } finally { e.close(); }
 });
+
+test('「7->」「->3a」など、リンクで始まる行・見出しの下の行にも、書き終えれば時刻が付く（付き忘れない）', async () => {
+  const e = await editor(base);
+  try {
+    const add = t => { const at = e.v.state.doc.length; e.v.dispatch({ changes: { from: at, insert: t }, selection: { anchor: at + t.length } }); };
+    add('\n## 見出し'); add('\n7a-> １週間に１回って決めたけど、結局した。'); add('\n->3a10 を読んだ');
+    await e.blur();
+    for (let n = 4; n <= e.v.state.doc.lines; n++) assert.match(e.line(n).text, /<!--\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}-->$/, `${n} 行目に時刻が無い: ${e.line(n).text}`);
+  } finally { e.close(); }
+});
+
+test('時刻は、行の一番頭に出る（見出し・箇条書きの記号より前）', async () => {
+  const e = await editor(`## 見出し${c(T1)}\n- 箇条書き${c(T2)}\n普通の行${c(T3)}`);
+  try {
+    const lines = [...e.w.document.querySelectorAll('.cm-content .cm-line')];
+    assert.strictEqual(lines.length, 3);
+    for (const [i, mark] of [[0, '##'], [1, '-'], [2, '普通']]) {
+      const first = lines[i].firstElementChild || lines[i].firstChild;
+      assert.ok(first.classList && first.classList.contains('stamp'), `${i + 1} 行目の最初が時刻の表示: ${lines[i].innerHTML.slice(0, 120)}`);
+      const text = lines[i].textContent; assert.ok(text.indexOf(mark) > text.indexOf('11-17') || text.indexOf('2026') < text.indexOf(mark), `時刻のあとに ${mark}: ${text}`);
+    }
+  } finally { e.close(); }
+});

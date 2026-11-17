@@ -658,6 +658,13 @@ function openVault(vault) {
   // 行頭の日時（昔の形）は、開くたびに、本文のすぐ後ろの「<!--日時-->」に直す（2026-11-17。古い画面が書いたものも直る）。直す前の中身は、ファイルごとに .history に残る
   for (const n of notes.values()) if ((!n.kind || n.kind === 'text') && n.body) n.body = Stamp.migrate(n.body);
   for (const d of diaries.values()) if (d.body) d.body = Stamp.migrate(d.body);
+  // 日時が無いまま残っている行（昔の編集で付かなかった行）に、一度だけ補う（印 stamp4）。すぐ前の行の日時を引き継ぐ（前が無ければ、後ろの行、無ければ作った日時）。これから書く行は、画面が付ける
+  if (!fs.readFileSync(abs(MARK), 'utf8').includes('stamp4')) {
+    const minute = t => { const m = String(t || '').match(/^(\d{4}-\d{2}-\d{2} \d{2}:\d{2}(?::\d{2})?)/); return m ? Stamp.full(m[1]) : ''; };
+    for (const n of notes.values()) if ((!n.kind || n.kind === 'text') && n.body) n.body = Stamp.fill(n.body, minute(n.created) || Stamp.nowStamp());
+    for (const d of diaries.values()) if (d.body) { const c = minute(d.created); d.body = Stamp.fill(d.body, c && c.slice(0, 10) === d.date ? c : d.date + ' 00:00:00'); }
+    put(abs(MARK), fs.readFileSync(abs(MARK), 'utf8').replace(/\n*$/, '\n') + 'stamp4\n');
+  }
   if (!fs.readFileSync(abs(MARK), 'utf8').includes('stamp3')) put(abs(MARK), fs.readFileSync(abs(MARK), 'utf8').replace(/\n*$/, '\n') + 'stamp3\n');
   rebuild();
   return {

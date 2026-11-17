@@ -46,7 +46,7 @@ const visible = text => String(text).split('\n').map(l => { const t = parse(l); 
 const tag = (line, at) => { const m = /^([\s\S]*?)([ \t]*)$/.exec(line); return m[1] + '<!--' + at + '-->' + m[2]; };
 // 書く側が、1 行ぶんの本文と日時から、行を作る（スマホの取り込み・文字化など）
 const line = (text, at) => tag(String(text), at);
-// text の中の、まだ日時が無い行すべてに at を付ける（lines: 付ける行番号(0始まり)の集まり。省略で全部）
+// text の中の、まだ日時が無い行すべてに at を付ける（lines: 付ける行番号(0始まり)の集まり。省略で全部。at は、日時か、行番号から日時を返す関数）
 function add(text, at, lines) {
   // 囲み（```）の中は、言語名が無い（ふつうの文章の引用）ときだけ、行ごとに付ける。mermaid・board・コードの言語つきには付けない
   const out = text.split('\n'); let fence = null, plain = false;
@@ -55,9 +55,16 @@ function add(text, at, lines) {
     if (fence) { if (f && f[0] === fence[0] && f.length >= fence.length && /^\s*[`~]+\s*$/.test(out[i])) { fence = null; plain = false; continue; } if (!plain) continue; }
     else if (f) { fence = f; plain = fenceInfo(out[i]) === ''; continue; }
     if (lines && !lines.has(i)) continue;
-    if (stampable(out[i])) out[i] = tag(out[i], at);
+    if (stampable(out[i])) out[i] = tag(out[i], typeof at === 'function' ? at(i) : at);
   }
   return out.join('\n');
+}
+// 日時が無いまま残っている行（昔の編集・他のソフトで書いた行）に、日時を補う。すぐ前の日時のある行の日時を引き継ぐ（前が無ければ、後ろの行、それも無ければ fallback）
+function fill(text, fallback) {
+  const lines = String(text).split('\n'), known = lines.map(stampOf), next = new Array(lines.length);
+  let nx = ''; for (let i = lines.length - 1; i >= 0; i--) { if (known[i]) nx = known[i]; next[i] = nx; }
+  const prevOf = i => { for (let j = i - 1; j >= 0; j--) if (known[j]) return known[j]; return ''; };
+  return add(text, i => { const at = prevOf(i) || next[i] || fallback; known[i] = at; return at; });
 }
 // 昔の形（行頭の日時・行末の空白つきコメント）を、いまの形（本文のすぐ後ろ）に直す
 function migrate(text) {
@@ -128,4 +135,4 @@ const format = (at, fmt, today = nowStamp().slice(0, 10)) => {
 };
 const show = (at, today) => at ? format(at, { sec: false, short: !!today }, today || undefined) : '';
 
-module.exports = { full, secs, insertByTime, LEGACY, nowStamp, parse, parseHead, all, textless, visible, prefixLen, stampOf, stripLine, strip, body, stampable, add, line, tag, adoptTimes, migrate, format, normFmt, show };
+module.exports = { full, secs, insertByTime, LEGACY, nowStamp, parse, parseHead, all, textless, visible, fill, prefixLen, stampOf, stripLine, strip, body, stampable, add, line, tag, adoptTimes, migrate, format, normFmt, show };
