@@ -661,7 +661,7 @@ function renderList() {
       if (byFz) for (const t of topicsOf(n.s, n.id).filter(topicVisible)) out.push(topicRow(t)); // 「1-1」「1-2」は、ノート 1 の手前
       out.push(noteRow(n));
     }
-    if (tab === 'd') { for (const r of regions) if (!shownRegion.has(r.n)) regionHead(r.n); out.push(`<div class="item region new" data-region="new"><div class="nrow"><div class="nt">＋ 新しい区画</div></div></div>`); }
+    if (tab === 'd') { for (const r of regions) if (!shownRegion.has(r.n)) regionHead(r.n); }
     if (!list.length) out.push(`<div class="none">${tab === 'p' ? '「📷 スキャン取り込み」で紙を入れます' : tab === 'u' ? 'IDなしで書いたノートが、ここに並びます。あとでIDを付けて整理します' : '「＋ 新規」で書き始めます'}</div>`);
   }
   const keep = tab === 'i' && $('#pi') ? ['pi-kw', 'pi-rd', 'pi-ids'].map(i => [i, $('#' + i).value, document.activeElement && document.activeElement.id === i]) : [];
@@ -683,7 +683,6 @@ function onOpenClick(e) {
   const pen = e.target.closest('[data-ixedit]'); if (pen && mode === 'notes') { e.stopPropagation(); return ixEditDialog(pen.dataset.ixedit); }
   const rg = e.target.closest('[data-region]');
   if (rg && mode === 'notes') {   // 区画の行・区画のチップ: 名前と、トピックIndex（グローバルIndexに追加）
-    if (rg.dataset.region === 'new') return regionDialog(String(Math.max(0, ...regions.map(r => +r.n)) + 1));
     return openRegion(rg.dataset.region);
   }
   const row = e.target.closest('#list .item');
@@ -1102,7 +1101,7 @@ function closeTab(i) {
   show(active < 0 && tabs.length ? 0 : active);
 }
 const tabLabel = t => t.k === 'note' ? (n => `${n && icon(n) ? icon(n) + ' ' : ''}${n ? esc(titleOf(n).slice(0, 16)) : esc(t.id)}<small>${n && n.noid ? 'IDなし' : (t.s === 'p' ? '紙 ' : '') + esc(t.id)}</small>`)(get(t.s, t.id))
-  : t.k === 'topic' ? `📑 ${esc(t.name)}` : t.k === 'region' ? `🗂️ ${esc(t.id)} <small>${esc((regions.find(x => x.n === t.id) || {}).name || '区画')}</small>` : t.k === 'diary' ? `${kindIcon(t.kind || '日記')} ${esc(t.date.slice(5))} <small>${esc(t.kind || '日記')}</small>` : t.k === 'similar' ? '🔍 類似' : t.k === 'rec' ? '🎙️ 録音' : t.k === 'tlist' ? `📑 ${esc(t.id)}` : t.k === 'export' ? '📤 エクスポート' : '新しいタブ';
+  : t.k === 'topic' ? `📑 ${esc(t.name)}` : t.k === 'region' ? `🗂️ ${esc(t.id)} <small>${esc((regions.find(x => x.n === t.id) || {}).name || '無名')}</small>` : t.k === 'diary' ? `${kindIcon(t.kind || '日記')} ${esc(t.date.slice(5))} <small>${esc(t.kind || '日記')}</small>` : t.k === 'similar' ? '🔍 類似' : t.k === 'rec' ? '🎙️ 録音' : t.k === 'tlist' ? `📑 ${esc(t.id)}` : t.k === 'export' ? '📤 エクスポート' : '新しいタブ';
 // 右のパネル（キーワード・索引・つながり）を、試しに、左の一覧の右（ノートの左）に置く。panelLeft を切ると、元の右に戻る
 let panelLeft = (() => { try { return localStorage.getItem('ysimple-panel-left') === '1'; } catch { return false; } })();   // 標準は、右（元の位置）
 function syncLeftPanel() {
@@ -1748,7 +1747,7 @@ function topicAddDialog(note) {
 // 索引を単独で作る。親は新しいノート（新しいID）か、既存のノート
 // キーワードを指定すると、そのキーワードのIDが最初から入り、Index に赤い点が付く（IDが2つ以上のときだけ）
 // 区画の行（デジタルの一覧）。番号と名前だけ。クリックで名前を付ける・変える。＋索引で、その区画の索引（1-1…）を作る
-const regionRow = r => { const g = regions.find(x => x.n === r) || { name: '' }; return `<div class="item region${cur && cur.k === 'region' && cur.id === r ? ' on' : ''}" data-region="${esc(r)}"><div class="nrow"><div class="nt">🗂️ ${g.name ? esc(g.name) : '<span class="sub">（名前なし）</span>'}</div><div class="ns">区画 ${esc(r)}</div></div></div>`; };
+const regionRow = r => { const g = regions.find(x => x.n === r) || { name: '' }; return `<div class="item region${cur && cur.k === 'region' && cur.id === r ? ' on' : ''}" data-region="${esc(r)}"><div class="nrow"><div class="nt"><b>${esc(r)}</b> ${g.name ? esc(g.name) : '<span class="sub">無名</span>'}</div></div></div>`; };
 const uniqueTopics = list => [...new Map(list.map(t => [t.name, t])).values()];
 // 区画のページ（左の一覧の「1」を押すと開く）: 名前・グローバルIndexの名前・子ノート（直接の子だけ。タイトル付き）・トピックIndex
 // 区画の新しい子ノートの番号: 最後の子の次（1a の次は 1b）。子が無ければ a
