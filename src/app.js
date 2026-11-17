@@ -56,7 +56,7 @@ const savePrefs = () => { try { localStorage.setItem('pkm-list-prefs', JSON.stri
 const idsText = (k, v, def) => { const toks = [...v.d.map(x => def === 'd' ? x : x + '(d)'), ...v.p.map(x => def === 'p' ? x : x + '(p)')]; return toks.length ? k + ' ' + toks.join(' ') : ''; };
 const ixRow = ([k, v]) => {
   const on = cur && cur.k === 'topic' && (() => { const o = topics.find(x => x.name === cur.name); return o && ((o.keyword && o.keyword === k) || (o.entry && v[o.entry.s].includes(o.entry.id) && !o.keyword && false)); })();
-  return `<div class="ix${on ? ' on' : ''}" data-ixk="${esc(k)}"><b>${esc(k)}</b>${yomi(k)} ${chips(v, k)}</div>`;
+  return `<div class="ix${on ? ' on' : ''}" data-ixk="${esc(k)}"><button class="ixe" data-ixedit="${esc(k)}" title="このIndexを編集（右クリックでも）">✏️</button><b>${esc(k)}</b>${yomi(k)} ${chips(v, k)}</div>`;
 };
 // 親のノートに、そのキーワードを付ける（Index の ID の並びに入る）
 async function ensureKeyword(sp, id, kw) {
@@ -397,9 +397,9 @@ function globalIndex() {
     if (!m.get(t.keyword).d.includes(t.entry.id)) m.get(t.keyword).d.push(t.entry.id);
   }
   for (const r of regions) {   // グローバルIndexに載せた区画は、名前の下に区画の番号を出す
-    if (!r.index || !r.name) continue;
-    if (!m.has(r.name)) m.set(r.name, { d: [], p: [] });
-    if (!m.get(r.name).d.includes(r.n)) m.get(r.name).d.push(r.n);
+    const rk = r.kw || r.name; if (!r.index || !rk) continue;
+    if (!m.has(rk)) m.set(rk, { d: [], p: [] });
+    if (!m.get(rk).d.includes(r.n)) m.get(rk).d.push(r.n);
   }
   for (const e of PI.pendingEntries()) {   // まだ取り込んでいない紙のID
     if (!m.has(e.kw)) m.set(e.kw, { d: [], p: [] });
@@ -679,6 +679,7 @@ document.addEventListener('mouseup', e => { if (e.button === 3) { e.preventDefau
 function onOpenClick(e) {
   if (e.target.closest('#modal') || e.target.closest('#selbar')) return;
   const dd = e.target.closest('[data-diary]'); if (dd && !e.target.closest('.cm-editor')) return openDiary(dd.dataset.diary, undefined, dd.dataset.kind || '日記');
+  const pen = e.target.closest('[data-ixedit]'); if (pen && mode === 'notes') { e.stopPropagation(); return ixEditDialog(pen.dataset.ixedit); }
   const rg = e.target.closest('[data-region]');
   if (rg && mode === 'notes') {   // 区画の行・区画のチップ: 名前と、トピックIndex（グローバルIndexに追加）
     if (rg.dataset.region === 'new') return regionDialog(String(Math.max(0, ...regions.map(r => +r.n)) + 1));
@@ -1760,28 +1761,41 @@ function topicAddDialog(note) {
 const regionRow = r => { const g = regions.find(x => x.n === r) || { name: '' }; return `<div class="item region" data-region="${esc(r)}"><div class="nt">🗂️ <b>${esc(r)}</b> ${g.name ? esc(g.name) : '<small>（名前なし）</small>'}</div></div>`; };
 const uniqueTopics = list => [...new Map(list.map(t => [t.name, t])).values()];
 function regionDialog(n) {
-  const g = regions.find(x => x.n === n) || { name: '', index: false };
+  const g = regions.find(x => x.n === n) || { name: '', index: false, kw: '' };
   $('#modal .box').innerHTML = `<div class="dlg-a"><h3>🗂️ 区画 ${esc(n)}</h3>
     <div class="da-lab">区画の名前（トピックIndexの名前とは別です）</div>
     <input id="rg-name" value="${esc(g.name)}" placeholder="例: 仏教">
-    <button id="rg-mk" class="da-wide" title="この区画の下に、新しい索引（${esc(n)}-1, ${esc(n)}-2 …）を作ります">➕ 新しいトピックIndexを作る<small>${esc(n)}-${Math.max(0, ...topicsOf('d', n).map(t => t.num || 0)) + 1}（無名で作ります。名前は育ってから）</small></button>
-    <button id="rg-gi" class="da-wide" title="この区画を、名前で、グローバルIndexに載せます">${g.index ? '🔎 グローバルIndexから外す' : '🔎 グローバルIndexに追加'}<small>${g.index ? 'いま、名前「' + esc(g.name) + '」で載っています' : '名前で載ります（名前が必要です）'}</small></button>
+    <button id="rg-mk" class="da-wide" title="この区画の下に、新しい索引（${esc(n)}-1, ${esc(n)}-2 …）を作ります">➕ 新しいトピックIndexを作る<small>${esc(n)}-${Math.max(0, ...topicsOf('d', n).map(t => t.num || 0)) + 1}（無名で作ります。名前は題を押して付けます）</small></button>
+    <button id="rg-gi" class="da-wide" title="この区画を、グローバルIndexに載せます">🔎 グローバルIndexに追加<small>${g.index ? '「' + esc(g.kw || g.name) + '」で載っています（押して、名前を変える・外す）' : '押すと、載せる名前を入力します'}</small></button>
     <div class="da-bar"><span class="grow"></span><button id="rg-cancel">やめる</button><button id="rg-ok" class="p">名前を保存</button></div></div>`;
   $('#modal').style.display = 'flex'; $('#rg-name').focus();
   const close = () => { $('#modal').style.display = 'none'; };
   const done = st => { if (!st) return alert('保存できませんでした（区画の番号の形が違います）'); applyState(st); close(); renderList(); };
   $('#rg-cancel').onclick = close;
   $('#rg-ok').onclick = async () => done(await api.saveRegion(n, $('#rg-name').value.trim()));
-  $('#rg-gi').onclick = async () => {   // グローバルIndexに、区画の名前で載せる・外す
-    const name = $('#rg-name').value.trim();
-    if (!g.index && !name) return alert('名前を入れてください（グローバルIndexには、名前で出ます）');
-    done(await api.saveRegion(n, name, !g.index));
-  };
-  $('#rg-mk').onclick = async () => {   // 新しい索引は、無名で作る（番号だけで呼ぶ）
+  $('#rg-gi').onclick = async () => { const st = await api.saveRegion(n, $('#rg-name').value.trim()); if (st) applyState(st); regionIndexDialog(n); };
+  $('#rg-mk').onclick = async () => {   // 新しい索引は、無名で作る（番号だけで呼ぶ）。区画の名前には触らない
     const t = { name: autoName('d', n), entry: { s: 'd', id: n }, keyword: '', text: '' };
-    const sv = await api.saveTopic(t); if (!sv) return alert('保存できませんでした');   // 区画の名前には触らない
+    const sv = await api.saveTopic(t); if (!sv) return alert('保存できませんでした');
     close(); const st = await api.state(); if (st) applyState(st); renderList();
   };
+  $('#modal').onkeydown = e => { if (e.key === 'Escape') close(); };
+}
+// 区画を、グローバルIndexに載せる（載せる名前を入力する。区画の名前とは別。外すこともできる）
+function regionIndexDialog(n) {
+  const g = regions.find(x => x.n === n) || { name: '', index: false, kw: '' };
+  $('#modal .box').innerHTML = `<div class="dlg-a"><h3>🔎 グローバルIndexに追加</h3>
+    <div class="da-lab">グローバルIndexに載せる名前（区画 ${esc(n)} が、この名前で並びます）</div>
+    <input id="ri-kw" value="${esc(g.kw || g.name)}" placeholder="例: 仏教">
+    <div class="da-bar">${g.index ? '<button id="ri-off" class="danger">外す</button>' : ''}<span class="grow"></span><button id="ri-no">戻る</button><button id="ri-ok" class="p">${g.index ? '変える' : '追加'}</button></div></div>`;
+  $('#modal').style.display = 'flex'; $('#ri-kw').focus();
+  const close = () => { $('#modal').style.display = 'none'; };
+  const done = st => { if (!st) return alert('保存できませんでした'); applyState(st); close(); renderList(); };
+  $('#ri-no').onclick = () => regionDialog(n);
+  if (g.index) $('#ri-off').onclick = async () => done(await api.saveRegion(n, g.name, false));
+  const ok = async () => { const kw = $('#ri-kw').value.trim(); if (!kw) return alert('名前を入力してください'); done(await api.saveRegion(n, g.name, true, kw)); };
+  $('#ri-ok').onclick = ok;
+  $('#ri-kw').onkeydown = e => { if (e.key === 'Enter' && !e.isComposing) { e.preventDefault(); ok(); } };
   $('#modal').onkeydown = e => { if (e.key === 'Escape') close(); };
 }
 function topicNewDialog(kw = '', presetId = '') {
@@ -1938,10 +1952,9 @@ function openTopic(name, tmode = 'view', keep, focus) {   // focus: ノートか
   // 索引の画面は、右パネルなし。全部、上に: 題 → 🌳 親・↑ 上位トピック → 索引の中身
   $('#pane').innerHTML = `
     <div class="row thead">
-      <span class="ti-ic">📑</span><h2>${esc(topicLabel(t))}</h2>
+      <span class="ti-ic">📑</span><h2 class="tname" data-act="trename" title="押して、名前を変える">${esc(topicLabel(t))}${isAuto(t.name) ? ' <small class="sub">（名前を付ける）</small>' : ''}</h2>
       <span class="grow"></span>
       ${tmode === 'conf' ? '' : `<button class="tbtn" data-act="tconf" title="名前・親・点のキーワードを変える">⚙️ 名前・親</button>
-      ${tmode === 'conf' ? '' : '<button class="tbtn" data-act="tind" title="キーワードを、新しいIDの索引として、独立させる">↪️ 独立させる</button>'}
       <button class="tbtn ${tmode === 'edit' ? 'p' : ''}" data-act="tedit">${tmode === 'edit' ? '✅ 完了' : '✏️ 編集'}</button>`}
     </div>
     <div class="row tmeta">
@@ -1991,6 +2004,70 @@ document.addEventListener('click', e => {   // 左のグローバルIndex: キ�
   if (ts.length > 1) return openTopicList(d.s, d.id);
   if (get(d.s, d.id)) openNote(d.s, d.id);
 }, true);
+document.addEventListener('contextmenu', e => {   // 左のグローバルIndex: 行（キーワード）を右クリックして、編集する
+  const row = e.target.closest('#list .ix[data-ixk]'); if (!row || e.target.closest('.chip') || PI.isPending(row.dataset.ixk)) return;
+  e.preventDefault(); const k = row.dataset.ixk;
+  popMenu(e, [['✏️ このIndexを編集', () => ixEditDialog(k)], ['🗑 このキーワードを消す', () => ixDelete(k), true]]);
+});
+const idList = str => String(str || '').split(/[\s,、，]+/).map(x => x.trim().toLowerCase()).filter(Boolean);
+// グローバルIndexの編集: キーワード（名前）・よみ・デジタルのID（区画の番号 1 も）・紙のID を直す。名前を変えると、ノート・索引・赤点・区画も一緒に直る
+function ixEditDialog(kw) {
+  const row = globalIndex().find(x => x[0] === kw), v = row ? row[1] : { d: [], p: [] };
+  $('#modal .box').innerHTML = `<div class="dlg-a"><h3>✏️ グローバルIndexを編集</h3>
+    <div class="da-lab">🏷️ キーワード</div><input id="ge-kw" value="${esc(kw)}" autocomplete="off">
+    <div class="da-lab">🔤 よみ（空なら自動）</div><input id="ge-rd" value="${esc(readingOf(kw))}" autocomplete="off">
+    <div class="da-lab">デジタルのID（空白で区切る。区画の番号 1 も書けます）</div><input id="ge-d" value="${esc(v.d.join(' '))}" autocomplete="off">
+    <div class="da-lab">紙のID（空白で区切る。3a(1) のように (番号) も）</div><input id="ge-p" value="${esc(v.p.join(' '))}" autocomplete="off">
+    <div class="da-bar"><button id="ge-del" class="danger">🗑 消す</button><span class="grow"></span><button id="ge-no">やめる</button><button id="ge-ok" class="p">✅ 決定</button></div></div>`;
+  $('#modal').style.display = 'flex'; $('#ge-kw').focus();
+  const close = () => { $('#modal').style.display = 'none'; };
+  $('#ge-no').onclick = close;
+  $('#ge-del').onclick = async () => { if (await ixDelete(kw)) close(); };
+  const ok = async () => {
+    const nk = $('#ge-kw').value.trim(), dl = idList($('#ge-d').value), pl = idList($('#ge-p').value);
+    if (!nk) return $('#ge-kw').focus();
+    const bad = [...dl, ...pl].filter(i => !L.isId(L.splitAnchor(i).id)); if (bad.length) return alert(`IDの形が違います: ${bad.join(' ')}\n（例: 12 や 3a や 3a(1)）`);
+    if (nk !== kw && globalIndex().some(x => x[0] === nk) && !confirm(`「${nk}」は、もうあります。まとめますか？`)) return;
+    await ixApply(kw, nk, L.toHira($('#ge-rd').value.trim()), dl, pl); close();
+  };
+  $('#ge-ok').onclick = ok;
+  for (const id of ['ge-kw', 'ge-rd', 'ge-d', 'ge-p']) $('#' + id).onkeydown = ev => { if (ev.key === 'Enter' && !ev.isComposing) { ev.preventDefault(); ok(); } };
+  $('#modal').onkeydown = e => { if (e.key === 'Escape') close(); };
+}
+// old → nk。ids: そのキーワードに載せるデジタル・紙のID（空なら、キーワードごと消える）
+async function ixApply(old, nk, rd, dl, pl) {
+  await flush();
+  const side = { d: new Set(dl.map(x => L.splitAnchor(x).id)), p: new Set(pl.map(x => L.splitAnchor(x).id)) };
+  for (const n of notes) {   // ノートのキーワード
+    if (n.noid) continue;
+    const had = n.keywords.includes(old), want = side[n.s].has(n.id) && !(n.s === 'd' && L.isRegionOnly(n.id));
+    if (!had && !want) continue;
+    const next = n.keywords.filter(k => k !== old && k !== nk); if (want) next.push(nk);
+    if (next.join('\n') !== n.keywords.join('\n')) { n.keywords = next; await api.saveNote(pubNote(n)); }
+  }
+  for (const r of regions) {   // 区画（ノートの無い番号）
+    const mine = r.index && (r.kw || r.name) === old, want = side.d.has(r.n);
+    if (mine && !want) await api.saveRegion(r.n, r.name, false);
+    else if (want) await api.saveRegion(r.n, r.name, true, nk);
+  }
+  for (const id of side.d) if (L.isRegionOnly(id) && !regions.some(r => r.n === id)) await api.saveRegion(id, '', true, nk);
+  const pend = PI.pendingEntries().filter(e => e.kw === old).flatMap(e => e.ids);   // 取り込み前の紙のID
+  for (const id of pend) await api.removePaperIndex({ kw: old, id });
+  const missing = [...pl].filter(i => !get('p', L.splitAnchor(i).id));
+  if (missing.length) await api.addPaperIndex({ kw: nk, reading: rd || readingOf(old) || await api.suggest(nk), ids: missing });
+  if (nk !== old) for (const t of topics) if (t.keyword === old) { t.keyword = nk; await api.saveTopic(t); }
+  if (nk !== old && old in mainDots) { mainDots[nk] = mainDots[old]; delete mainDots[old]; rowDots = null; saveDots(); }
+  const gone = !dl.length && !pl.length;   // 空にしたら、キーワードごと消える（読みも）
+  const reading = gone ? '' : (rd || readingOf(old) || await api.suggest(nk));
+  if (nk !== old || gone) await api.setReading(old, '');
+  if (reading) await api.setReading(nk, reading);
+  const st = await api.state(); if (st) applyState(st); renderList();
+}
+async function ixDelete(kw) {
+  const v = (globalIndex().find(x => x[0] === kw) || [0, { d: [], p: [] }])[1];
+  if (!confirm(`グローバルIndexから「${kw}」を消しますか？\n（番号 ${[...v.d, ...v.p].join(' ') || 'なし'} から、このキーワードが外れます。ノートは消えません）`)) return false;
+  await ixApply(kw, kw, '', [], []); return true;
+}
 document.addEventListener('contextmenu', e => {   // 左のグローバルIndex: ID を右クリックして、赤点（メインのトピック）を付ける・外す
   const c = e.target.closest('#list .ix .chip[data-id][data-s]'), row = c && c.closest('.ix');
   if (!c || !row) return;
@@ -2038,60 +2115,42 @@ function openTopicList(s, id, keep) {
     <table class="ti">${ts.map(rowOf).join('') || '<tr><td class="none">索引はありません</td></tr>'}</table>`;
   renderTabs(); renderList();
 }
-// ↪️ 独立させる: キーワードを、新しいIDの索引に。元の索引の行に赤点（*新ID）と「|> キーワード 新ID」、新しい索引に「<| 元の索引 番号」を、一度に書く
-function topicIndependDialog(t) {
-  const s = t.entry && t.entry.s === 'p' ? 'p' : 'd', kws = L.mergeTopic(t).rows.map(r => r.kw).filter(Boolean);
-  const rootFree = () => X.nextRoot(notes, s);
-  $('#modal .box').innerHTML = `<div class="dlg-a"><h3>↪️ 独立させる</h3>
-    <div class="da-lab">独立させるキーワード</div>
-    <input id="ti-kw" list="ti-kws" placeholder="例: 掛け算"><datalist id="ti-kws">${kws.map(k => `<option value="${esc(k)}">`).join('')}</datalist>
-    <div class="da-lab">新しいID（無ければ、新しいノートを作ります）</div>
-    <input id="ti-id" style="width:120px" value="${esc(rootFree())}">
-    <div class="da-lab">新しい索引の名前</div>
-    <input id="ti-name">
-    <div class="da-bar"><span class="grow"></span><button id="ti-cancel">やめる</button><button id="ti-ok" class="p">↪️ 独立させる</button></div></div>`;
-  $('#modal').style.display = 'flex'; $('#ti-kw').focus();
+// トピックIndexの名前を、すぐ変える（題を押す）。空にすると、無名（番号だけで呼ぶ）に戻る
+function topicRenameDialog(t) {
+  const sp = t.entry && t.entry.s === 'p' ? 'p' : 'd', id = t.entry ? t.entry.id : '0';
+  $('#modal .box').innerHTML = `<div class="dlg-a"><h3>📑 ${esc(topicNo(t) || 'トピックIndex')} の名前</h3>
+    <div class="da-lab">名前（空にすると、無名に戻ります）</div>
+    <input id="tr-name" value="${esc(isAuto(t.name) ? '' : t.name)}" placeholder="無名">
+    <div class="da-bar"><span class="grow"></span><button id="tr-no">やめる</button><button id="tr-ok" class="p">決定</button></div></div>`;
+  $('#modal').style.display = 'flex'; $('#tr-name').focus(); $('#tr-name').select();
   const close = () => { $('#modal').style.display = 'none'; };
-  let nameTouched = false; $('#ti-name').oninput = () => { nameTouched = true; };
-  $('#ti-kw').oninput = () => { if (!nameTouched) $('#ti-name').value = $('#ti-kw').value.trim(); };
-  $('#ti-cancel').onclick = close;
-  $('#ti-ok').onclick = async () => {
-    const kw = $('#ti-kw').value.trim(), id = $('#ti-id').value.trim().toLowerCase(), name = $('#ti-name').value.trim() || kw;
-    if (!kw) return alert('キーワードを入れてください');
-    if (!L.isId(id)) return alert('IDの形が違います（例: 12 や 3a）');
-    if (topics.find(x => x.name === name)) return alert('その名前の索引は、既にあります');
-    if (get(s, id) && topicsOf(s, id).length) return alert(`${id} には、すでに索引があります。別のIDにしてください`);
-    if (!get(s, id)) { const n = await api.saveNote({ s, id, created: L.now(), title: kw, keywords: [], body: '' }); notes.push(n); if (s === 'd') await refreshDiaries(); }
-    const g = { name, entry: { s, id }, keyword: '', text: `<| ${stripId(t.name)} ${topicNo(t)}` }, sv = await api.saveTopic(g);
-    if (!sv) return alert('保存できませんでした');
-    g.num = sv === true ? 1 : sv; topics.push(g);
-    // 元の索引: キーワードの行に赤点（*新ID）、独立の行（|> キーワード 新ID）
-    const lines = L.topicText(t).split('\n'); let done = false;
-    for (let i = 0; i < lines.length && !done; i++) {
-      const r = L.topicLine(lines[i]);
-      if (r.star !== undefined || r.up !== undefined || r.before !== undefined || r.down !== undefined || r.mark !== undefined || r.kw !== kw || !r.ids.length) continue;
-      let line = lines[i]; for (const x of r.ids.filter(x => x.dot).sort((p, q) => q.dotAt - p.dotAt)) line = line.slice(0, x.dotAt) + line.slice(x.dotAt + 1);
-      lines[i] = line.replace(/\s+$/, '') + ' *' + id; done = true;
-    }
-    while (lines.length && !lines[lines.length - 1].trim()) lines.pop();
-    if (!done) lines.push(`${kw} *${id}`);
-    lines.push(`|> ${kw} ${id}`);
-    t.text = lines.join('\n').replace(/^\n+/, '') + '\n'; saveTopic(t);
-    rowDots = null; close(); renderList(); openTopic(name, 'view');
+  const ok = async () => {
+    let name = $('#tr-name').value.trim();
+    if (!name) name = isAuto(t.name) ? t.name : (topics.find(x => x === t) && autoName(sp, id));
+    if (name !== t.name && topics.find(x => x.name === name)) return alert('その名前は既にあります');
+    if (name === t.name) return close();
+    await flush();
+    const old = t.name; t.name = name;
+    { const sv = await api.saveTopic(t, old); if (sv && sv !== true) t.num = sv; }
+    for (const x of tabs) if (x.k === 'topic' && x.name === old) x.name = name;
+    close(); openTopic(name, 'view', true);
   };
+  $('#tr-no').onclick = close; $('#tr-ok').onclick = ok;
+  $('#tr-name').onkeydown = e => { if (e.key === 'Enter' && !e.isComposing) { e.preventDefault(); ok(); } };
+  $('#modal').onkeydown = e => { if (e.key === 'Escape') close(); };
 }
 async function topicAct(act) {
   const t = topics.find(x => x.name === cur.name); if (!t) return;
   if (act === 'tedit') return openTopic(t.name, cur.mode === 'edit' ? 'view' : 'edit', true);
   if (act === 'tconf') return openTopic(t.name, 'conf', true);
-  if (act === 'tind') return topicIndependDialog(t);
+  if (act === 'trename') return topicRenameDialog(t);
   if (act === 'tcancel') return openTopic(t.name, 'view', true);
   if (act === 'tdel') return deleteTopicNamed(t.name);
   if (act === 'tsave') {
     const name = $('#t-name').value.trim(), s = $('#t-s').value, id = $('#t-id').value.trim().toLowerCase();
     if (!name) return alert('名前を入れてください');
     if (name !== t.name && topics.find(x => x.name === name)) return alert('その名前は既にあります');
-    if (!get(s, id)) return alert(`${SP[s]} ${id} というノートはありません`);
+    if (!get(s, id) && !(s === 'd' && L.isRegionOnly(id))) return alert(`${SP[s]} ${id} というノートはありません`);   // 区画の番号（ノートなし）は、親にできる
     const kw = t.keyword || '';   // 点のキーワードは、この画面では変えない（赤い点は、右クリックや ID の前の * で付ける）
     await flush();
     t.keyword = kw;

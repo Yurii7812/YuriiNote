@@ -72,3 +72,17 @@ test('区画の名前とトピックIndexは別。グローバルIndexへの追�
   assert.equal(v.saveRegion('1', '仏教改').regions[0].index, true, '名前だけ保存しても、追加の印は残る');
   assert.equal(v.saveRegion('1', '仏教改', false).regions[0].index, false, '外せる');
 });
+
+test('区画をグローバルIndexに載せる名前（kw）は、区画の名前とは別。省略したら今のまま', () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'zkreg3-'));
+  const v = openVault(dir);
+  v.saveNote({ s: 'd', id: '1a', created: '2026-11-17 10:00:00', body: '本文' });
+  v.saveRegion('1', '区画の名前');
+  const r1 = v.saveRegion('1', '区画の名前', true, '載せる名前').regions[0];
+  assert.deepStrictEqual([r1.name, r1.index, r1.kw], ['区画の名前', true, '載せる名前']);
+  const r2 = v.saveRegion('1', '名前だけ変える').regions[0];
+  assert.deepStrictEqual([r2.name, r2.index, r2.kw], ['名前だけ変える', true, '載せる名前'], '名前を保存しても、載せる名前と印は残る');
+  const r3 = v.saveRegion('1', '名前だけ変える', false).regions[0];
+  assert.equal(r3.index, false);
+  assert.equal(openVault(dir).state().regions[0].kw, '載せる名前', '保存して開き直しても残る');
+});
