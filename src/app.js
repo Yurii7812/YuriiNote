@@ -1785,15 +1785,11 @@ function openRegion(n, keep) {
   cur = place({ k: 'region', id: n }, keep); mode = 'notes';
   if (!inPreview) decided = { k: 'region', id: n };   // 選んでいる行（黄色い枠）は、1 か所だけ。直前のノートの枠は外れる
   if (!inPreview && !$('#q').value) tab = 'd';
-  const g = regions.find(x => x.n === n) || { name: '', keywords: [] }, kids = regionKids(n), ts = uniqueTopics(topicsOf('d', n).filter(topicVisible));
-  const trow = t => `<tr><td><span class="chip t" data-topic="${esc(t.name)}">${esc(topicLabel(t))}</span></td><td class="sub">${esc(L.mergeTopic(t).rows.map(r => r.kw).filter(Boolean).slice(0, 8).join('　'))}</td></tr>`;
+  const g = regions.find(x => x.n === n) || { name: '', keywords: [] }, kids = regionKids(n);
   $('#pane').innerHTML = `<div class="row thead rgh"><span class="ti-ic">🗂️</span><h2 class="tname" data-act="rgset" title="押して、名前を変える・グローバルIndexに登録">${esc(n)} ${g.name ? esc(g.name) : '<small class="sub">（名前を付ける）</small>'}</h2><span class="grow"></span>
       <button class="tbtn" data-act="rgnote" title="この区画の下に、新しいノートを作る">📝 新しい子ノート <small>${esc(nextRegionKid(n))}</small></button><button class="tbtn" data-act="rgset" title="名前・グローバルIndexの名前を変える">⚙️ 名前・登録</button><button class="tbtn" data-act="rgmk" title="この区画の下に、無名のトピックIndexを作る">➕ トピックIndex</button></div>
     ${(g.keywords || []).length ? `<div class="row tmeta"><span class="tm"><span class="sub" title="グローバルIndexの名前">🏷️</span>${g.keywords.map(k => `<span class="chip k">${esc(k)}</span>`).join('')}</span></div>` : ''}
-    <div class="tkh">🌱 子ノート <small class="sub">${kids.length}</small></div>
-    <table class="ti tkids">${kids.map(m => `<tr class="trel"><td class="kidt" data-s="d" data-id="${esc(m.id)}">${esc(titleOf(m) || '（無題）')}</td><td>${chip('d', m.id)}</td></tr>`).join('') || '<tr><td class="none">まだノートがありません</td></tr>'}</table>
-    <div class="tkh">📑 トピックIndex <small class="sub">${ts.length}</small></div>
-    <table class="ti">${ts.map(trow).join('') || '<tr><td class="none">まだありません</td></tr>'}</table>`;
+    <table class="ti">${kids.map(m => `<tr><td class="kidt" data-s="d" data-id="${esc(m.id)}">${esc(titleOf(m) || '（無題）')}</td><td>${chip('d', m.id)}</td></tr>`).join('') || '<tr><td class="none">まだノートがありません。「📝 新しい子ノート」で作ります</td></tr>'}</table>`;   // 普通のトピックIndexと同じ表（左に名前、右に番号）
   renderTabs(); renderList();
 }
 const regionRefresh = n => { if (cur && cur.k === 'region' && cur.id === n) openRegion(n, true); };
