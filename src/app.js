@@ -1927,7 +1927,11 @@ function openTopic(name, tmode = 'view', keep, focus) {   // focus: ノートか
       ref: x => `<tr class="trel${focus && focus.s === x.s && focus.id === x.id ? ' tfocus' : ''}"><td><span class="tmk">${L.TMARK.ref}</span> ${esc(x.label)}</td><td>${upChip({ kw: x.label, ids: [{ s: x.s, id: x.id, raw: x.id }] })}</td></tr>`,
     };
     const paperOk = it => it.k !== 'row' || !paperOnly || it.o.p.length || (it.o.t || []).length;
-    body = `<table class="ti">${order.filter(paperOk).map(it => tr[it.k](it.o)).join('') || '<tr><td class="none">まだ空です。「編集」で書きます</td></tr>'}</table>`;
+    // 区画の索引（1-1 など）: 区画の子ノート（1a, 1b …）を、番号とタイトルで出す（区画にはノートが無いので、いちばん上のノートが子）
+    const kids = e && e.s === 'd' && L.isRegionOnly(e.id) ? (() => { const has = x => !!get('d', x); return notes.filter(m => m.s === 'd' && !m.noid && String(L.region(m.id)) === e.id && !L.parentIn(m.id, has)).sort((a, b) => L.cmpId(a.id, b.id)); })() : null;
+    const kidsHtml = kids ? `<div class="tkh">🌱 区画 ${esc(e.id)} の子ノート <small class="sub">${kids.length}</small></div><table class="ti tkids">${kids.map(m => `<tr class="trel"><td>${chip('d', m.id)}</td><td class="kidt" data-s="d" data-id="${esc(m.id)}">${esc(titleOf(m) || '（無題）')}</td></tr>`).join('') || '<tr><td class="none">まだノートがありません</td></tr>'}</table>` : '';
+    const rowsHtml = order.filter(paperOk).map(it => tr[it.k](it.o)).join('');
+    body = kidsHtml + (rowsHtml || !kids ? `<table class="ti">${rowsHtml || '<tr><td class="none">まだ空です。「編集」で書きます</td></tr>'}</table>` : '');
   }
   // 上位トピック（^）・独立前（<|）・独立したもの（|>）: そのキーワードのトピック Index があれば、押して開ける
   // 索引の画面は、右パネルなし。全部、上に: 題 → 🌳 親・↑ 上位トピック → 索引の中身
