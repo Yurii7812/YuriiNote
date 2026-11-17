@@ -21,6 +21,7 @@ const DIARY_LIST = '日記.md';
 const DOC_PRE = /^(C|K)_.+\.json$/; // チャットメモ・役のライブラリ（JSON）。なりきり・キャンバスは今はノート
 const SP = { d: 'デジタル', p: '紙' };
 const IMG = ['.jpg', '.jpeg', '.png', '.webp'];
+const ZK_MARK = '.zk-id-v2';   // 区画とトピックの番号への移行を済ませた印（2026-11-17）
 const validId = s => L.isId(s) && !/^\d{8,}$/.test(s); // 日時名のファイルは除外
 const isStem = s => validId(s) || L.isNoid(s); // ノートのファイル名（IDか、IDなしの日時名）
 const enc = s => encodeURIComponent(s);
@@ -564,6 +565,19 @@ function openVault(vault) {
     for (const t of topics.values()) files.set(topicFile(t.name), topicMd(t));
     for (const [f, c] of files) if (cache.get(f) !== c) { put(abs(f), c); cache.set(f, c); }
   }
+  // 対応表（旧 → 新）でIDを付け替える（ノート・子・トピックの入口と索引・本文の ->ID・日記・canvas の節点）。rename と移行が使う
+  function applyIdMap(s, map) {
+    const moving = [...map].map(([o, nw]) => [get(s, o), nw]);
+    for (const [m] of moving) notes.delete(key(s, m.id));
+    for (const [m, nw] of moving) { m.id = nw; notes.set(key(s, nw), m); m.updated = L.now(); }
+    for (const t of topics.values()) {
+      if (t.entry && t.entry.s === s && map.has(t.entry.id)) t.entry.id = map.get(t.entry.id);
+      if (t.text) t.text = L.remapTopicText(t.text, map, s, L.defOf(t));
+    }
+    for (const m of notes.values()) if (!m.kind || m.kind === 'text') m.body = L.remapRefs(m.body, m.s, s, map);
+    for (const d of diaries.values()) d.body = L.remapRefs(d.body, 'd', s, map);
+    for (const m of notes.values()) if (m.kind && m.kind !== 'text' && m.data) { let hit = false; for (const c of m.data.nodes || []) if (c.type === 'note' && c.s === s && map.has(c.nid)) { c.nid = map.get(c.nid); hit = true; } if (hit) m.body = L.deriveBody(m.kind, m.data); }
+  }
   function removeFile(f) { // 消すときはゴミ箱へ
     if (!fs.existsSync(abs(f))) return;
     fs.mkdirSync(abs('.trash'), { recursive: true });
@@ -815,15 +829,7 @@ function openVault(vault) {
         const ids = [...notes.values()].filter(x => x.s === s && !L.isNoid(x.id)).map(x => x.id), map = L.remapSubtree(ids, from, to);
         if (L.fzSubtree([to], from).length) return false;   // 自分の子や孫の ID には、できない
         for (const [o, nw] of map) if (o !== nw && (!validId(nw) || (get(s, nw) && !map.has(nw)))) return false;
-        const moving = [...map].map(([o, nw]) => [get(s, o), nw]);
-        for (const [m] of moving) notes.delete(key(s, m.id));
-        for (const [m, nw] of moving) { m.id = nw; notes.set(key(s, nw), m); m.updated = L.now(); }
-        for (const t of topics.values()) {
-          if (t.entry && t.entry.s === s && map.has(t.entry.id)) t.entry.id = map.get(t.entry.id);
-          if (t.text) t.text = L.remapTopicText(t.text, map, s, L.defOf(t));
-        }
-        for (const m of notes.values()) if (!m.kind || m.kind === 'text') m.body = L.remapRefs(m.body, m.s, s, map);
-        for (const d of diaries.values()) d.body = L.remapRefs(d.body, 'd', s, map);
+        applyIdMap(s, map);
         rebuild(); return pub(n);
       }
       notes.delete(key(s, from)); n.id = to; notes.set(key(s, to), n); n.updated = L.now();
@@ -831,6 +837,19 @@ function openVault(vault) {
       // IDなしだった親に ID が付いたら、その下に分岐していたノートにも、順に ID が付く（1c → 1ca, 1cb …。孫も同じように）
       if (s === 'd' && L.isNoid(from)) { let prev = null; for (const c of [...notes.values()].filter(x => x.s === 'd' && x.parentStem && x.parentStem === n.stem).sort((a, b) => (a.created || '').localeCompare(b.created || ''))) { let id = prev ? L.sibling(prev) : L.child(to); while (get('d', id)) id = L.sibling(id); const cur = c.id; c.parentStem = ''; this.rename('d', cur, id); prev = id; } }
       rebuild(); return pub(n);
+    },
+    // 旧い番号 → 区画とトピックの番号（2026-11-17。デジタルのノートだけ。紙は古い番号のまま）。対応表は L.zkMigrate
+    migrateDigitalIds() {
+      // 一度だけ。新しい番号は旧い番号と形が同じものがあるので、中身では済んだかどうか分からない（印で覚える）
+      if (fs.existsSync(abs(ZK_MARK))) return { ok: false, reason: '移行は済んでいます', changed: 0, map: {} };
+      const ids = [...notes.values()].filter(x => x.s === 'd' && validId(x.id)).map(x => x.id);
+      const map = new Map();
+      for (const id of ids) { const nw = L.zkMigrate(id); if (nw !== id) map.set(id, nw); }
+      const after = ids.map(id => map.get(id) || id);
+      if (new Set(after).size !== after.length) return { ok: false, reason: '重なる番号ができるので、何も変えません' };
+      if (!map.size) { put(abs(ZK_MARK), '2026-11-17\n'); return { ok: true, changed: 0, map: {} }; }
+      applyIdMap('d', map); rebuild(); put(abs(ZK_MARK), '2026-11-17\n');
+      return { ok: true, changed: map.size, map: Object.fromEntries(map) };
     },
     saveImage(s, id, buf) {
       const n = get(s, id) || blank(s, id);

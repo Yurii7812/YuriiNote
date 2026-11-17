@@ -35,6 +35,15 @@ function parentIn(id, has) {
   return null;
 }
 const root = id => tok(id)[0] || id;
+// 区画とトピックの番号（2026-11-17）: 先頭の数字は区画（その番号にノートは置かない）。最初のノートは 1a から。
+// 旧い番号 → 新しい番号: 先頭の数字はそのまま＋a、元の段は文字↔数字（1 → 1a、1a → 1a1、1d1 → 1a4a、1b3 → 1a2c）。親子は保たれる
+const region = id => { const m = /^\d+/.exec(String(id)); return m ? +m[0] : 0; };
+const isRegionOnly = id => /^\d+$/.test(String(id));
+function zkMigrate(old) {
+  const t = tok(old);
+  if (!t.length || !/^\d/.test(t[0])) throw new Error('不正な番号: ' + old);
+  return t[0] + 'a' + t.slice(1).map(x => /\d/.test(x) ? numToLet(x) : String(letToNum(x))).join('');
+}
 // '1a(1)' → { id: '1a', n: '1' }（(番号) が無ければ n は undefined）
 const splitAnchor = raw => { const m = String(raw).match(/^(.*?)(?:[(（](\d+)[)）])?$/); return { id: m[1], n: m[2] }; };
 
@@ -507,7 +516,7 @@ const now = (d = new Date()) => {
 const parseTime = c => { const m = (c || '').match(/^(\d{4})-(\d{2})-(\d{2})(?: (\d{2}):(\d{2})(?::(\d{2}))?)?/); return m ? new Date(+m[1], +m[2] - 1, +m[3], +(m[4] || 0), +(m[5] || 0), +(m[6] || 0)) : null; };
 
 module.exports = { TMARK, colonToArrow, colonToArrowKeep,
-  codeRanges, MDLINK, ID, isId, splitAnchor, tok, cmpId, sibling, child, parentIn, root,
+  codeRanges, MDLINK, ID, isId, splitAnchor, tok, cmpId, sibling, child, parentIn, root, region, isRegionOnly, zkMigrate,
   tokens, anchorPos, selfTarget, bodyToMd, mdToBody,
   fzRange, fzSubtree, remapSubtree, remapRefs, remapTopicText, exportMd, defOf, topicText, legacyTopicText, parseIdTok, isNoid, noidStem, isStem, STEM, fmParse, fmDump, parseTime, KINDS, deriveBody, setDayStart, todayStr, calendarToday, dayOf, weekday, isDate, addToSection, normDay, diaryTree, topicLine, mergeTopic, addToTopic, removeFromTopic, toHira, kanaRow, ROWS, byReading, kwAnchor, fileName, splitKw, now
 };

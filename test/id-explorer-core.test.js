@@ -33,7 +33,7 @@ test('ID候補はFolgezettelの分岐・並列規則を守り、既存番号を�
   assert.equal(X.suggest(notes, notes[0],'child'),'1c');
   assert.equal(X.suggest(notes, notes[1],'sibling'),'1c');
   assert.equal(X.suggest(notes, notes[3],'child'),null); // 紙のノートをデジタルの親として選ばない
-  assert.equal(X.nextRoot(notes),'3');
+  assert.equal(X.nextRoot(notes),'3a'); // 2026-11-17: 新しい区画の最初のノート（区画 3 の 3a）
   assert.equal(X.available(notes,'1a'),false);
   assert.equal(X.available(notes,'1a',notes[1]),true);
   assert.equal(X.available(notes,'20261109093000'),false);

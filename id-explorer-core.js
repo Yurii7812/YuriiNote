@@ -75,7 +75,14 @@ function noteRelations(note, notes, topics) {
     L.tokens(n.body || '').some(t => t.k === 'ref' && t.id === note.id && (t.sp || n.s) === note.s)) : [];
   return { parent, children, indexed, owned, backlinks };
 }
+// 新しい区画（2026-11-17）: デジタルは、いちばん大きい区画の次の区画の、最初のノート（Na）。紙は従来どおり（古い番号のまま）
 function nextRoot(notes, space = 'd') {
+  if (space === 'd') {
+    const regions = notes.filter(n => n.s === space && !n.noid && L.isId(n.id)).map(n => L.region(n.id));
+    let id = `${(regions.length ? Math.max(...regions) : 0) + 1}a`;
+    while (notes.some(n => n.s === space && n.id === id)) id = L.sibling(id);
+    return id;
+  }
   const roots = notes.filter(n => n.s === space && !n.noid && /^\d+$/.test(n.id)).map(n => +n.id);
   let id = String((roots.length ? Math.max(...roots) : 0) + 1);
   while (notes.some(n => n.s === space && n.id === id)) id = L.sibling(id);
@@ -125,6 +132,7 @@ function sortResults(items, section, mode, readings = {}) {
 }
 function available(notes, id, current = null, space = 'd') {
   if (!L.isId(id) || /^\d{8,}$/.test(id)) return false;
+  if (space === 'd' && L.isRegionOnly(id)) return false;   // 区画の番号（1）にはノートを置かない（最初のノートは 1a）
   return !notes.some(n => n.s === space && n.id === id && (!current || key(n) !== key(current)));
 }
 module.exports = { key, isAssigned, textMatches, keywords, matchesTopic, search, topicEntries, followIndexReference, noteRelations, nextRoot, suggest, available, SECTIONS, SORT_MODES, normalizeOrder, moveSection, sortResults };
