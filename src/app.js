@@ -773,9 +773,9 @@ let recPc = null, recNow = null;
 const two = n => String(n).padStart(2, '0'), mmss = s => `${two(Math.floor(s / 60))}:${two(Math.floor(s % 60))}`;
 $('#rec-pc').onclick = () => (recPc ? recStop() : recStart());
 $('#rec-pc').oncontextmenu = e => { e.preventDefault(); openRecList(false); };
-// mode: 'note' = 今開いているノートの末尾へ（Ctrl+L） / 'list' = ノートには何もせず、録音の一覧へ（Ctrl+;） / 省略 = 右上のボタン（ノートを開いていればその末尾、無ければ一覧）
+// mode: 'note' = 今開いているノートの末尾へ（Ctrl+L） / 'list' = ノートには何もせず、録音の一覧へ（Ctrl+S） / 省略 = 右上のボタン（ノートを開いていればその末尾、無ければ一覧）
 async function recStart(how) {
-  if (how === 'note' && !(cur && cur.k === 'note' && get(cur.s, cur.id))) return toast('先に、入れたいノートを開いてください（ノートに入れない録音は Ctrl+;）');
+  if (how === 'note' && !(cur && cur.k === 'note' && get(cur.s, cur.id))) return toast('先に、入れたいノートを開いてください（ノートに入れない録音は Ctrl+S）');
   let stream; try { stream = await navigator.mediaDevices.getUserMedia({ audio: true }); } catch (e) { return toast('マイクを使えません: ' + (e.message || e)); }
   const mime = window.MediaRecorder && MediaRecorder.isTypeSupported('audio/webm;codecs=opus') ? 'audio/webm;codecs=opus' : 'audio/webm';
   const rec = new MediaRecorder(stream, { mimeType: mime }), chunks = [];
@@ -851,7 +851,7 @@ async function recDraw() {
   const W = recWordsOpen ? await api.recWords() : null;
   if (recEditing && !items.some(x => x.id === recEditing && x.status === 'done')) recEditing = null;
   if (recEditing && pane.querySelector('.rec-edit')) return;   // 直している間は、描き直さない（進み具合の知らせで、書いたものが消えないように）
-  pane.innerHTML = `<div class="rec-page"><div class="rec-h"><b>🎙️ 録音と文字</b><span class="sub">（録る・止める: 右上の 🎙️、Ctrl+L = 今のノートの末尾へ、Ctrl+; = ノートには何もしない）</span><span class="grow"></span>`
+  pane.innerHTML = `<div class="rec-page"><div class="rec-h"><b>🎙️ 録音と文字</b><span class="sub">（録る・止める: 右上の 🎙️、Ctrl+L = 今のノートの末尾へ、Ctrl+S = ノートには何もしない）</span><span class="grow"></span>`
     + `<button class="chip${recWordsOpen ? ' on' : ''}" data-r="words" title="文字化で使う単語と、覚えた直し">📖 単語</button>`
     + (items.some(x => x.status !== 'running') ? `<button class="chip" data-r="all" title="録音を全部消す（音声は .trash へ）">🗑️ 全部消す</button>` : '')
     + `</div>`
@@ -867,7 +867,7 @@ async function recDraw() {
       + (x.status !== 'running' && !x.audioGone && x.status === 'done' ? `<button class="chip" data-r="audio" data-id="${esc(x.id)}" title="音声のファイルだけ消す（文字は残る）">🔇 音声を消す</button>` : '')
       + (x.status !== 'running' ? `<button class="chip" data-r="del" data-id="${esc(x.id)}">🗑️</button>` : '')
       + `</div><div class="rec-top st">${st(x)}</div>${x.status === 'running' ? `<div class="rec-bar"><i style="width:${recNow && recNow.id === x.id ? recNow.pct : 0}%"></i></div>` : ''}${recEditing === x.id ? `<textarea class="rec-edit" spellcheck="false">${esc(recPlain(x))}</textarea><div class="row"><small class="sub">1 行が 1 段落。Ctrl+Enter で保存、Esc でやめる</small><span class="grow"></span><button class="chip" data-r="ecancel" data-id="${esc(x.id)}">やめる</button><button class="chip p" data-r="esave" data-id="${esc(x.id)}">💾 保存して覚える</button></div>` : x.lines && x.lines.length ? `<pre class="rec-text">${esc(recPlain(x))}</pre>` : ''}</div>`).join('')
-      : '<div class="none">録音は、まだありません。<b>Ctrl+L</b>: 録音して、止めたら今開いているノートの末尾へ ／ <b>Ctrl+;</b>: ノートには何もせず、ここへ（右上の 🎙️ も同じ。もう一度押すと止める）。<br>スマホで録った録音も、取り込むと、ここで文字になります。</div>'}</div></div>`;
+      : '<div class="none">録音は、まだありません。<b>Ctrl+L</b>: 録音して、止めたら今開いているノートの末尾へ ／ <b>Ctrl+S</b>: ノートには何もせず、ここへ（右上の 🎙️ も同じ。もう一度押すと止める）。<br>スマホで録った録音も、取り込むと、ここで文字になります。</div>'}</div></div>`;
 }
 api.onRecUpdate(async m => {
   if (m.pct !== undefined) recNow = { id: m.id, pct: m.pct };
@@ -879,16 +879,16 @@ api.onRecUpdate(async m => {
   if (recPane()) recDraw();
 });
 
-// Ctrl+L: 録音して、止めたら、今開いているノートの末尾に入れる ／ Ctrl+;: 録音して、ノートには何もしない（録音の一覧に入る）。録音中は、どちらでも止まる。キーの位置で見るので、日本語入力がオンでも効く
+// Ctrl+L: 録音して、止めたら、今開いているノートの末尾に入れる ／ Ctrl+S: 録音して、ノートには何もしない（録音の一覧に入る）。録音中は、どちらでも止まる。キーの位置で見るので、日本語入力がオンでも効く
 document.addEventListener('keydown', e => {
-  if (!(e.ctrlKey || e.metaKey) || e.altKey || e.shiftKey || (e.code !== 'KeyL' && e.code !== 'Semicolon')) return;
+  if (!(e.ctrlKey || e.metaKey) || e.altKey || e.shiftKey || (e.code !== 'KeyL' && e.code !== 'KeyS')) return;
   if ($('#modal').style.display === 'flex' || $('#scan').style.display === 'flex') return;
   e.preventDefault(); e.stopImmediatePropagation();
   if (recPc) recStop(); else recStart(e.code === 'KeyL' ? 'note' : 'list');
 }, true);
-// Ctrl+O: ノート一覧（今のノートを真ん中に） ／ Ctrl+': 左の一覧の一番上へ
+// Ctrl+O: ノート一覧（今のノートを真ん中に） ／ Ctrl+Q: 左の一覧の一番上へ
 document.addEventListener('keydown', e => {
-  if (!(e.ctrlKey || e.metaKey) || e.altKey || e.shiftKey || (e.code !== 'KeyO' && e.code !== 'Quote')) return;
+  if (!(e.ctrlKey || e.metaKey) || e.altKey || e.shiftKey || (e.code !== 'KeyO' && e.code !== 'KeyQ')) return;
   if ($('#modal').style.display === 'flex' || $('#scan').style.display === 'flex') return;
   e.preventDefault(); e.stopImmediatePropagation();
   if (e.code === 'KeyO') openNotesList(); else listToTop();
@@ -2821,9 +2821,9 @@ function settingsDialog() {
 const KEYS = [
   ['書く', [['Ctrl+D', '今日の日記を開く（本文の最後にカーソル）'], ['Ctrl+K', '書き終わりへ（日記・時系列記録は自分の文章の最後、ふつうのノートは最後に 1 行あけて）'], ['Esc', '入力欄・本文から出る（ノーマルモード）'], ['Ctrl+M', '新しい (n) を、カーソルの位置に入れる'], ['Ctrl+P', '(p) を入れる'], ['Ctrl+I', ':ID を入れる'], ['Ctrl+R', '行ごとの時刻の、オン・オフ'], ['Ctrl+↑ / ↓', '行を動かす']]],
   ['ノートを作る', [['Ctrl+N', 'IDなしの新しいノート'], ['Ctrl+H', '並列のノート'], ['Ctrl+B', '分岐（子）のノート']]],
-  ['探す・移る', [['Ctrl+F', '左の検索'], ['Ctrl+E', '今のページの中の検索・置換'], ['Ctrl+O', 'ノート一覧へ（今のノートが真ん中）'], ["Ctrl+'", '左の一覧の一番上へ'], ['Ctrl+J', '左の一覧の折りたたみを、全部たたむ・ひらく'], ['Ctrl+,  /  Ctrl+.', '戻る・進む'], ['Ctrl+\\', '右パネルの、出し入れ']]],
+  ['探す・移る', [['Ctrl+F', '左の検索'], ['Ctrl+E', '今のページの中の検索・置換'], ['Ctrl+O', 'ノート一覧へ（今のノートが真ん中）'], ['Ctrl+Q', '左の一覧の一番上へ'], ['Ctrl+J', '左の一覧の折りたたみを、全部たたむ・ひらく'], ['Ctrl+,  /  Ctrl+.', '戻る・進む'], ['Ctrl+\\', '右パネルの、出し入れ']]],
   ['タブ', [['Ctrl+T', '新しいタブ'], ['Ctrl+W', '閉じる']]],
-  ['録音', [['Ctrl+L', '録音して、今のノートの末尾へ'], ['Ctrl+;', '録音して、ノートには何もしない'], ['（録音中）', 'どちらのキーでも止まる']]],
+  ['録音', [['Ctrl+L', '録音して、今のノートの末尾へ'], ['Ctrl+S', '録音して、ノートには何もしない'], ['（録音中）', 'どちらのキーでも止まる']]],
   ['紙の取り込み画面', [['Ctrl+H', '次'], ['Ctrl+B', '子'], ['Ctrl+U', '親の次'], ['Ctrl+K', '前と同じキーワード'], ['Ctrl+S', '飛ばす'], ['Ctrl+D', '日記の日付'], ['Ctrl+E', '拡大']]]
 ];
 function keysDialog() {
