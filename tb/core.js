@@ -37,7 +37,7 @@
   TB.PEN = [TB.INK];
   TB.FRAME_COLORS = ["#8b909c"];
   const DEF = { revOn: true, revProb: 50, pool: "all", method: "crypto", seedText: "", shuffle: "fy", riffles: 7, color: TB.INK,
-    promptSets: ["word", "scamper", "hats", "ask", "values", "story"] };
+    promptSets: ["w5h1", "next", "roles", "scamper", "hats", "ask"], lastDraw: "tarot" };   // 発想カードの既定は、実用の種類だけ（ランダムな言葉・価値観・物語の型は選べば入る）
 
   // ================= 保存 =================
     TB.newBoard = (o) => Object.assign({ id: "b" + TB.uid(), title: "", template: "free", layout: null, created: Date.now(), updated: Date.now(),

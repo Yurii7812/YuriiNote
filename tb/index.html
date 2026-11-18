@@ -11,7 +11,7 @@
 <header id="bar">
   <span id="nid" class="chip-fixed"></span>
   <input id="title" placeholder="テーマ・問いを書く" aria-label="テーマ・問い">
-  <span id="layout-chip" class="chip-fixed"></span>
+  <span id="layout-chip" class="chip-fixed" hidden></span>
   <span class="grow"></span>
   <button id="btn-undo" class="icon" type="button" title="元に戻す（Ctrl+Z）" aria-label="元に戻す"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 14 4 9l5-5"/><path d="M4 9h10a6 6 0 0 1 0 12h-3"/></svg></button>
   <button id="btn-redo" class="icon" type="button" title="やり直す（Ctrl+Y）" aria-label="やり直す"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m15 14 5-5-5-5"/><path d="M20 9H10a6 6 0 0 0 0 12h3"/></svg></button>
@@ -21,14 +21,13 @@
     <button id="btn-draw" class="primary" type="button" title="引く（Ctrl+D）: 空いた枠を埋める／選んだものにつなぐ">引く</button>
     <button id="btn-drawmenu" class="primary caret" type="button" title="デッキと引き方" aria-label="デッキと引き方"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg></button>
   </div>
-  <button id="btn-new" type="button" title="ひな形から作り直す（中身が空のときだけ）">ひな形</button>
   <button id="btn-more" class="icon" type="button" title="このノートのメニュー" aria-label="このノートのメニュー"><svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><circle cx="5" cy="12" r="1.6"/><circle cx="12" cy="12" r="1.6"/><circle cx="19" cy="12" r="1.6"/></svg></button>
 </header>
 <div id="main">
   <section id="board" aria-label="盤面">
     <div id="world"></div>
     <div id="lasso" hidden></div>
-    <div id="hint">クリック＝書く　ドラッグ＝ペン　カードや文字をクリック＝つないで書く　Ctrl+クリック＝選ぶ　Ctrl+空きをドラッグ＝囲んで選ぶ　Ctrl+ドラッグ＝動かす　右ドラッグ＝画面を動かす　右クリック＝メニュー</div>
+    <div id="hint">クリック＝書く　ドラッグ＝ペン　カードや文字をクリック＝つないで書く　線をクリック＝線の上に書く・種類　右ドラッグ・Ctrl+ドラッグ＝動かす（空きなら画面）　Ctrl+クリック＝選ぶ　Ctrl+空きをドラッグ＝囲んで選ぶ　右クリック＝メニュー</div>
     <div id="pop" hidden></div>
   </section>
   <aside id="drawer"></aside>

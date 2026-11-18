@@ -30,6 +30,22 @@
     const it = TB.item(n); return TB.slotName(n) + (it ? " ・ " + TB.deckOf(n).short(it, n.rev) : "");
   };
 
+  // ================= 易の読み方（本卦＝今 → 変わる爻＝動いている所 → 之卦＝行き先） =================
+  TB.ichingGuide = (n) => {
+    const I = window.IChing, it = TB.item(n); if (!it) return [];
+    // 本卦か之卦か: 之卦なら、これを after に持つ本卦を探す
+    const base = n.after !== undefined || n.moving ? n : TB.B().nodes.find((m) => m.deck === "iching" && m.after === n.item && m.id !== n.id) || n;
+    const bi = TB.item(base), ai = base.after && I.BY_ID[base.after], mv = base.moving || [];
+    const tri = (x) => `上は ${x.upper.glyph}${x.upper.nature}（${x.upper.kw}）、下は ${x.lower.glyph}${x.lower.nature}（${x.lower.kw}）`;
+    const step = (no, head, body, on) => h("div", { class: "ic-step" + (on ? " on" : "") }, h("i", { text: no }), h("div", {}, h("b", { text: head }), h("div", { class: "kt", text: body })));
+    return [h("div", { class: "ic-guide" },
+      h("div", { class: "ic-h", text: "易の読み方" }),
+      step("1", `今の状況: 本卦 第${bi.num}卦 ${bi.name} — ${bi.kw}`, `${bi.text}　${tri(bi)}`, base === n),
+      step("2", mv.length ? `変わるところ: ${mv.map((i) => I.LINE_POS[i].split("（")[0]).join("・")}` : "変わるところ: なし", mv.length ? mv.map((i) => I.LINE_POS[i]).join("、") + "。ここで状況が動いている。下の爻ほど始まり・内側、上の爻ほど終わり・外側のこと" : "動いている爻がないので、本卦だけを読む（今の状況がしばらく続く）", false),
+      ai ? step("3", `行き先: 之卦 第${ai.num}卦 ${ai.name} — ${ai.kw}`, `${ai.text}　${tri(ai)}`, base !== n) : null,
+      h("div", { class: "ic-q", text: "問い: " + (base === n ? bi.question : (ai || bi).question) }))];
+  };
+
   // ================= ホバーの説明 =================
   TB.tipBody = (id) => {
     const n = TB.node(id); if (!n || n.t !== "card") return [];
@@ -38,8 +54,7 @@
     if (n.deck === "tarot") out.push(
       h("div", { class: "tt-card" }, h("b", { text: it.ja }), h("small", { text: "  " + it.en }), h("span", { class: "badge" + (n.rev ? " rev" : ""), text: n.rev ? "逆位置" : "正位置" })),
       h("div", { class: "kw" + (n.rev ? "" : " on") }, h("i", { text: "正" }), it.up), h("div", { class: "kw" + (n.rev ? " on" : "") }, h("i", { text: "逆" }), it.rv));
-    else if (n.deck === "iching") out.push(h("div", { class: "tt-card" }, h("b", { text: `第${it.num}卦 ${it.name}` })), h("div", { class: "kw on", text: it.kw }),
-      n.moving && n.moving.length ? h("div", { class: "tt-note", text: "変わる爻: " + n.moving.map((i) => window.IChing.LINE_POS[i].split("（")[0]).join("・") }) : null);
+    else if (n.deck === "iching") out.push(...TB.ichingGuide(n));
     else out.push(h("div", { class: "tt-card" }, h("b", { text: it.name }), h("small", { text: "  " + it.setName })), h("div", { class: "kw on", text: it.question }));
     const nk = kidsOf(id).length; if (nk) out.push(h("div", { class: "tt-note", text: `つながったアイデア ${nk}個` }));
     return out;
@@ -64,7 +79,10 @@
     TB.menu(items, x, y);
   };
   TB.linkMenu = (id, x, y) => {
-    TB.menu([["ひとことを書く", () => TB.openLinkPop(id, true)], ["消す", () => TB.removeLink(id), "danger"]], x, y);
+    const l = TB.B().links.find((q) => q.id === id);
+    TB.menu([["線の上に書く・種類を変える", () => TB.openLinkPop(id, true)], "-",
+      ...TB.LINK_KINDS.map(([k, name]) => [(l && TB.linkKind(l) === k ? "✓ " : "　") + name, () => { TB.snap(); l.kind = k; TB.save(); TB.renderBoard(); }]),
+      "-", ["消す", () => TB.removeLink(id), "danger"]], x, y);
   };
   TB.frameMenu = (id, x, y) => {
     const b = TB.B();
@@ -80,13 +98,18 @@
     const r = TB.routeLinks(b).find((x) => x.l.id === id); if (!r) return;
     const mid = TB.toScreen(r.g.mid.x, r.g.mid.y), br = $("#board").getBoundingClientRect();
     let armed = true;
-    const input = h("input", { value: l.label, placeholder: "ひとこと（Enter で閉じる）",
+    const input = h("input", { value: l.label, placeholder: "線の上に書く（Enter で閉じる）",
       oninput: (e) => { if (armed) { TB.snap(); armed = false; } l.label = e.target.value; TB.save(); TB.renderBoard(); TB.markSel(); },
       onkeydown: (e) => { if (e.key === "Enter" || e.key === "Escape") { e.preventDefault(); TB.closeFloats(); } } });
     const pop = $("#pop");
-    pop.replaceChildren(input, h("button", { type: "button", class: "danger", text: "線を消す", title: "Delete", onclick: () => TB.removeLink(id) }));
+    const kinds = h("div", { class: "pop-kinds" }, TB.LINK_KINDS.map(([k, name]) => h("button", { type: "button", class: "kind-btn" + (TB.linkKind(l) === k ? " on" : ""), title: name, onclick: () => {
+      TB.snap(); l.kind = k; TB.save(); TB.renderBoard(); TB.markSel(); kinds.querySelectorAll(".kind-btn").forEach((b) => b.classList.toggle("on", b.title === name)); input.focus(); } },
+      h("svg", { width: 34, height: 14, viewBox: "0 0 34 14", class: "kind-ico k-" + k }, h("line", { x1: 3, y1: 7, x2: 31, y2: 7 }),
+        k === "arrow" || k === "both" ? h("polygon", { points: "31,7 24,3 24,11" }) : null, k === "both" ? h("polygon", { points: "3,7 10,3 10,11" }) : null))));
+    const flip = h("button", { type: "button", text: "向きを逆に", title: "矢印の向きを入れ替える", onclick: () => { TB.snap(); [l.a, l.b] = [l.b, l.a]; TB.save(); TB.renderBoard(); TB.markSel(); } });
+    pop.replaceChildren(input, kinds, flip, h("button", { type: "button", class: "danger", text: "線を消す", title: "Delete", onclick: () => TB.removeLink(id) }));
     pop.hidden = false;
-    pop.style.left = Math.max(200, Math.min(br.width - 200, mid.x - br.left)) + "px";
+    const hw = pop.offsetWidth / 2 + 8; pop.style.left = Math.max(hw, Math.min(br.width - hw, mid.x - br.left)) + "px";
     pop.style.top = Math.max(4, Math.min(br.height - 60, mid.y - br.top)) + "px";
     if (focus) input.focus();
   };
@@ -139,8 +162,8 @@
     if (it) parts.push(meaning(n, it));
     parts.push(cardInput(n, !it || opt.focusCard));
     if (it) parts.push(relations(n));
-    parts.push(h("label", { text: "この位置での読み" }), h("textarea", { rows: 2, placeholder: `「${TB.slotName(n)}」${n.hint ? "（" + n.hint + "）" : ""}としてどう読むか`, value: n.pos || "", ...lazy((v) => (n.pos = v)) }),
-      h("label", { text: "自分の解釈・まとめ" }), h("textarea", { class: "grow", placeholder: "このカードから見えたこと", value: n.mine || "", ...lazy((v) => (n.mine = v)) }));
+    parts.push(h("label", { text: "この位置での読み" }), h("textarea", { rows: 2, placeholder: `「${TB.slotName(n)}」${n.hint ? "（" + n.hint + "）" : ""}としてどう読むか`, value: n.pos || "", ...lazy((v) => { n.pos = v; TB.renderBoard(); TB.markSel(); }) }),
+      h("label", { text: "自分の解釈・まとめ" }), h("textarea", { class: "grow", placeholder: "このカードから見えたこと", value: n.mine || "", ...lazy((v) => { n.mine = v; TB.renderBoard(); TB.markSel(); }) }));
     return parts;
   }
   function meaning(n, it) {
@@ -155,12 +178,7 @@
           it.scene.map((s) => chip(s, () => { const a = TB.newIdea(n.id); const t = $(`.node[data-id="${a.id}"] .txt`); if (t) { t.textContent = s + "："; const rg = document.createRange(); rg.selectNodeContents(t); rg.collapse(false); getSelection().removeAllRanges(); getSelection().addRange(rg); } }))),
         h("div", { class: "chips" }, askChip(it.question)));
     } else if (n.deck === "iching") {
-      const I = window.IChing, after = n.after && I.BY_ID[n.after];
-      box.append(h("div", { class: "kw on" }, h("b", { text: it.kw }), h("div", { class: "kt", text: it.text })),
-        h("div", { class: "facts", text: `上卦 ${it.upper.glyph} ${it.upper.name}（${it.upper.nature}）${it.upper.kw}　／　下卦 ${it.lower.glyph} ${it.lower.name}（${it.lower.nature}）${it.lower.kw}` }));
-      if (n.moving && n.moving.length) box.append(h("div", { class: "facts", text: "変わる爻: " + n.moving.map((i) => I.LINE_POS[i]).join("、") }));
-      if (after) box.append(h("div", { class: "facts", text: `之卦（変わった先）: 第${after.num}卦 ${after.name} — ${after.kw}` }));
-      box.append(h("div", { class: "chips" }, chip(it.upper.nature, () => TB.newIdea(n.id)), chip(it.lower.nature, () => TB.newIdea(n.id)), askChip(it.question)));
+      box.append(...TB.ichingGuide(n), h("div", { class: "chips" }, chip(it.upper.nature + "から連想する", () => TB.newIdea(n.id)), chip(it.lower.nature + "から連想する", () => TB.newIdea(n.id)), askChip(it.question)));
     } else {
       box.append(h("div", { class: "kw on" }, h("b", { text: it.setName }), h("div", { class: "kt", text: window.Prompts.SETS.find((s) => s.id === it.set).desc })),
         h("div", { class: "chips" }, askChip(it.question)));

@@ -32,33 +32,60 @@ async function app(setup) {
   const open = async (s, id) => { const e = w.document.createElement('span'); e.className = 'chip'; e.dataset.s = s; e.dataset.id = id; w.document.body.append(e); e.click(); e.remove(); await tick(300); };
   const bs = () => store.state().notes.filter(n => n.kind === 'brainstorm');
   // 盤面の枠（tb/index.html）が読み込まれるまで待つ
-  const tb = async () => { for (let i = 0; i < 200; i++) { const f = w.document.querySelector('#tbframe'), T = f && f.contentWindow && f.contentWindow.TB; if (T && T.host && T.B) return T; await tick(25); } throw new Error('盤面が開かない'); };
+  const tb = async () => { for (let i = 0; i < 200; i++) { const f = w.document.querySelector('#tbframe'), T = f && f.contentWindow && f.contentWindow.TB; if (T && T.host && T.B) { const fw = f.contentWindow; if (!fw.crypto || !fw.crypto.subtle) Object.defineProperty(fw, 'crypto', { value: require('crypto').webcrypto, configurable: true }); if (!fw.TextEncoder) fw.TextEncoder = TextEncoder; return T; } await tick(25); } throw new Error('盤面が開かない'); };
   return { w, $, $$, store, dir, ptr, key, write, menu, open, bs, tb, close: () => w.close() };
 }
 
 
-test('➕ から「ブレスト」: 盤面が画面いっぱいに開き、ひな形を選べる。中心テーマから書いて広げると、本文は木の形の文章', async () => {
+test('➕ から「ブレスト」: 白紙の盤面が開く（ひな形の画面は出さない・左の一覧はそのまま）。書いて広げると、本文は木の形の文章', async () => {
   const a = await app();
   try {
     a.$('#new').click(); await a.menu('ブレスト');
     const T = await a.tb();
     assert.ok(a.$('#bstage #tbframe'), '盤面の枠');
-    assert.ok(a.$('main > aside').hidden, '左の一覧は、自動でたたむ');
-    assert.ok(T.dialogOpen(), '作ったばかりは、ひな形を選ぶ画面');
-    const d = T.host && a.$('#tbframe').contentWindow.document;
-    const title = d.querySelector('#dlg input.big'); title.value = '来年';
-    [...d.querySelectorAll('#dlg .tpl')].find(b => b.textContent.includes('中心テーマから')).click(); await tick(100);
-    assert.ok(!T.dialogOpen());
-    const c = T.B().nodes.find(n => n.center); assert.strictEqual(c.text, '来年');
-    const x = T.newIdea(c.id); x.text = '旅行'; const y = T.newIdea(x.id); y.text = '国内'; T.editing = null; T.save(); await tick(700);
+    assert.ok(!a.$('main > aside').hidden, '左の一覧は、たたまない');
+    assert.ok(!T.dialogOpen(), 'ひな形の画面は出さない'); assert.strictEqual(T.B().nodes.length, 0, '白紙');
+    const fd = a.$('#tbframe').contentWindow.document; assert.ok(!fd.querySelector('#btn-new'), 'ひな形のボタンも無い');
+    const c = T.newIdea(null); c.text = '来年'; const x = T.newIdea(c.id); x.text = '旅行'; const y = T.newIdea(x.id); y.text = '国内'; T.editing = null; T.save(); await tick(700);
     const n = a.bs()[0]; assert.ok(n, 'ブレストのノートができた');
-    assert.strictEqual(n.data.v, 3); assert.strictEqual(n.title, '来年');
+    assert.strictEqual(n.data.v, 3);
     assert.match(n.body, /^- 来年\n {2}- 旅行\n {4}- 国内$/m, '本文は木の形の文章');
     const file = fs.readdirSync(a.dir).find(f => f.startsWith(n.stem)); const md = fs.readFileSync(path.join(a.dir, file), 'utf8');
     assert.match(md, /kind: "brainstorm"/); assert.match(md, /<!-- pkm-data \{.*"nodes":\[/);
     await a.open('d', '1');
-    assert.ok(!a.$('main > aside').hidden, 'ほかのノートへ移ると、一覧が戻る');
     assert.ok(a.$('#ed'), 'ふつうのノート');
+  } finally { a.close(); }
+});
+
+test('引く: タロットの型（ケルト十字など）を位置の名前と意味つきで一度に並べ、枠で囲む。易は本卦（今）と之卦（行き先）。発想カードの型を全部並べる。線に文字と種類', async () => {
+  const data = { v: 3, title: '問い', nodes: [{ id: 'c', t: 'idea', x: 0, y: 0, text: '問い', center: true }], links: [], frames: [], items: [] };
+  const a = await app(st => st.saveNote({ s: 'd', id: '6', created: '2026-11-12 09:00:00', title: '問い', body: '', kind: 'brainstorm', data }));
+  try {
+    await a.open('d', '6'); const T = await a.tb();
+    assert.ok(Object.keys(T.LAYOUTS).filter(k => k.startsWith('tarot:')).length >= 14, '基本の型');
+    await T.drawSpread('tarot:celtic'); await tick(600);
+    const cards = T.B().nodes.filter(n => n.deck === 'tarot');
+    assert.strictEqual(cards.length, 10); assert.ok(cards.every(n => n.item && n.label && n.hint), '位置の名前と意味');
+    assert.strictEqual(T.B().frames[0].title, 'ケルト十字（10枚）');
+    T.select('c'); await T.doDraw('iching'); await tick(300);
+    const ic = T.B().nodes.filter(n => n.deck === 'iching');
+    assert.ok(ic[0].label.startsWith('本卦'));
+    assert.match(T.ichingGuide(ic[0]).map(x => x.textContent).join(''), /今の状況.*変わるところ/);
+    T.select('c'); T.drawPromptSet('w5h1'); await tick(300);
+    assert.strictEqual(T.B().nodes.filter(n => n.deck === 'prompt').length, 6, '5W1H を全部');
+    assert.ok(!T.store.settings.promptSets.includes('word'), '発想カードの既定は実用の種類だけ');
+    const l = T.B().links.find(x => x.a === 'c'); T.openLinkPop(l.id, true);
+    const fd = a.$('#tbframe').contentWindow.document;
+    const inp = fd.querySelector('#pop input'); inp.value = 'きっかけ'; inp.dispatchEvent(new (a.$('#tbframe').contentWindow.Event)('input'));
+    fd.querySelector('#pop .kind-btn[title^="矢印"]').click(); await tick(600);
+    const saved = a.bs()[0].data.links.find(x => x.id === l.id);
+    assert.deepStrictEqual([saved.label, saved.kind], ['きっかけ', 'arrow']);
+    assert.ok(fd.querySelector(`.link[data-link="${l.id}"] .link-head`), '矢印の先');
+    const k = cards[0]; T.select(k.id); const ta = [...fd.querySelectorAll('#drawer textarea')][0]; ta.value = '今は待つ'; ta.dispatchEvent(new (a.$('#tbframe').contentWindow.Event)('input')); await tick(600);
+    assert.strictEqual(fd.querySelector(`.node[data-id="${k.id}"] .reading`).textContent, '今は待つ', '書いた読みが盤面に出る');
+    assert.match(a.bs()[0].body, /今は待つ/);
+    const md = fs.readFileSync(path.join(a.dir, fs.readdirSync(a.dir).find(f => f.startsWith(a.bs()[0].stem))), 'utf8');
+    assert.ok(!/\.jpg/.test(md), 'vault に画像のファイル名を書かない');
   } finally { a.close(); }
 });
 
@@ -126,7 +153,7 @@ test('前の形（v2）を読み替える: カードはカードに、(n) への
     assert.match(T.tipBody(card.id).map(x => x && x.textContent).join(' '), /塔/, 'カードの上に、カードの意味');
     await a.open('d', '1');
     a.$('#nav-back').click(); await tick(300);
-    await a.tb(); assert.ok(a.$('main > aside').hidden, '戻るとブレスト');
+    await a.tb(); assert.ok(a.$('#tbframe'), '戻るとブレスト');
   } finally { a.close(); }
 });
 

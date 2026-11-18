@@ -27,7 +27,11 @@
     const b = TB.B(), D = TB.DECKS[deck];
     let pos;
     if (parent) pos = TB.placeNear(parent.id, { w: Math.max(D.w, 150), h: D.h + 56 }, 28);
-    else { const r = $("#board").getBoundingClientRect(), c = TB.toWorld(r.left + r.width / 2, r.top + r.height / 2); pos = { x: Math.round(c.x), y: Math.round(c.y) }; }
+    else {   // 選んでいるものが無い: 見ている真ん中。重なるなら右へずらす
+      const r = $("#board").getBoundingClientRect(), c = TB.toWorld(r.left + r.width / 2, r.top + r.height / 2); pos = { x: Math.round(c.x), y: Math.round(c.y) };
+      const boxes = b.nodes.map(TB.boxOf), me = () => ({ x: pos.x, y: pos.y + 28, w: Math.max(D.w, 150), h: D.h + 56 });
+      for (let i = 0; i < 40 && boxes.some((q) => TB.overlaps(q, me(), 14)); i++) pos.x += Math.max(D.w, 150) + 30;
+    }
     const n = TB.cardNode(deck, { x: pos.x, y: pos.y, hint: deck === "prompt" ? "発想のきっかけ" : "引いたカード" });
     b.nodes.push(n);
     if (parent) b.links.push({ id: TB.uid(), a: parent.id, b: n.id, kind: "line", label: "" });
@@ -35,7 +39,9 @@
   }
 
   // deckId を省くと: 空いた枠があればそれを埋める。なければ盤面のデッキ（なければ発想カード）を1枚
-  TB.doDraw = async (deckId) => {
+  TB.doDraw = async (deckId, o) => {
+    o = o || {};
+    if (!deckId && !TB.B().nodes.some((n) => n.t === "card" && !n.item)) return TB.drawLast();
     const b = TB.B(), st = TB.store.settings;
     const empties = b.nodes.filter((n) => n.t === "card" && !n.item && (!deckId || n.deck === deckId));
     if (!deckId) deckId = empties.length ? empties[0].deck : b.layout ? TB.LAYOUTS[b.layout].deck : "prompt";
@@ -50,10 +56,10 @@
       const c = window.IChing.cast(rnd);
       TB.snap();
       let base = targets.find((n) => n.slot === "base") || targets[0], after = targets.find((n) => n.slot === "after");
-      if (!base) base = placeCard("iching", par);
+      if (!base) { base = placeCard("iching", par); base.label = "本卦（今）"; base.hint = "コインで立てた卦。今の状況・出発点"; }
       base.item = c.base.id; base.moving = c.moving; base.after = c.after ? c.after.id : null; placed.push(base);
       if (c.after) {
-        if (!after) { after = placeCard("iching", base); const l = b.links.find((x) => x.b === after.id); if (l) { l.kind = "flow"; l.label = "変わる"; } }
+        if (!after) { after = placeCard("iching", base); after.label = "之卦（行き先）"; after.hint = "変わる爻が動いた先。これから向かう方向"; const l = b.links.find((x) => x.b === after.id); if (l) { l.kind = "arrow"; l.label = "変わる爻 " + c.moving.length + "本"; } }
         after.item = c.after.id; after.moving = null; placed.push(after);
       } else if (after) after.hint = "変わる爻がないので之卦はなし（本卦だけを読む）";
       b.draws.push({ at: Date.now(), deck: "iching", method: st.method, seed, n: 1 });
@@ -62,7 +68,7 @@
       const D = TB.DECKS[deckId];
       let pool = D.all();
       if (deckId === "tarot") pool = pool.filter((c) => st.pool === "all" || (st.pool === "major" ? c.major : !c.major));
-      if (deckId === "prompt") pool = pool.filter((c) => st.promptSets.includes(c.set));
+      if (deckId === "prompt") pool = pool.filter((c) => (o.sets || st.promptSets).includes(c.set));
       const used = new Set(b.nodes.filter((n) => n.deck === deckId && n.item).map((n) => n.item));
       const ids = pool.map((c) => c.id).filter((id) => !used.has(id));
       const count = targets.length || 1;
@@ -79,7 +85,58 @@
     TB.save(); TB.renderBoard(); if (TB.view.auto) TB.fit();
     setTimeout(() => TB.dealing.clear(), 200);
     if (placed.length === 1) { TB.select(placed[0].id); TB.reveal(placed[0]); } else TB.renderDrawer({ quiet: true });
+    if (!targets.length) remember(o.last || deckId);
   };
+
+  // ---- 型で一度に並べる: タロットのスプレッド（位置の名前と意味つき）。今ある中身の右に置き、枠で囲む ----
+  TB.drawSpread = async (lid) => {
+    const L = TB.LAYOUTS[lid], b = TB.B(), st = TB.store.settings, D = TB.DECKS[L.deck];
+    const hasAny = b.nodes.length || b.items.length || b.frames.length, bb = hasAny ? TB.bounds() : null;
+    const xs = L.pos.map((p) => p.x), ys = L.pos.map((p) => p.y), x0 = Math.min(...xs), y0 = Math.min(...ys), y1 = Math.max(...ys);
+    const ox = bb ? bb.x1 + 140 + D.w / 2 - x0 : -x0, oy = bb ? Math.round((bb.y0 + bb.y1) / 2 - (y0 + y1) / 2) : -Math.round((y0 + y1) / 2);
+    let samples = null;
+    if (st.method === "mouse") { samples = await mixByMouse(); if (!samples) return; }
+    const pool = D.all().filter((c) => st.pool === "all" || (st.pool === "major" ? c.major : !c.major)).map((c) => c.id);
+    const res = await window.Rng.draw({ ids: pool, count: L.pos.length, method: st.method, text: st.seedText.trim() || defaultSeed(), samples, shuffle: st.shuffle, riffles: st.riffles, revOn: st.revOn, revProb: st.revProb });
+    TB.snap();
+    const placed = L.pos.map((p, i) => { const n = TB.cardNode(L.deck, { x: Math.round(p.x + ox), y: Math.round(p.y + oy), label: p.name, hint: p.hint, item: res.picks[i].id, rev: res.picks[i].rev }); b.nodes.push(n); return n; });
+    const fx0 = Math.min(...placed.map((n) => n.x)) - 110, fy0 = Math.min(...placed.map((n) => n.y)) - D.h / 2 - 50, fx1 = Math.max(...placed.map((n) => n.x)) + 110, fy1 = Math.max(...placed.map((n) => n.y)) + D.h / 2 + 90;
+    b.frames.push({ id: TB.uid(), x: fx0, y: fy0, w: fx1 - fx0, h: fy1 - fy0, title: L.name, color: TB.FRAME_COLORS[0] });
+    b.draws.push({ at: Date.now(), deck: "tarot", method: st.method, seed: res.seed, shuffle: st.shuffle, riffles: st.riffles, revOn: st.revOn, revProb: st.revProb, pool: st.pool, n: L.pos.length, spread: lid });
+    deal(placed); remember("spread:" + lid);
+  };
+  // 発想カードの型を一度に並べる（5W1H・SCAMPER など）: 選んでいるもの（なければテーマ）のまわりに、全部つないで置く
+  TB.drawPromptSet = (setId) => {
+    const set = window.Prompts.SETS.find((x) => x.id === setId), b = TB.B(), par = anchor();
+    TB.snap();
+    const D = TB.DECKS.prompt, hasAny = b.nodes.length || b.items.length || b.frames.length, bb = hasAny ? TB.bounds() : null;
+    const placed = window.Prompts.ITEMS.filter((it) => it.set === setId).map((it, i) => {
+      let n;
+      if (par) n = placeCard("prompt", par);
+      else { n = TB.cardNode("prompt", { x: Math.round((bb ? bb.x1 + 140 + D.w / 2 : 0) + i * (D.w + 40)), y: Math.round(bb ? (bb.y0 + bb.y1) / 2 : 0) }); b.nodes.push(n); }   // 何も無い盤面: 横に並べる
+      n.item = it.id; n.hint = set.desc; return n;
+    });
+    b.draws.push({ at: Date.now(), deck: "prompt", method: "set", seed: setId, n: placed.length });
+    deal(placed); remember("pset:" + setId);
+  };
+  function deal(placed) {
+    const dk = $("#board").getBoundingClientRect(), from = TB.toWorld(dk.left + dk.width / 2, dk.top - 40);
+    placed.forEach((n, i) => TB.dealing.set(n.id, { i, dx: from.x - n.x, dy: from.y - n.y }));
+    TB.save(); TB.sel = []; TB.renderAll(); TB.fit();
+    setTimeout(() => TB.dealing.clear(), 200 + placed.length * 140);
+  }
+  // 最後に使った引き方を覚えて、「引く」（Ctrl+D）で同じものを
+  const LAST = { tarot: "タロットを1枚", iching: "易（本卦と之卦）", prompt: "発想カードを1枚", random: "完全にランダムな発想カード" };
+  const lastName = (k) => LAST[k] || (k.startsWith("spread:") ? TB.LAYOUTS["tarot:" + k.slice(7)]?.name : k.startsWith("pset:") ? window.Prompts.SETS.find((x) => x.id === k.slice(5))?.name + "（全部並べる）" : "") || LAST.tarot;
+  function remember(k) { TB.store.settings.lastDraw = k; TB.persist(); const bt = $("#btn-draw"); if (bt) bt.title = `引く（Ctrl+D）: ${lastName(k)}。▾ で種類を選ぶ`; }
+  TB.drawLast = () => {
+    const k = TB.store.settings.lastDraw || "tarot";
+    if (k.startsWith("spread:")) return TB.drawSpread("tarot:" + k.slice(7));
+    if (k.startsWith("pset:")) return TB.drawPromptSet(k.slice(5));
+    if (k === "random") return TB.doDraw("prompt", { sets: window.Prompts.SETS.map((x) => x.id), last: k });
+    return TB.doDraw(k);
+  };
+  TB.rememberDraw = remember; TB.lastDrawName = () => lastName(TB.store.settings.lastDraw || "tarot");
 
   function mixByMouse() {
     return new Promise((ok) => {
@@ -111,12 +168,21 @@
     const go = (d) => () => { TB.closeFloats(); TB.doDraw(d); };
     const sel = (k, opts, re) => h("select", { onchange: (e) => set(k, e.target.value, re) }, opts.map(([v, t]) => h("option", { value: v, selected: st[k] === v, text: t })));
     const field = (label, ...kids) => h("label", { class: "dm-field" }, h("span", { text: label }), ...kids);
+    const spreads = ["one", "three", "three-sit", "three-rel", "three-mbs", "diamond", "five", "choice", "hexagram", "horseshoe", "celtic", "tree", "year", "horoscope"].filter((id) => TB.LAYOUTS["tarot:" + id]);
+    const pset = ["w5h1", "next", "roles", "scamper", "hats"];
+    const btn = (label, sub, f) => h("button", { type: "button", class: "dm-b", onclick: () => { TB.closeFloats(); f(); } }, h("b", { text: label }), sub ? h("small", { text: sub }) : null);
     pop.replaceChildren(...[
-      h("div", { class: "dm-decks" },
-        h("button", { type: "button", onclick: go("tarot") }, h("b", { text: "タロット" }), h("small", { text: "空いた枠を埋める／選んだものにつなぐ" })),
-        h("button", { type: "button", onclick: go("iching") }, h("b", { text: "易" }), h("small", { text: "コインを6回投げて卦を立てる" })),
-        h("button", { type: "button", onclick: go("prompt") }, h("b", { text: "発想カード" }), h("small", { text: "選んだものにつなぐ" }))),
+      h("div", { class: "dm-h", text: "タロット" }),
+      h("div", { class: "dm-grid" }, btn("1枚ずつ", "選んだものにつなぐ", () => TB.doDraw("tarot")),
+        ...spreads.filter((id) => id !== "one").map((id) => btn(TB.LAYOUTS["tarot:" + id].name, TB.LAYOUTS["tarot:" + id].pos.map((p) => p.name).join("・"), () => TB.drawSpread("tarot:" + id)))),
+      h("div", { class: "dm-h", text: "易" }),
+      h("div", { class: "dm-grid" }, btn("卦を立てる", "コインを6回 → 本卦（今）と之卦（行き先）", () => TB.doDraw("iching"))),
+      h("div", { class: "dm-h", text: "発想カード" }),
+      h("div", { class: "dm-grid" }, btn("1枚", "選んだ種類から（下の「発想カードの種類」）", () => TB.doDraw("prompt")),
+        btn("完全にランダム", "全部の種類から（ランダムな言葉も）", () => TB.doDraw("prompt", { sets: window.Prompts.SETS.map((x) => x.id), last: "random" })),
+        ...pset.map((id) => { const se = window.Prompts.SETS.find((x) => x.id === id); return se && btn(se.name + "を全部並べる", se.desc, () => TB.drawPromptSet(id)); }).filter(Boolean)),
       h("hr"),
+      h("div", { class: "dm-h", text: "引き方の設定" }),
       h("label", { class: "dm-check" }, h("span", { text: "逆位置を出す（タロット）" }), h("input", { type: "checkbox", checked: st.revOn, onchange: (e) => set("revOn", e.target.checked, true) })),
       st.revOn ? h("div", { class: "row" }, h("span", { class: "muted", text: "出やすさ" }), range("revProb", 1, 99, "%").children[0], h("span", { class: "muted", text: st.revProb + "%", style: "min-width:34px;text-align:right" })) : null,
       field("使うカード（タロット）", sel("pool", [["all", "78枚すべて"], ["major", "大アルカナだけ"], ["minor", "小アルカナだけ"]])),

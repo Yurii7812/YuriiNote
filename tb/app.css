@@ -265,3 +265,44 @@ input.big { font-size: 17px; padding: 9px 13px; }
 .node.idea .txt .chip.miss { opacity: .5; }
 .node.idea .txt .chip:hover { background: var(--hl); }
 .node.idea .txt .bb-anc { color: var(--acc); font-weight: 700; }
+/* カードの下に、書いた読み・解釈 */
+.plaque .reading { white-space: normal; width: 190px; margin: 4px auto 0; font-size: 12.5px; line-height: 1.45; color: var(--fg); background: #fffbe8; border-radius: 5px; padding: 3px 6px; text-align: left; }
+.plaque .reading.mine { background: var(--acc-bg); }
+/* 線の種類・矢印・線の上の文字 */
+.link-head { fill: var(--edge); }
+.link:hover .link-head { fill: #9aa0ad; } .link.on .link-head { fill: var(--acc); }
+.link.k-dashed .link-line { stroke-dasharray: 6 6; }
+.link.k-bold .link-line { stroke-width: 3.6; stroke: #8b909c; }
+.link.k-clash .link-line { stroke: #c0392b; stroke-dasharray: 3 5; stroke-width: 2; }
+.link.k-clash .link-head { fill: #c0392b; }
+.link-label { font-size: 15px; fill: var(--fg); }
+.link-lbg { stroke: var(--line); stroke-width: 1; }
+#pop { flex-wrap: wrap; max-width: 470px; }
+.pop-kinds { display: flex; gap: 2px; }
+.kind-btn { padding: 4px 4px; height: 30px; }
+.kind-btn.on { border-color: var(--acc); background: var(--acc-bg); }
+.kind-ico line { stroke: #555; stroke-width: 2; } .kind-ico polygon { fill: #555; }
+.kind-ico.k-dashed line { stroke-dasharray: 4 3; } .kind-ico.k-bold line { stroke-width: 4; } .kind-ico.k-clash line { stroke: #c0392b; stroke-dasharray: 2 3; }
+/* 引くメニュー */
+#drawopt { max-height: calc(100vh - 80px); overflow: auto; width: 520px; }
+.dm-h { font-size: 12px; font-weight: 700; color: var(--sub); margin: 4px 0 2px; }
+.dm-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 4px; }
+.dm-b { display: flex; flex-direction: column; align-items: flex-start; text-align: left; height: auto; padding: 6px 9px; gap: 1px; }
+.dm-b small { color: var(--sub); font-size: 11px; line-height: 1.35; font-weight: 400; }
+/* 易 */
+.hc-tri { font-size: 10.5px; color: var(--sub); }
+.hc-mv { font-size: 10.5px; color: var(--red); }
+.ic-guide { display: flex; flex-direction: column; gap: 6px; margin: 4px 0; }
+.ic-h { font-size: 12px; color: var(--sub); font-weight: 700; }
+.ic-step { display: flex; gap: 8px; padding: 6px 8px; border-radius: 6px; background: var(--hl); }
+.ic-step.on { background: var(--acc-bg); }
+.ic-step i { font-style: normal; font-weight: 700; color: var(--acc); min-width: 1em; }
+.ic-step b { font-size: 13.5px; } .ic-step .kt { font-size: 12.5px; color: var(--sub); line-height: 1.5; }
+.ic-q { font-size: 13px; }
+#tip .ic-step .kt { max-width: 340px; }
+#drawopt { gap: 8px; }
+.dm-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.dm-b { min-width: 0; white-space: normal; }
+.dm-b b { white-space: normal; }
+.dm-b small { white-space: normal; overflow: hidden; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
+#drawopt { width: min(560px, calc(100vw - 16px)); }

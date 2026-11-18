@@ -77,7 +77,8 @@
     if (n.deck === "tarot") return h("div", { class: "face" }, h("img", { src: window.Cards.imgUrl(it), alt: "", draggable: "false", class: n.rev ? "rev" : null }));
     if (n.deck === "iching") return h("div", { class: "face hexcard" },
       h("div", { class: "hc-num", text: "第" + it.num + "卦" }), TB.hexSvg(it.lines, n.moving),
-      h("div", { class: "hc-name", text: it.name }), h("div", { class: "hc-kw", text: it.kw.split("・")[0] }));
+      h("div", { class: "hc-name", text: it.name }), h("div", { class: "hc-tri", text: `${it.upper.glyph}${it.upper.nature} の下に ${it.lower.glyph}${it.lower.nature}` }), h("div", { class: "hc-kw", text: it.kw.split("・")[0] }),
+      n.moving && n.moving.length ? h("div", { class: "hc-mv", text: "● 変わる爻 " + n.moving.length + "本" }) : null);
     return h("div", { class: "face pcard", style: `--pc:${it.color}` }, h("div", { class: "pc-set", text: it.setName }),
       h("div", { class: "pc-name", text: it.name }), h("div", { class: "pc-q", text: it.question }));
   }
@@ -86,7 +87,9 @@
     if (n.t === "card") {
       const D = TB.deckOf(n), it = TB.item(n);
       const el = h("div", { class: `node card deck-${n.deck}${it ? "" : " empty"}${sel}`, "data-id": n.id, style: `left:${n.x - D.w / 2}px;top:${n.y - D.h / 2}px;width:${D.w}px;height:${D.h}px` },
-        cardInner(n), h("div", { class: "plaque" }, h("b", { text: TB.slotName(n) }), it ? h("span", { text: D.short(it, n.rev) }) : null));
+        cardInner(n), h("div", { class: "plaque" }, h("b", { text: TB.slotName(n) }), it ? h("span", { text: D.short(it, n.rev) }) : null,
+          n.pos && n.pos.trim() ? h("div", { class: "reading", text: n.pos.trim() }) : null,
+          n.mine && n.mine.trim() ? h("div", { class: "reading mine", text: n.mine.trim() }) : null));
       const k = dealing.get(n.id);
       if (k) { el.classList.add("deal"); el.style.setProperty("--dx", k.dx + "px"); el.style.setProperty("--dy", k.dy + "px"); el.style.setProperty("--dly", k.i * 140 + "ms"); }
       return el;
@@ -123,13 +126,20 @@
   // 線はどれも同じ細い線（向きと種類は持たない）。ひとことがあれば線の上に
   function drawLinks(svg, b) {
     for (const { l, g } of TB.routeLinks(b)) {
-      const gr = h("g", { class: "link" + (TB.selLink === l.id ? " on" : ""), "data-link": l.id },
+      const k = TB.linkKind(l);
+      const gr = h("g", { class: `link k-${k}` + (TB.selLink === l.id ? " on" : ""), "data-link": l.id },
         h("path", { class: "link-hit", d: g.d }), h("path", { class: "link-line", d: g.d }));
+      const head = (p, ang) => { const a = 11, w = 0.42; return h("polygon", { class: "link-head", points: [[p.x, p.y], [p.x - a * Math.cos(ang - w), p.y - a * Math.sin(ang - w)], [p.x - a * Math.cos(ang + w), p.y - a * Math.sin(ang + w)]].map((q) => q.map((v) => v.toFixed(1)).join(",")).join(" ") }); };
+      if (k === "arrow" || k === "both") gr.append(head(g.p1, g.ang1));
+      if (k === "both") gr.append(head(g.p0, g.ang0));
       if (g.lab) gr.append(h("rect", { class: "link-lbg", x: g.lab.x - g.lab.w / 2, y: g.lab.y - 13, width: g.lab.w, height: 26, rx: 6 }),
         h("text", { class: "link-label", x: g.lab.x, y: g.lab.y + 5, text: l.label }));
       svg.append(gr);
     }
   }
+  // 線の種類（前の形の flow は矢印に読み替える）
+  TB.LINK_KINDS = [["line", "線"], ["arrow", "矢印 →"], ["both", "両矢印 ↔"], ["dashed", "点線（弱いつながり）"], ["bold", "太線（強いつながり）"], ["clash", "対立"]];
+  TB.linkKind = (l) => (l.kind === "flow" ? "arrow" : TB.LINK_KINDS.some((x) => x[0] === l.kind) ? l.kind : "line");
   TB.markSel = () => {
     world.querySelectorAll(".sel").forEach((x) => x.classList.remove("sel"));
     for (const id of TB.sel) { const el = world.querySelector(`[data-id="${CSS.escape(id)}"],[data-frame="${CSS.escape(id)}"],[data-text="${CSS.escape(id)}"],[data-sid="${CSS.escape(id)}"]`); if (el) el.classList.add("sel"); }
@@ -164,8 +174,8 @@
 
   board.addEventListener("contextmenu", (e) => e.preventDefault());
   board.addEventListener("pointerdown", (e) => {
+    if (e.target.closest("#pop")) return;   // 線の上の文字・種類の吹き出しの中は、そのまま押せる
     TB.hideTip(); TB.closeFloats();
-    if (e.target.closest("#pop")) return;
     if (TB.editing) { const ed = world.querySelector("[contenteditable]"); if (ed && !ed.contains(e.target)) { e.preventDefault(); ed.blur(); } return; }
     const t = hit(e);
     const chipEl = e.target.closest(".chip");
@@ -184,17 +194,22 @@
       return drag(e, { move: (ev, m) => { if (!m) return; if (!op) op = beginMove(t, e); op.step(ev); }, up: () => { if (op && op.moved) op.end(); else { TB.select(t.id); editFrameTitle(t.id); } } });
     }
     if (t.type === "frameResize") return resizeFrame(e, t.id);
-    if (t.type === "link") return TB.openLinkPop(t.id);
+    if (t.type === "link") return drag(e, { up: (ev, m) => { if (!m) TB.openLinkPop(t.id, true); } });
     if (TB.sel.length || TB.selLink) TB.select([]);
     penOrText(e);
   });
 
-  // ---- 右ボタン: 短く押すとメニュー（文字・ペンの線は消す）。ドラッグすると画面を動かす ----
+  // ---- 右ボタン: 短く押すとメニュー。カード・文字・枠・ペンの線の上でドラッグすると動かす（選んでいれば、まとめて）。空きでドラッグすると画面を動かす ----
   function rightDown(e, t) {
-    let pan = null;
+    const movable = ["node", "text", "frame", "stroke"].includes(t.type);
+    let pan = null, op = null;
     drag(e, {
-      move: (ev, m) => { if (m && !pan) pan = startPanFrom(e); if (pan) pan(ev); },
-      up: (ev, m) => { board.classList.remove("grabbing"); if (pan || m) return; contextAction(t, ev); },
+      move: (ev, m) => {
+        if (!m) return;
+        if (movable) { if (!op) op = beginMove(t, e); op.step(ev); return; }
+        if (!pan) pan = startPanFrom(e); pan(ev);
+      },
+      up: (ev, m) => { board.classList.remove("grabbing"); if (op) { if (op.moved) op.end(); return; } if (pan || m) return; contextAction(t, ev); },
     });
   }
   function startPanFrom(e) { const tx = view.tx, ty = view.ty; board.classList.add("grabbing"); return (ev) => { view.tx = tx + ev.clientX - e.clientX; view.ty = ty + ev.clientY - e.clientY; view.auto = false; applyView(); }; }
@@ -275,7 +290,12 @@
   // ---- 右クリック（短く） ----
   function contextAction(t, ev) {
     const b = TB.B();
-    if (t.type === "text" || t.type === "stroke") { TB.snap(); b.items = b.items.filter((i) => i.id !== t.id); TB.save(); TB.renderBoard(); return; }
+    if (t.type === "text" || t.type === "stroke") {
+      const del = () => { TB.snap(); b.items = b.items.filter((i) => i.id !== t.id); TB.sel = TB.sel.filter((x) => x !== t.id); TB.save(); TB.renderBoard(); };
+      const items = t.type === "text" ? [["書き直す", () => editText(t.id)], ["消す", del, "danger"]] : [["消す", del, "danger"]];
+      if (TB.sel.length > 1 && TB.sel.includes(t.id)) items.push("-", [`選んだ ${TB.sel.length} 個を消す（Delete）`, () => TB.deleteSelected(), "danger"]);
+      return TB.menu(items, ev.clientX, ev.clientY);
+    }
     if (t.type === "link") return TB.linkMenu(t.id, ev.clientX, ev.clientY);
     if (t.type === "node") return TB.nodeMenu(t.id, ev.clientX, ev.clientY);
     if (t.type === "frame") return TB.frameMenu(t.id, ev.clientX, ev.clientY);

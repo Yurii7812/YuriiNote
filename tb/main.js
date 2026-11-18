@@ -31,9 +31,7 @@
   on("#btn-undo", () => TB.undo());
   on("#btn-redo", () => TB.redo());
   on("#btn-fit", () => TB.fit());
-  on("#btn-new", () => { if (isEmpty()) TB.openNew(); else TB.toast("ひな形は、盤面が空のときだけ選べます（今の盤面は消しません）"); });
   on("#btn-more", (e) => { if (TB.host && TB.host.menu) TB.host.menu(e.currentTarget.getBoundingClientRect()); });
-  const isEmpty = () => { const b = TB.B(); return !b.items.length && !b.frames.length && b.nodes.every((n) => n.center && (!n.text || n.text === "テーマ" || n.text === b.title)); };
 
   // 選んでいるものを消す（スプレッドの枠のカードは中身だけ外す。文字・ペンの線・枠も）
   TB.deleteSelected = () => {
@@ -114,7 +112,7 @@
     return b;
   };
   // ---- 本文（ノートの検索・(n)・バックリンク用）: つながりを木の形の文章に ----
-  TB.cardText = (n) => { const it = TB.item(n), name = TB.slotName(n); return it ? `${name}：${TB.deckOf(n).label(it, n.rev)}` : name + "（空）"; };
+  TB.cardText = (n) => { const it = TB.item(n), name = TB.slotName(n), rd = [n.pos, n.mine].map((x) => (x || "").replace(/\s*\n\s*/g, " ").trim()).filter(Boolean); return (it ? `${name}：${TB.deckOf(n).label(it, n.rev)}` : name + "（空）") + rd.map((x) => " — " + x).join(""); };   // 書いた読み・解釈も本文に
   TB.bodyText = () => {
     const b = TB.B(), kids = new Map(), hasIn = new Set(), seen = new Set(), out = [];
     for (const l of b.links) { if (!kids.has(l.a)) kids.set(l.a, []); kids.get(l.a).push(l.b); hasIn.add(l.b); }
@@ -143,9 +141,9 @@
     TB.clearHist(); TB.sel = []; TB.selLink = null; TB.closeFloats();
     if (TB.dialogOpen()) TB.closeDialog();
     TB.renderAll();
+    if (TB.rememberDraw) $("#btn-draw").title = `引く（Ctrl+D）: ${TB.lastDrawName()}。▾ で種類を選ぶ`;
     const v = opt.view;
     if (v && isFinite(v.s)) { Object.assign(TB.view, { s: v.s, tx: v.tx, ty: v.ty, auto: false }); TB.renderBoard(); } else TB.fit();
-    if (opt.fresh && isEmpty()) TB.openNew();
   };
   TB.board = () => { for (const n of TB.B().nodes) if (n.t === "card") n.cap = TB.cardText(n); return JSON.parse(JSON.stringify(TB.B())); };   // cap: 本文を、盤面の外（lib.js）でも同じに作るため
 
