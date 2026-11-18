@@ -24,6 +24,8 @@ import { installMermaidObserver } from './mermaid.js';
 import UrlLinks from '../url-links.js';
 import Persistence from '../persistence.js';
 import { setLang } from './i18n.js';
+import { mountMap } from './mapboard.js';
+import TopicMap from '../topic-map.js';
 let pendingLang = null;
 
 const $ = s => document.querySelector(s);
@@ -2100,6 +2102,32 @@ function openExport(t, keep) {
   renderTabs(); renderList();
 }
 
+// 索引の地図: 1 行（「キーワード ID ID …」・印つきの行）を、ノードの中身に
+function mapLineHtml(t, line) {
+  const r = L.topicLine(line), def = L.defOf(t), M = L.TMARK;
+  let mk = '', name = '', ids = (r.ids || []).map(x => chip(x.sp || def, x.raw, x.dot)).join('') + (r.tnos || []).map(x => tnoChip(x.tno)).join('');
+  if (r.mark !== undefined) { mk = M.mark; name = r.mark; }
+  else if (r.up !== undefined) { mk = M.up; name = r.up; }
+  else if (r.down !== undefined) { mk = M.down; name = r.down; }
+  else if (r.before !== undefined) { mk = M.before; name = r.before; }
+  else if (r.ref) { mk = M.ref; name = r.ref.label; ids = chip(r.ref.sp || def, r.ref.id); }
+  else if (r.rel) { mk = M.star; name = r.rel.kw; }
+  else if (r.star !== undefined) { mk = M.star; name = ''; ids = r.star ? tchip(r.star) : ''; }
+  else name = r.kw;
+  return `${mk ? `<span class="tmk">${mk}</span>` : ''}${name ? `<span class="tm-kw">${esc(name)}</span>` : ''}${ids ? `<span class="tm-ids">${ids}</span>` : ''}`;
+}
+// 地図を開く。地図がまだ無い索引（今までのリスト型）は、ここで地図に作り替えて保存する（索引の文字は変えない）
+function mountTopicMap(t, focus) {
+  const el = $('#tmap'); if (!el) return;
+  const text = L.topicText(t), m = TopicMap.reconcile(t.map, text);
+  if (!t.map || !TopicMap.same(t.map, m)) { t.map = m; saveTopic(t); }
+  mountMap(el, { map: m, render: line => mapLineHtml(t, line),
+    onChange: nm => { t.map = nm; t.text = TopicMap.toText(nm); saveTopic(t); renderList(); } });
+  if (focus) {   // ノートから飛んできたら、そのノートの ID のノードを示す
+    const c = el.querySelector(`.tm-node .chip[data-s="${focus.s}"][data-id="${CSS.escape(focus.id)}"]`);
+    const n = c && c.closest('.tm-node'); if (n) { n.classList.add('tfocus'); skipRestore(); n.scrollIntoView({ block: 'center', inline: 'center' }); }
+  }
+}
 function openTopic(name, tmode = 'view', keep, focus) {   // focus: ノートから飛んできたとき、そのノート { s, id }（その行を示す）
   const t = topics.find(x => x.name === name); if (!t) return;
   if (bgOpen) { place({ k: 'topic', name, mode: tmode }, false); return; }   // ホイールクリック: 背景の新しいタブで開く。いまのタブは動かない
@@ -2116,7 +2144,8 @@ function openTopic(name, tmode = 'view', keep, focus) {   // focus: ノートか
     return x0 ? `<span class="chip ${x0.s}" data-s="${x0.s}" data-id="${esc(x0.id)}">${name}</span>` : `<span class="chip miss">${name}</span>`;
   };
   let body;
-  if (tmode === 'edit') body = `<div class="tedit-hint">✏️ キーワード ID ID … ・ 1a(p) は紙 ・ ^ ⬆️ ・ _ ⬇️ ・ |&gt; ↪️ ・ &lt;| ↩️ ・ @ ⭕ ・ + ⭐ ・ *ID 🔴（右クリックでも） ・ 紙とデジタルは混ぜません（別の側は ⭐ だけ） ・ 行の終わりの 0-1 は索引へのリンク</div>
+  if (tmode === 'view') body = '<div id="tmap"></div>';   // 地図（ブレスト型）。リスト型は「リスト」で
+  else if (tmode === 'edit') body = `<div class="tedit-hint">✏️ キーワード ID ID … ・ 1a(p) は紙 ・ ^ ⬆️ ・ _ ⬇️ ・ |&gt; ↪️ ・ &lt;| ↩️ ・ @ ⭕ ・ + ⭐ ・ *ID 🔴（右クリックでも） ・ 紙とデジタルは混ぜません（別の側は ⭐ だけ） ・ 行の終わりの 0-1 は索引へのリンク</div>
       <div class="ed" id="ed-t"></div>`;
   else if (tmode === 'conf') body = `<div class="tconf">
       <div class="tc-row"><span class="tc-l">📝 名前</span><input id="t-name" value="${esc(t.name)}"></div>
@@ -2145,7 +2174,8 @@ function openTopic(name, tmode = 'view', keep, focus) {   // focus: ノートか
     <div class="row thead">
       <span class="ti-ic">📑</span><h2 class="tname" data-act="trename" title="押して、名前を変える">${esc(topicLabel(t))}${isAuto(t.name) ? ' <small class="sub">（名前を付ける）</small>' : ''}</h2>
       <span class="grow"></span>
-      ${tmode === 'conf' ? '' : `<button class="tbtn" data-act="tconf" title="名前・親・点のキーワードを変える">⚙️ 名前・親</button>
+      ${tmode === 'conf' ? '' : `<span class="tview"><button class="tbtn${tmode === 'view' ? ' on' : ''}" data-act="tmapv" title="地図（ブレスト型）で見る・直す">地図</button><button class="tbtn${tmode === 'list' ? ' on' : ''}" data-act="tlistv" title="今までのリストで見る">リスト</button></span>
+      <button class="tbtn" data-act="tconf" title="名前・親・点のキーワードを変える">⚙️ 名前・親</button>
       <button class="tbtn ${tmode === 'edit' ? 'p' : ''}" data-act="tedit">${tmode === 'edit' ? '✅ 完了' : '✏️ 編集'}</button>`}
     </div>
     <div class="row tmeta">
@@ -2161,6 +2191,7 @@ function openTopic(name, tmode = 'view', keep, focus) {   // focus: ノートか
     v.focus();
   }
   if (tmode === 'conf') $('#t-id').focus();
+  if (tmode === 'view') mountTopicMap(t, focus);
   renderTabs(); renderList(); if (!$('#q').value) centerOn();   // 開いた索引 の行が、一覧の真ん中に（青い枠）
 }
 async function deleteTopicNamed(name) {
@@ -2268,10 +2299,10 @@ document.addEventListener('contextmenu', e => {   // 左のグローバルIndex:
 });
 document.addEventListener('contextmenu', e => {
   if (!cur || cur.k !== 'topic') return;
-  const c = e.target.closest('.ti .chip[data-id][data-s]'); if (!c) return;
+  const c = e.target.closest('.ti .chip[data-id][data-s], .tmap .chip[data-id][data-s]'); if (!c) return;
   const t = topics.find(x => x.name === cur.name); if (!t) return;
   e.preventDefault(); const s = c.dataset.s, id = c.dataset.id, on = c.classList.contains('dot');
-  popMenu(e, [[on ? '⚪ 赤点を外す' : '🔴 赤点を付ける（この行のメイン）', () => { toggleDot(t, s, id); rowDots = null; openTopic(t.name, 'view', true); }]]);
+  popMenu(e, [[on ? '⚪ 赤点を外す' : '🔴 赤点を付ける（この行のメイン）', () => { toggleDot(t, s, id); rowDots = null; openTopic(t.name, cur.mode === 'list' ? 'list' : 'view', true); }]]);
 });
 // 右パネルの右クリック: キーワード（このノートから外す）・トピック（このノートを外す／トピックを削除）
 document.addEventListener('contextmenu', e => {
@@ -2335,6 +2366,8 @@ async function topicAct(act) {
   const t = topics.find(x => x.name === cur.name); if (!t) return;
   if (act === 'tedit') return openTopic(t.name, cur.mode === 'edit' ? 'view' : 'edit', true);
   if (act === 'tconf') return openTopic(t.name, 'conf', true);
+  if (act === 'tmapv') return openTopic(t.name, 'view', true);
+  if (act === 'tlistv') return openTopic(t.name, 'list', true);
   if (act === 'trename') return topicRenameDialog(t);
   if (act === 'tcancel') return openTopic(t.name, 'view', true);
   if (act === 'tdel') return deleteTopicNamed(t.name);

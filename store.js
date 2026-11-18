@@ -333,7 +333,7 @@ function openVault(vault) {
     } else if (/^T_.+\.md$/.test(f)) {
       const text = fs.readFileSync(abs(f), 'utf8'); cache.set(f, text);
       const t = meta(text, 'pkm-topic');
-      if (t && t.name) topics.set(t.name, { name: t.name, entry: t.entry || (t.anchors || [])[0] || null, keyword: t.keyword || '', num: t.num || 0, text: t.text !== undefined ? t.text : L.legacyTopicText(t) });
+      if (t && t.name) topics.set(t.name, { name: t.name, entry: t.entry || (t.anchors || [])[0] || null, keyword: t.keyword || '', num: t.num || 0, text: t.text !== undefined ? t.text : L.legacyTopicText(t), ...(t.map ? { map: t.map } : {}) });
     }
   }
   for (const r of [...recs.values()].sort((x, y) => x.stem < y.stem ? -1 : 1)) {
@@ -986,7 +986,7 @@ function openVault(vault) {
         if (topicFile(oldName) !== topicFile(t.name)) { if (fs.existsSync(abs(topicFile(oldName)))) fs.unlinkSync(abs(topicFile(oldName))); cache.delete(topicFile(oldName)); }
       }
       const same = prev && prev.entry && t.entry && prev.entry.s === t.entry.s && prev.entry.id === t.entry.id;
-      topics.set(t.name, { name: t.name, entry: t.entry || null, keyword: t.keyword || '', num: same && prev.num ? prev.num : (t.num && !prev ? t.num : 0), text: t.text !== undefined ? t.text : L.legacyTopicText(t) });
+      topics.set(t.name, { name: t.name, entry: t.entry || null, keyword: t.keyword || '', num: same && prev.num ? prev.num : (t.num && !prev ? t.num : 0), text: t.text !== undefined ? t.text : L.legacyTopicText(t), ...(t.map ? { map: t.map } : prev && prev.map && t.map !== null ? { map: prev.map } : {}) });
       numberTopics(); t.num = topics.get(t.name).num;
       const en = t.keyword && t.entry && get(t.entry.s, t.entry.id); // 点を付けるIDは、そのキーワードの並びに入る
       if (en && !en.keywords.includes(t.keyword)) en.keywords.push(t.keyword);
