@@ -45,6 +45,10 @@ aside{width:250px;display:flex;flex-direction:column;border-right:1px solid #f0f
 #selbar #sel-end small{color:var(--sub);margin-left:4px}
 button:disabled{opacity:.4;cursor:default}
 .ck{margin-right:7px;vertical-align:middle}
+/* 複数選択中も、左パネルの中身は動かさない: チェックは行の左の余白に重ね、操作バーは下に重ねる */
+.item.note{position:relative}.item.note>.ck{position:absolute;left:1px;top:50%;transform:translateY(-50%);margin:0;width:13px;height:13px}
+aside.selmode #selbar{position:absolute;left:0;right:0;bottom:0;z-index:6;background:var(--bg);border-top:1px solid var(--line);border-bottom:0;box-shadow:0 -2px 8px rgba(0,0,0,.06)}
+aside.selmode #list{padding-bottom:48px}
 .ed .cm-content{padding:10px 8px 40px;tab-size:4}
 .md-h{font-weight:700;line-height:1.35}.md-h1{font-size:1.7em}.md-h2{font-size:1.4em}.md-h3{font-size:1.2em}.md-h4,.md-h5,.md-h6{font-size:1.05em}
 .md-dim{color:#bbb}.md-b{font-weight:700}.md-i{font-style:italic}.md-s{text-decoration:line-through;color:var(--sub)}

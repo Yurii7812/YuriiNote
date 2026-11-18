@@ -2873,6 +2873,7 @@ function renderSelbar() {
       <button id="sel-all" title="見えているノートを全部選ぶ">☑️</button><button id="sel-sim" ${picked.size ? '' : 'disabled'} title="選んだノートから類似検索">🔍</button><button id="sel-copy" ${picked.size ? '' : 'disabled'} title="選んだノートのタイトルと本文をコピー">📋</button><button id="sel-exp" ${picked.size ? '' : 'disabled'} title="選んだノートを、1つの Markdown にまとめる（保存はしない。確認してコピー）">📤</button><button id="sel-del" class="danger" ${picked.size ? '' : 'disabled'} title="選んだノートを削除">🗑️</button>`
     : '';   // 複数選択は、ノートを右クリックして始める
   bar.style.display = selMode ? 'flex' : 'none';
+  const side = document.querySelector('aside'); if (side) side.classList.toggle('selmode', selMode);
 }
 function endSelection() { selMode = false; picked.clear(); lastPick = null; renderList(); }
 async function copySelection() { return copyNotes([...picked].map(k => get(k[0], k.slice(2))).filter(Boolean)); }
