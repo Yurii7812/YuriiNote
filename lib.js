@@ -506,8 +506,23 @@ const fmDump = o => '---\n' + Object.entries(o).filter(([, v]) => v !== undefine
 // ===== ノートの種類: text（文章）/ rp（なりきりチャット）/ canvas（キャンバス）=====
 // なりきり・キャンバスはデータ（data）を持ち、本文はそこから作る（検索やMarkdownで文字が見えるように）
 const KINDS = { text: '', rp: '🎭', canvas: '🗺', 'memo-group': '💬 ノート化', brainstorm: '🧠' };
+// ブレスト v3 の本文（盤面の中でも同じものを作る。tb/main.js の TB.bodyText。カードは名前を cap に持っていれば、それを使う）
+function bsTree(b) {
+  const nodes = b.nodes || [], byId = new Map(nodes.map(n => [n.id, n])), kids = new Map(), hasIn = new Set(), seen = new Set(), out = [];
+  for (const l of b.links || []) { if (!kids.has(l.a)) kids.set(l.a, []); kids.get(l.a).push(l.b); hasIn.add(l.b); }
+  const order = (a, c) => (a.y - c.y) || (a.x - c.x);
+  const line = n => String(n.t === 'card' ? (n.cap || n.label || '') : n.text || '').replace(/\s*\n\s*/g, ' ').trim();
+  const walk = (n, d) => { if (seen.has(n.id)) return; seen.add(n.id); const t = line(n); if (t) out.push('  '.repeat(d) + '- ' + t); for (const c of (kids.get(n.id) || []).map(x => byId.get(x)).filter(Boolean).sort(order)) walk(c, t ? d + 1 : d); };
+  for (const n of nodes.filter(n => !hasIn.has(n.id)).sort((a, c) => (c.center ? 1 : 0) - (a.center ? 1 : 0) || order(a, c))) walk(n, 0);
+  for (const n of nodes.slice().sort(order)) walk(n, 0);
+  for (const f of b.frames || []) if (f.title) out.push('- [' + f.title + ']');
+  for (const it of b.items || []) if (it.type === 'text' && String(it.text || '').trim()) out.push('- ' + it.text.replace(/\s*\n\s*/g, ' ').trim());
+  if (b.summary && b.summary.trim()) out.push('', b.summary.trim());
+  return out.join('\n');
+}
 function deriveBody(kind, data) {
   data = data || {};
+  if (kind === 'brainstorm' && data && Array.isArray(data.nodes)) return bsTree(data);   // 形式 v3（tarot-brainstorm の盤面）
   if (kind === 'brainstorm') return require('./board-core').treeText(require('./board-core').fromBoard(data));   // ブレスト: ノードを木の形の文章に（検索・(n)・バックリンクが効く）
   if (kind === 'rp') {
     const cast = data.cast || [];

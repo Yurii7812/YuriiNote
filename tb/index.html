@@ -1,0 +1,62 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>ブレスト</title>
+<link rel="stylesheet" href="app.css">
+</head>
+<!-- YuriiNote のブレストのノート: tarot-brainstorm の盤面をそのまま使う（親の画面から TB.host を渡して動かす）。元: ~/tarot-brainstorm/app -->
+<body>
+<header id="bar">
+  <span id="nid" class="chip-fixed"></span>
+  <input id="title" placeholder="テーマ・問いを書く" aria-label="テーマ・問い">
+  <span id="layout-chip" class="chip-fixed"></span>
+  <span class="grow"></span>
+  <button id="btn-undo" class="icon" type="button" title="元に戻す（Ctrl+Z）" aria-label="元に戻す"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 14 4 9l5-5"/><path d="M4 9h10a6 6 0 0 1 0 12h-3"/></svg></button>
+  <button id="btn-redo" class="icon" type="button" title="やり直す（Ctrl+Y）" aria-label="やり直す"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m15 14 5-5-5-5"/><path d="M20 9H10a6 6 0 0 0 0 12h3"/></svg></button>
+  <button id="btn-fit" class="icon" type="button" title="全体を見る（Ctrl+0）" aria-label="全体を見る"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5"/></svg></button>
+  <span class="gap"></span>
+  <div class="split">
+    <button id="btn-draw" class="primary" type="button" title="引く（Ctrl+D）: 空いた枠を埋める／選んだものにつなぐ">引く</button>
+    <button id="btn-drawmenu" class="primary caret" type="button" title="デッキと引き方" aria-label="デッキと引き方"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg></button>
+  </div>
+  <button id="btn-new" type="button" title="ひな形から作り直す（中身が空のときだけ）">ひな形</button>
+  <button id="btn-more" class="icon" type="button" title="このノートのメニュー" aria-label="このノートのメニュー"><svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><circle cx="5" cy="12" r="1.6"/><circle cx="12" cy="12" r="1.6"/><circle cx="19" cy="12" r="1.6"/></svg></button>
+</header>
+<div id="main">
+  <section id="board" aria-label="盤面">
+    <div id="world"></div>
+    <div id="lasso" hidden></div>
+    <div id="hint">クリック＝書く　ドラッグ＝ペン　カードや文字をクリック＝つないで書く　Ctrl+クリック＝選ぶ　Ctrl+空きをドラッグ＝囲んで選ぶ　Ctrl+ドラッグ＝動かす　右ドラッグ＝画面を動かす　右クリック＝メニュー</div>
+    <div id="pop" hidden></div>
+  </section>
+  <aside id="drawer"></aside>
+</div>
+<div id="drawopt" hidden></div>
+<div id="menu" hidden></div>
+<div id="tip" hidden></div>
+<div id="toast" hidden></div>
+<div id="dlg" hidden></div>
+<div id="mix" hidden>
+  <div class="mix-box">
+    <p>この画面の上でマウスを動かして、かき混ぜてください</p>
+    <div class="mix-bar"><i></i></div>
+    <button class="cancel" type="button">やめる（Esc）</button>
+  </div>
+</div>
+<script src="core.js"></script>
+<script src="../decks/tarot-cards.js"></script>
+<script src="../decks/tarot-meanings.js"></script>
+<script src="../decks/tarot-spreads.js"></script>
+<script src="../decks/iching.js"></script>
+<script src="../decks/prompts.js"></script>
+<script src="decks/index.js"></script>
+<script src="rng.js"></script>
+<script src="board.js"></script>
+<script src="panels.js"></script>
+<script src="draw.js"></script>
+<script src="dialogs.js"></script>
+<script src="main.js"></script>
+</body>
+</html>

@@ -1,6 +1,6 @@
 {
   "name": "yuriinote",
-  "version": "1.6.0",
+  "version": "1.6.1",
   "description": "YuriiNote — 紙のPKM（ツェッテルカステン）をデジタルで",
   "main": "main.js",
   "scripts": {
@@ -55,6 +55,8 @@
       "lib.js",
       "board-core.js",
       "assets/cards/**",
+      "tb/**",
+      "decks/**",
       "update.js",
       "phone.js",
       "capture.js",

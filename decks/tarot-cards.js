@@ -2,7 +2,7 @@
 // 各スートは エース〜10、ペイジ、ナイト、クイーン、キング（コートの順は小冊子で未確認）。
 // 画像ファイル名の罠: Wands11=ペイジ, 12=ナイト, 13=クイーン, 14=キング。
 (function () {
-  const IMG_DIR = "assets/cards/"; // YuriiNote: index.html からの場所（tarot-brainstorm の画像を 360px に縮めたもの）
+  const IMG_DIR = (() => { const cs = document.currentScript; return cs && /\/decks\/tarot-cards\.js/.test(cs.src) ? new URL("../assets/cards/", cs.src).href : new URL("assets/cards/", location.href).href; })(); // YuriiNote: アプリの assets/cards（360px に縮めたもの）。本体（index.html）からも、盤面（tb/index.html）からも同じ場所
   const MAJORS = [
     ["愚者", "The Fool", "00_Fool"], ["魔術師", "The Magician", "01_Magician"],
     ["女教皇", "The High Priestess", "02_High_Priestess"], ["女帝", "The Empress", "03_Empress"],

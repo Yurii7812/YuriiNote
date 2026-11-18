@@ -25,9 +25,7 @@ import UrlLinks from '../url-links.js';
 import Persistence from '../persistence.js';
 import { setLang } from './i18n.js';
 import { mountMap } from './mapboard.js';
-import { mountBoard } from './board-engine.js';
 import BC from '../board-core.js';
-import * as Decks from './decks.js';
 import TopicMap from '../topic-map.js';
 let pendingLang = null;
 
@@ -1141,7 +1139,7 @@ function leavePage() {
   if (!shownKey) return;
   const p = $('#pane'), st = { top: p ? p.scrollTop : 0 };
   if (/^(note|diary):/.test(shownKey) && lastView && lastView.dom.isConnected) st.pos = lastView.state.selection.main.head;
-  if (curBoard && curBoard.el.isConnected && curBoard.api.view) st.bv = curBoard.api.view;   // 盤面（ブレスト・地図）は、拡大率と位置
+  if (curBoard && curBoard.el.isConnected && curBoard.api.view) st[curBoard.vkey || 'bv'] = curBoard.api.view;   // 盤面（ブレスト・地図）は、拡大率と位置
   const m = views(); m.delete(shownKey); m.set(shownKey, st); saveViews();
 }
 const viewOf = t => views().get(pageKey(t));
@@ -1412,89 +1410,68 @@ const nodeHtml = (text, s = 'd') => {   // ノードの文字: ID はチップ�
   return (out + esc(text.slice(last))).replace(/\n/g, '<br>');
 };
 const anchorsIn = texts => L.tokens(texts.join('\n')).filter(t => t.k === 'self' && t.bare).map(t => +t.n);
+// ブレストの盤面は tarot-brainstorm の盤面そのもの（tb/index.html を枠の中に開き、TB.mount で中身を渡す）
+let tbFrame = null;
+function tbWin(cb) {   // 盤面の枠を（一度だけ）読み込んで、使えるようになったら cb(win)
+  if (tbFrame && tbFrame.contentWindow && tbFrame.contentWindow.TB && tbFrame.contentWindow.TB.mount) return cb(tbFrame.contentWindow);
+  if (!tbFrame) {
+    tbFrame = document.createElement('iframe'); tbFrame.id = 'tbframe'; tbFrame.src = 'tb/index.html'; tbFrame.title = 'ブレストの盤面';
+    tbFrame.addEventListener('load', () => {
+      const d = tbFrame.contentDocument;
+      d.addEventListener('pointerdown', () => document.querySelectorAll('.popmenu,.bb-peek').forEach(m => m.remove()), true);   // 盤面を押したら、こちらのメニューを閉じる
+      d.addEventListener('mouseup', e => { if (e.button === 3) go(-1); if (e.button === 4) go(1); });
+    });
+  }
+  const wait = () => { const w = tbFrame.contentWindow; if (w && w.TB && w.TB.mount) cb(w); else setTimeout(wait, 20); };
+  wait();
+}
 function openBrainstorm(note, n, keep) {
   const { s, id } = note, noid = !!note.noid;
   if (!inPreview) decided = { k: 'note', s, id };
   if (!$('#q').value) tab = noid ? 'u' : s;
   boardFull = true; boardList = false; applyList();
-  $('#pane').innerHTML = `<div class="bstage">
-    <div class="idline bline">
-      ${noid ? '<span class="idin" id="f-id">IDなし</span>' : `<button class="idin" id="f-id" data-act="copyid" title="IDをコピー" aria-label="ID ${esc(id)} をコピー">${esc(id)}</button>`}
-      ${s === 'd' && noid ? '<button class="gid" data-act="giveid" title="IDをつける" aria-label="IDをつける">🆔</button>' : ''}
-      <span class="dt">🧠 ブレスト</span>
-      <input class="btitle" id="f-title" placeholder="題" spellcheck="false" value="${esc(note.title || '')}">
-      <span class="grow"></span>
-      <button class="tbtn bdraw" data-act="bdraw" title="タロット・易・発想カードを引いて、盤面に置く（盤面の空きを右クリックしても）">🂠 引く</button>
-      <button class="ic nm" data-act="bfit" title="全体を見る (Ctrl+0)"><svg class="ico" viewBox="0 0 24 24"><path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5"/></svg></button>
-      <button class="ic nm" data-act="nmenu" title="このノートのメニュー"><svg class="ico" viewBox="0 0 24 24"><circle cx="5" cy="12" r="1.3"/><circle cx="12" cy="12" r="1.3"/><circle cx="19" cy="12" r="1.3"/></svg></button>
-    </div>
-    <div id="bboard"></div></div>`;
-  const tf = $('#f-title');
-  tf.oninput = () => { note.title = tf.value; if (note.data) note.data.title = note.title; saveNote(note); renderList(); renderTabs(); };
-  tf.onkeydown = e => { if (e.key === 'Enter' && !e.isComposing) { e.preventDefault(); $('#bboard').focus(); } };
-  const data = note.data || {};
-  const save = m => { note.data = { ...BC.toBoard(m), title: note.title || '' }; delete note.data.h; note.body = L.deriveBody('brainstorm', note.data); saveNote(note); renderList(); renderTabs(); };
-  const vs = viewOf(cur), el = $('#bboard');
-  const b = mountBoard(el, {
-    model: BC.fromBoard(data), view: vs && vs.bv, placeholder: '書く（Enter＝下に次・Tab＝右に広げる）',
-    hint: 'クリック＝書く　ドラッグ＝ペン　ノードからドラッグ＝つなぐ　Ctrl+ドラッグ／右ドラッグ＝動かす　右クリック＝メニュー　Ctrl+ホイール＝拡大',
-    render: (t, a) => (a.k && Decks.cardHtml(a.k, nodeHtml(t, s))) || nodeHtml(t, s),
-    spaceMenu: at => [['🂠 引く（タロット・易・発想カード）…', () => setTimeout(() => drawMenu(lastPt, b, at), 0)]],
-    onChange: save,
-    search: ins => InsertSearch.open({ space: s, curKey: s + ':' + id, insert: ins }),
-    anchor: cur => `(${Math.max(0, ...anchorsIn([...b.model.n.map(a => a.text), cur])) + 1})`,
-    nodeMenu: a => [['📝 ノートにする', () => nodeToNote(note, a, b)], ['🂠 ここから引く…', () => setTimeout(() => drawMenu(lastPt, b, null, a), 0)]],
-    peek: (a, nel) => a.k && Decks.cardInfo(a.k) ? peekCard(Decks.cardInfo(a.k), nel) : peekNode(a, nel, s),
-  });
-  curBoard = { el, api: b };
-  if (n) { const hit = b.model.n.find(a => anchorsIn([a.text]).includes(+n)); if (hit) { skipRestore(); setTimeout(() => b.focusNode(hit.id), 0); } }
-  renderTabs(); renderList(); if (!$('#q').value) centerOn();
-  if (!b.model.n.length && !b.model.s.length && focusNewBody) setTimeout(() => { if (el.isConnected) b.edit(0, { x: 40, y: 40 }); }, 30);   // 作ったばかり: すぐ書ける
-  else el.focus({ preventScroll: true });
-  focusNewBody = false;
-}
-// 引く: タロット（1 枚・3 枚・スプレッドをまとめて）・易・発想カード。at（盤面の位置）か、ノード from の右に置く
-let lastPt = { clientX: 200, clientY: 200 };
-document.addEventListener('pointerdown', e => { lastPt = { clientX: e.clientX, clientY: e.clientY }; }, true);
-function drawMenu(e, b, at, from) {
-  const put = r => {
-    if (from) { const el = b.nodeEl(from.id), w = el ? el.offsetWidth : 120; at = { x: from.x + w + 60, y: from.y }; }
-    b.add(r.nodes, r.links, at, from ? from.id : 0);
+  $('#pane').innerHTML = '<div class="bstage" id="bstage"></div>';
+  tbWin(() => {}); $('#bstage').append(tbFrame);
+  const vs = viewOf(cur), fresh = focusNewBody; focusNewBody = false;
+  const host = {
+    id: noid ? 'IDなし' : (s === 'p' ? '紙 ' : '') + id,
+    change() {
+      const w = tbFrame.contentWindow; if (!w || w.TB.host !== host) return;
+      note.data = { ...w.TB.board(), v: 3 }; note.title = note.data.title || ''; note.body = w.TB.bodyText();
+      saveNote(note); renderList(); renderTabs();
+    },
+    title() { },
+    menu(r) { const f = tbFrame.getBoundingClientRect(); noteMenu({ getBoundingClientRect: () => ({ right: f.left + r.right, bottom: f.top + r.bottom, left: f.left + r.left, top: f.top + r.top }) }, note); },
+    key(e) { document.body.dispatchEvent(new KeyboardEvent('keydown', { key: e.key, code: e.code, ctrlKey: e.ctrlKey, shiftKey: e.shiftKey, altKey: e.altKey, metaKey: e.metaKey, bubbles: true, cancelable: true })); },
+    chip(el) { const f = tbFrame.getBoundingClientRect(), r = el.getBoundingClientRect(); enterFrom({ getBoundingClientRect: () => ({ left: f.left + r.left, top: f.top + r.top, width: r.width, height: r.height }) }); onOpenClick({ target: el, stopPropagation() { } }); },
+    renderText: t => nodeHtml(t, s),
+    nodeMenu: a => a.t === 'idea' ? [['📝 ノートにする', () => nodeToNote(note, a)]] : [],
+    search: ins => InsertSearch.open({ space: s, curKey: s + ':' + id, insert: t => ins(t) }),
+    anchor: t => { const w = tbFrame.contentWindow; return `(${Math.max(0, ...anchorsIn([...w.TB.B().nodes.map(a => a.text || ''), t])) + 1})`; },
+    peek(t, r) { const k = L.tokens(t).find(x => x.k === 'ref'), nn = k && get(k.sp || s, k.id); if (!nn) return false; const f = tbFrame.getBoundingClientRect(); peekNote(nn, { getBoundingClientRect: () => ({ left: f.left + r.left, bottom: f.top + r.bottom, top: f.top + r.top, width: r.width, height: r.height }) }, k.n); return true; },
   };
-  popMenu(e, [
-    ['🂠 タロットを 1 枚', () => put(Decks.drawTarot({ n: 1 }))],
-    ['🂠 タロットを 3 枚', () => put(Decks.drawTarot({ n: 3 }))],
-    ...Decks.SPREADS.filter(x => x.pos.length > 1).map(x => [`🂠 ${x.name}`, () => put(Decks.drawTarot({ spread: x.id }))]),
-    ['☯ 易（本卦と之卦）', () => put(Decks.castIChing())],
-    ['💡 発想カードを 1 枚', () => put(Decks.drawPrompts({ n: 1 }))],
-    ['💡 発想カードを 3 枚', () => put(Decks.drawPrompts({ n: 3 }))],
-  ]);
-}
-function peekCard(info, nel) {
-  document.querySelector('.bb-peek')?.remove(); if (!nel) return;
-  const r = nel.getBoundingClientRect(), p = document.createElement('div');
-  p.className = 'bb-peek'; p.tabIndex = -1;
-  p.innerHTML = `<div class="pk-h"><b></b><small></small></div><pre></pre><div class="pk-f">Esc 閉じる</div>`;
-  p.querySelector('b').textContent = info.title; p.querySelector('small').textContent = info.sub; p.querySelector('pre').textContent = info.text;
-  p.style.left = Math.max(8, Math.min(innerWidth - 380, r.left)) + 'px'; p.style.top = Math.min(innerHeight - 260, r.bottom + 6) + 'px';
-  document.body.append(p); p.focus();
-  p.onkeydown = e => { e.stopPropagation(); if (e.key === 'Escape' || e.key === ' ' || e.key === 'Enter') { e.preventDefault(); p.remove(); curBoard && curBoard.el.isConnected && curBoard.el.focus({ preventScroll: true }); } };
-  p.onblur = () => setTimeout(() => p.isConnected && p.remove(), 0);
+  tbWin(w => {
+    if (!tbFrame.isConnected || !$('#bstage')) return;
+    w.TB.mount({ ...(note.data || {}), title: (note.data && note.data.title) || note.title || '' }, host, { view: vs && vs.tbv, fresh });
+    curBoard = { el: tbFrame, vkey: 'tbv', api: { get view() { const v = w.TB.view; return { s: v.s, tx: v.tx, ty: v.ty }; }, fit: () => w.TB.fit() } };
+    if (n) { const hit = w.TB.B().nodes.find(a => a.t === 'idea' && anchorsIn([a.text || '']).includes(+n)); if (hit) { skipRestore(); w.TB.select(hit.id); w.TB.reveal(hit); } }
+    const take = () => { if (tbFrame.isConnected && !$('#q').matches(':focus')) { tbFrame.focus(); w.focus(); } };
+    take(); setTimeout(take, 80);   // 開いた直後から、盤面でキーが効くように（一覧のクリックのあとでも）
+  });
+  renderTabs(); renderList(); if (!$('#q').value) centerOn();
 }
 // このノードをノートにする: ノードの文字が題の新しいノート（このブレストの分岐の ID）。ノードには ->ID を付ける
-async function nodeToNote(note, a, b) {
+async function nodeToNote(note, a) {
   if (note.noid) return toast('IDなしのブレストです。先にIDを付けると、ノードをノートにできます');
   const own = L.tokens(a.text).find(t => t.k === 'ref'); if (own && get(own.sp || note.s, own.id)) return openNote(own.sp || note.s, own.id);
   const nid = free(note.s, L.child(note.id)), title = a.text.replace(/\s+/g, ' ').trim().slice(0, 80);
   const n = await api.saveNote({ s: note.s, id: nid, created: L.now(), keywords: [], body: '', title });
   notes.push(n); if (note.s === 'd') await refreshDiaries();
-  b.update(a.id, a.text.replace(/\s+$/, '') + ' ->' + nid);
+  const w = tbFrame && tbFrame.contentWindow, nd = w && w.TB.node(a.id);
+  if (nd) { w.TB.snap(); nd.text = nd.text.replace(/\s+$/, '') + ' ->' + nid; w.TB.save(); w.TB.renderAll(); }
   toast(`ノート ${nid} を作りました`);
 }
 // ノードに合わせて Space: リンク先のノートを、移動せずにのぞく。Enter で開く・Esc で閉じる
-function peekNode(a, nel, s) {
-  const t = L.tokens(a.text).find(x => x.k === 'ref'), n = t && get(t.sp || s, t.id); if (n) peekNote(n, nel, t.n);
-}
 function peekNote(n, nel, an) {
   document.querySelector('.bb-peek')?.remove(); if (!n || !nel) return;
   const r = nel.getBoundingClientRect(), p = document.createElement('div');
@@ -1509,14 +1486,14 @@ function peekNote(n, nel, an) {
 }
 async function createBrainstorm(rel) {   // rel: { note, act: 'sib'|'chi' }（並列・分岐の ID で作る）。無ければ IDなし
   let n;
-  if (rel && !rel.note.noid) { const id = free(rel.note.s, rel.act === 'sib' ? L.sibling(rel.note.id) : L.child(rel.note.id)); n = await api.saveNote({ s: rel.note.s, id, created: L.now(), keywords: [], body: '', kind: 'brainstorm', data: { v: 2, t: [], l: [], s: [] } }); }
-  else n = await api.createNote({ kind: 'brainstorm', data: { v: 2, t: [], l: [], s: [] }, created: L.now(), parentStem: rel ? (rel.act === 'chi' ? rel.note.stem : rel.note.parentStem || '') : '' });
+  if (rel && !rel.note.noid) { const id = free(rel.note.s, rel.act === 'sib' ? L.sibling(rel.note.id) : L.child(rel.note.id)); n = await api.saveNote({ s: rel.note.s, id, created: L.now(), keywords: [], body: '', kind: 'brainstorm', data: { v: 3, nodes: [], links: [], frames: [], items: [] } }); }
+  else n = await api.createNote({ kind: 'brainstorm', data: { v: 3, nodes: [], links: [], frames: [], items: [] }, created: L.now(), parentStem: rel ? (rel.act === 'chi' ? rel.note.stem : rel.note.parentStem || '') : '' });
   notes.push(n); await refreshDiaries(); focusNewBody = true; openNote(n.s, n.id);
 }
 // 空のノートをブレストにする（Ctrl+N・Ctrl+H・Ctrl+B などで作ったあとから）
 function toBrainstorm(note) {
   if ((note.kind || 'text') !== 'text' || (note.body || '').trim()) return;
-  note.kind = 'brainstorm'; note.data = { v: 2, t: [], l: [], s: [], title: note.title || '' }; note.body = '';
+  note.kind = 'brainstorm'; note.data = { v: 3, nodes: [], links: [], frames: [], items: [], title: note.title || '' }; note.body = '';
   saveNote(note); focusNewBody = true; openNote(note.s, note.id, null, true);
 }
 // ノートにIDを付ける・変える（ファイル名が変わり、日記のリンクなども直る）
@@ -1848,7 +1825,6 @@ const paneClick = async e => {
   if (act === 'chi') create(s, free(s, L.child(id)));
   if (act === 'giveid') return giveIdDialog(note);
   if (act === 'bfit') return curBoard && curBoard.api.fit();
-  if (act === 'bdraw') { const r = a.getBoundingClientRect(); return curBoard && drawMenu({ clientX: r.left, clientY: r.bottom + 4 }, curBoard.api, null); }
   if (act === 'tobs') return toBrainstorm(note);
   if (act === 'copyid') return copyNoteId(note);
   if (act === 'mgn') return toggleMgn();
@@ -3127,7 +3103,8 @@ function settingsDialog() {
 // ⌨️ キー一覧（Ctrl に統一。割り当てを足したら、ここにも書く）
 const KEYS = [
   ['書く', [['Ctrl+D', '今日の日記を開く（本文の最後にカーソル）'], ['Ctrl+K', '書き終わりへ（日記・時系列記録は自分の文章の最後、ふつうのノートは最後に 1 行あけて）'], ['Esc', '入力欄・本文から出る（ノーマルモード）'], ['Ctrl+M', '新しい (n) を、カーソルの位置に入れる'], ['Ctrl+P', '(p) を入れる'], ['Ctrl+I', ':ID を入れる'], ['Ctrl+R', '行ごとの時刻の、オン・オフ'], ['Ctrl+↑ / ↓', '行を動かす']]],
-  ['盤面（ブレスト・地図）', [['Enter', '書いて、すぐ下に次'], ['Tab', '書いて、右に広げる（線でつなぐ）'], ['Ctrl+0', '全体を見る'], ['Ctrl+ホイール', '拡大・縮小'], ['Space', 'ノードに合わせて、のぞく（Enter で開く）'], ['Ctrl+U', 'ノードの文字欄で、探して入れる']]],
+  ['ブレスト（tarot-brainstorm と同じ盤面）', [['Enter', '書いて、次（同じ元から）'], ['Tab', '書いて、そこから広げる'], ['Ctrl+クリック', '選ぶ（足す・外す）'], ['Ctrl+空きをドラッグ', '囲んで選ぶ'], ['Ctrl+A', '全部を選ぶ'], ['Delete', '選んだものを消す'], ['Ctrl+ドラッグ', '動かす（選んだものはまとめて）'], ['矢印', '近くのものへ移る'], ['Ctrl+D', '引く'], ['Ctrl+0', '全体を見る'], ['ホイール', '拡大・縮小'], ['Space', 'アイデアに合わせて、ID のノートをのぞく'], ['Ctrl+U', '書いている途中で、ノートを探して ID を入れる']]],
+  ['索引の地図', [['Enter', '書いて、すぐ下に次'], ['Tab', '書いて、右に広げる（線でつなぐ）'], ['Ctrl+0', '全体を見る'], ['Ctrl+ホイール', '拡大・縮小'], ['Space', 'ノードに合わせて、のぞく（Enter で開く）'], ['Ctrl+U', 'ノードの文字欄で、探して入れる']]],
   ['ノートを作る', [['Ctrl+N', 'IDなしの新しいノート'], ['Ctrl+H', '並列のノート'], ['Ctrl+B', '分岐（子）のノート']]],
   ['探す・移る', [['Ctrl+F', '左の検索'], ['Ctrl+E', '今のページの中の検索・置換'], ['Ctrl+U', '検索して挿入（ノート・小ノート・リンク・索引）'], ['Ctrl+O', 'ノート一覧へ（今のノートが真ん中）'], ['Ctrl+Q', '左の一覧の一番上へ'], ['Ctrl+J', '左の一覧の折りたたみを、全部たたむ・ひらく'], ['Ctrl+,  /  Ctrl+.', '戻る・進む'], ['Ctrl+\\', '右パネルの、出し入れ'], ['Ctrl+[', '左の一覧を、たたむ・出す'], ['Ctrl+]', '集中表示（左の一覧と右パネルを、一緒にたたむ・出す）']]],
   ['タブ', [['Ctrl+T', '新しいタブ'], ['Ctrl+W', '閉じる']]],

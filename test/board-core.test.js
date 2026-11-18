@@ -40,3 +40,16 @@ test('ブレストのノートの本文は、木の形の文章（検索・リ�
   assert.strictEqual(body, '- テーマ\n  - 案 ->1a(2)');
   assert.ok(L.tokens(body).some(t => t.k === 'ref' && t.id === '1a' && t.n === '2'));
 });
+
+test('ブレスト v3（tarot-brainstorm の盤面）: 本文は木の形の文章（カードは cap）。ID を変えると、アイデアの中の ID も直る', () => {
+  const fs = require('fs'), os = require('os'), path = require('path'), { openVault } = require('../store');
+  const data = { v: 3, title: 'T', nodes: [{ id: 'c', t: 'idea', x: 0, y: 0, text: 'T', center: true }, { id: 'k', t: 'card', deck: 'tarot', item: 'm16', rev: true, x: 0, y: 200, cap: '過去：塔（逆位置）' }, { id: 'a', t: 'idea', x: 200, y: 0, text: 'メモ ->1' }],
+    links: [{ id: 'l1', a: 'c', b: 'a' }, { id: 'l2', a: 'c', b: 'k' }], frames: [{ id: 'f', title: '強み' }], items: [{ id: 't', type: 'text', text: '自由な文字' }], summary: 'まとめ' };
+  assert.strictEqual(L.deriveBody('brainstorm', data), '- T\n  - メモ ->1\n  - 過去：塔（逆位置）\n- [強み]\n- 自由な文字\n\nまとめ');
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'bs3-')), st = openVault(dir);
+  st.saveNote({ s: 'd', id: '1', created: '2026-11-10 09:00:00', body: 'a' });
+  st.saveNote({ s: 'd', id: '2', created: '2026-11-10 09:00:00', kind: 'brainstorm', data, body: L.deriveBody('brainstorm', data) });
+  st.rename('d', '1', '5');
+  const n = openVault(dir).state().notes.find(x => x.id === '2');
+  assert.strictEqual(n.data.nodes[2].text, 'メモ ->5'); assert.match(n.body, /- メモ ->5/);
+});

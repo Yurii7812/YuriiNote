@@ -596,6 +596,7 @@ function openVault(vault) {
       if (t.text) t.text = L.remapTopicText(t.text, map, s, L.defOf(t));
     }
     for (const m of notes.values()) if (!m.kind || m.kind === 'text') m.body = L.remapRefs(m.body, m.s, s, map);
+    for (const m of notes.values()) if (m.kind === 'brainstorm' && m.data && Array.isArray(m.data.nodes)) { let hit = false; for (const a of m.data.nodes) if (typeof a.text === 'string') { const v = L.remapRefs(a.text, m.s, s, map); if (v !== a.text) { a.text = v; hit = true; } } if (hit) m.body = L.deriveBody(m.kind, m.data); }   // ブレスト（v3）のアイデアの文字の中の ID も
     for (const m of notes.values()) if (m.kind === 'brainstorm' && m.data && Array.isArray(m.data.t)) { let hit = false; for (const a of m.data.t) if (typeof a[2] === 'string') { const v = L.remapRefs(a[2], m.s, s, map); if (v !== a[2]) { a[2] = v; hit = true; } } if (hit) m.body = L.deriveBody(m.kind, m.data); }   // ブレストのノードの文字の中の ID も
     for (const d of diaries.values()) d.body = L.remapRefs(d.body, 'd', s, map);
     for (const m of notes.values()) if (m.kind && m.kind !== 'text' && m.data) { let hit = false; for (const c of m.data.nodes || []) if (c.type === 'note' && c.s === s && map.has(c.nid)) { c.nid = map.get(c.nid); hit = true; } if (hit) m.body = L.deriveBody(m.kind, m.data); }
@@ -629,7 +630,7 @@ function openVault(vault) {
   // その日に作ったデジタルノートへのリンクを、日記の「今日のノート」に足す（無ければ日記も作る）
   // ノートが載る日記の日: 暦の日付（0 時で変わる。Ctrl+D の「今日」と同じ。2026-11-18 利用者の指示）
   const noteDay = n => { const m = String(n.created || '').match(/^\d{4}-\d{2}-\d{2}/); return m && L.isDate(m[0]) ? m[0] : ''; };
-  const isBlank = n => (!n.kind || n.kind === 'text' || (n.kind === 'brainstorm' && !(n.data && (n.data.s || []).length))) && !(n.body || '').trim() && !(n.title || '').trim();   // ブレストも、まだ何も書いていなければ
+  const isBlank = n => (!n.kind || n.kind === 'text' || (n.kind === 'brainstorm' && !(n.data && ((n.data.s || []).length || (n.data.items || []).length || (n.data.nodes || []).some(x => x.t === 'card' || (x.text || '').trim()))))) && !(n.body || '').trim() && !(n.title || '').trim();   // ブレストも、まだ何も書いていなければ
   // 日記の「今日のノート」の1行: [題](ファイル名.md)。ID を付け替えても、ファイル名は変わらないので、リンクはそのまま
   const noteLabel = n => {
     const t = (n.title || '').trim() || ((Stamp.strip(n.body || '').split('\n').map(x => x.replace(/^#+\s*/, '').trim()).find(Boolean)) || '');
