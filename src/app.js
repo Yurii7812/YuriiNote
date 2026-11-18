@@ -1142,7 +1142,7 @@ function closeTab(i) {
   if (gone && gone.k === 'diary') releaseDay(gone.date, gone.kind || '日記');   // 閉じた日・記録が、まだ空なら、消す
 }
 const tabLabel = t => t.k === 'note' ? (n => `${n && icon(n) ? icon(n) + ' ' : ''}${n ? esc(titleOf(n).slice(0, 16)) : esc(t.id)}<small>${n && n.noid ? 'IDなし' : (t.s === 'p' ? '紙 ' : '') + esc(t.id)}</small>`)(get(t.s, t.id))
-  : t.k === 'topic' ? `📑 ${esc(t.name)}` : t.k === 'region' ? `🗂️ ${esc(t.id)} <small>${esc(t.id === ZERO ? '目次' : (regions.find(x => x.n === t.id) || {}).name || '無名')}</small>` : t.k === 'diary' ? `${kindIcon(t.kind || '日記')} ${esc(t.date.slice(5))} <small>${esc(t.kind || '日記')}</small>` : t.k === 'similar' ? '🔍 類似' : t.k === 'rec' ? '🎙️ 録音' : t.k === 'tlist' ? `📑 ${esc(t.id)}` : t.k === 'export' ? '📤 エクスポート' : '新しいタブ';
+  : t.k === 'topic' ? `📑 ${esc(t.name)}` : t.k === 'region' ? `🗂️ ${esc(t.id)} <small>${esc(t.id === ZERO ? '' : (regions.find(x => x.n === t.id) || {}).name || '無名')}</small>` : t.k === 'diary' ? `${kindIcon(t.kind || '日記')} ${esc(t.date.slice(5))} <small>${esc(t.kind || '日記')}</small>` : t.k === 'similar' ? '🔍 類似' : t.k === 'rec' ? '🎙️ 録音' : t.k === 'tlist' ? `📑 ${esc(t.id)}` : t.k === 'export' ? '📤 エクスポート' : '新しいタブ';
 // 右のパネル（キーワード・索引・つながり）を、試しに、左の一覧の右（ノートの左）に置く。panelLeft を切ると、元の右に戻る
 let panelLeft = (() => { try { return localStorage.getItem('ysimple-panel-left') === '1'; } catch { return false; } })();   // 標準は、右（元の位置）
 function syncLeftPanel() {
@@ -1450,7 +1450,7 @@ document.addEventListener('keydown', e => {
   endIdPick();
 }, true);
 // キーワードと索引（ボタンで足す）
-const refContexts = (body, id, own = 'd', target = own) => { // id（target の側）を指している所の、周辺の文章（ハイライトなし）。own は、この本文のある側。リンクだけの行は出さない
+const refContexts = (body, id, own = 'd', target = own) => { // id（target の側）を指している所の、周辺の文章。指している所（自分の ID）は <mark class="bl-id"> で囲む。own は、この本文のある側。リンクだけの行は出さない
   const out = [];
   body = Stamp.strip(body || '');   // 行ごとの日時（本文の後ろのコメント）は、周辺の文章に入れない
   for (const t of L.tokens(body)) {
@@ -1459,7 +1459,7 @@ const refContexts = (body, id, own = 'd', target = own) => { // id（target の�
     const a = Math.max(ls, t.from - 28), b = Math.min(le, t.to + 40);
     const before = body.slice(a, t.from).replace(/^[-*]\s+/, ''), after = body.slice(t.to, b);
     if (!(before + after).trim()) continue;
-    out.push(`${a > ls ? '…' : ''}${esc(before)}${esc(t.text)}${esc(after)}${b < le ? '…' : ''}`);
+    out.push(`${a > ls ? '…' : ''}${esc(before)}<mark class="bl-id">${esc(t.text)}</mark>${esc(after)}${b < le ? '…' : ''}`);
   }
   return out;
 };
@@ -1789,7 +1789,7 @@ function topicAddDialog(note) {
 // 索引を単独で作る。親は新しいノート（新しいID）か、既存のノート
 // キーワードを指定すると、そのキーワードのIDが最初から入り、Index に赤い点が付く（IDが2つ以上のときだけ）
 // 区画の行（デジタルの一覧）。番号と名前だけ。クリックで名前を付ける・変える。＋索引で、その区画の索引（1-1…）を作る
-const regionRow = r => { const g = r === ZERO ? { name: '目次' } : regions.find(x => x.n === r) || { name: '' }; return `<div class="item region${cur && cur.k === 'region' && cur.id === r ? ' on' : ''}${decided && decided.k === 'region' && decided.id === r ? ' decided' : ''}" data-region="${esc(r)}"><div class="nrow"><div class="nt"><b>${esc(r)}</b> ${g.name ? esc(g.name) : '<span class="sub">無名</span>'}</div></div></div>`; };
+const regionRow = r => { const g = r === ZERO ? { name: '' } : regions.find(x => x.n === r) || { name: '' }; return `<div class="item region${cur && cur.k === 'region' && cur.id === r ? ' on' : ''}${decided && decided.k === 'region' && decided.id === r ? ' decided' : ''}" data-region="${esc(r)}"><div class="nrow"><div class="nt"><b>${esc(r)}</b> ${g.name ? esc(g.name) : r === ZERO ? '' : '<span class="sub">無名</span>'}</div></div></div>`; };
 const uniqueTopics = list => [...new Map(list.map(t => [t.name, t])).values()];
 // 区画のページ（左の一覧の「1」を押すと開く）: 名前・グローバルIndexの名前・子ノート（直接の子だけ。タイトル付き）・トピックIndex
 // 区画の新しい子ノートの番号: 最後の子の次（1a の次は 1b）。子が無ければ a
@@ -1800,7 +1800,7 @@ function openZero(keep) {
   if (!inPreview) decided = { k: 'region', id: ZERO };
   if (!inPreview && !$('#q').value) tab = 'd';
   const list = regions.filter(g => g.n !== ZERO).slice().sort((a, b) => a.n - b.n);
-  $('#pane').innerHTML = `<div class="row thead rgh"><span class="ti-ic">🗂️</span><h2 class="tname">${ZERO} <small class="sub">目次</small></h2></div>
+  $('#pane').innerHTML = `<div class="row thead rgh"><span class="ti-ic">🗂️</span><h2 class="tname">${ZERO}</h2></div>
     <table class="ti">${list.map(g => `<tr><td class="kidt" data-zero="${esc(g.n)}"><b>${esc(g.n)}</b> ${g.name ? esc(g.name) : '<span class="sub">（名前なし）</span>'}</td><td></td></tr>`).join('') || '<tr><td class="none">まだ区画がありません</td></tr>'}</table>`;
   renderTabs(); renderList();
 }
