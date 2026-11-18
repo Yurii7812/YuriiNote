@@ -27,7 +27,7 @@ main{flex:1;display:flex;min-height:0}
 #dlist .day{align-items:baseline}#dlist .day>span{flex:none;white-space:nowrap}#dlist .day small{color:var(--sub);min-width:0;flex:1 1 auto;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}   /* 日付は折り返さず、題は、1 行で、長ければ … に */#dlist .dtop{padding:8px 10px;display:flex;gap:6px;flex-wrap:wrap;border-bottom:1px solid var(--line)}
 #dlist .dtop input{font:inherit;font-size:13px;padding:2px 6px;border:1px solid var(--line);border-radius:6px}
 .sc-diary{margin-left:6px;color:var(--sub);font-size:13px}.sc-diary input{font-size:13px}
-aside{width:250px;display:flex;flex-direction:column;border-right:1px solid #f0f0f3}
+main>aside[hidden]{display:none}aside{width:250px;display:flex;flex-direction:column;border-right:1px solid #f0f0f3}
 #leftpanel{width:260px;flex:none;border-right:1px solid #f0f0f3;overflow:auto;min-height:0}
 #leftpanel .mgn{position:static;width:auto;min-height:0;margin:0;border-left:0;padding:46px 14px 60px 16px;height:auto}
 .stage.mgnleft>.col{max-width:none;margin:0 auto}
@@ -675,7 +675,7 @@ button,select,.vseg button,.nb,.tab span,.c-speaker-label{white-space:nowrap}
 .item.topicrow.tc{margin:6px 10px;padding:9px 12px;border-radius:10px}.item.topicrow.tc.on,.item.topicrow.tc.decided{border-radius:10px}   /* カード表示のとき、索引 の行も、カードと同じ幅に */
 body{font-family:var(--uifont,system-ui),"Noto Sans JP","Noto Color Emoji","Apple Color Emoji","Segoe UI Emoji",sans-serif}button,input,select,textarea{font-family:inherit}
 html.dark{filter:invert(.92) hue-rotate(180deg);background:#fff}html.dark img,html.dark .kimg,html.dark video,html.dark .pic img{filter:invert(1) hue-rotate(180deg)}
-#rail #more{margin-top:auto;font-size:20px}#rail #more{position:relative}#rail #more.badge{opacity:1}#rail #more.badge::after{content:"";position:absolute;top:7px;right:7px;width:9px;height:9px;border-radius:50%;background:#e03131}
+#rail #fold-list{margin-top:auto}#rail #fold-list .ico{width:22px;height:22px}#rail #fold-list.on{opacity:1;color:var(--acc)}#rail #more{font-size:20px}#rail #more{position:relative}#rail #more.badge{opacity:1}#rail #more.badge::after{content:"";position:absolute;top:7px;right:7px;width:9px;height:9px;border-radius:50%;background:#e03131}
 .sdlg h3{margin:0 0 8px}.sdlg .sec{border-top:1px solid var(--line);padding:10px 0}.sdlg .sec:first-of-type{border-top:0}.sdlg .sec>b{display:block;font-size:12px;color:var(--sub);letter-spacing:.06em;margin-bottom:6px}
 .sdlg .srow{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin:4px 0}.sdlg .srow>span{min-width:110px;font-size:13px}.sdlg .sw{display:inline-block;width:24px;height:24px;border-radius:50%;cursor:pointer;border:2px solid transparent}.sdlg .sw.on{border-color:#222}
 .sdlg input[type=range]{flex:1;min-width:120px}.sdlg select,.sdlg input[type=text],.sdlg input[type=number]{font:inherit;font-size:13px;border:1px solid var(--line);border-radius:6px;padding:2px 6px}
@@ -755,6 +755,25 @@ body{-webkit-user-select:none;user-select:none}
 #idbar .idb-r.sel{background:var(--tint)}#idbar .idb-r.cur span::after{content:"  ✓";color:var(--acc)}
 #idbar .idb-none{padding:10px;color:var(--sub)}
 @container (max-width:560px){#idbar .idb-base .idb-bt{display:none}#idbar .idb-o{padding:0 10px}#idbar .idb-sep,#idbar .idb-arrow{display:none}}
+
+/* 今いる場所（戻る・進む＋来た道）。ノート・日記・索引…どの画面でも同じ所 */
+#where{display:flex;align-items:center;gap:2px;padding:4px 14px 2px;min-height:30px;flex-shrink:0;font-size:12.5px;color:var(--sub)}
+#where #nav-back,#where #nav-fwd{width:26px;height:26px;padding:0;font-size:inherit;color:#8b909c;background:none;border:0;border-radius:6px;display:inline-flex;align-items:center;justify-content:center}
+#where #nav-back .ico,#where #nav-fwd .ico{width:16px;height:16px;stroke-width:2}
+#where #nav-back:hover:not(:disabled),#where #nav-fwd:hover:not(:disabled){background:var(--hl);color:var(--fg)}
+#where #nav-back:disabled,#where #nav-fwd:disabled{opacity:.3}
+#crumbs{display:flex;align-items:center;gap:2px;min-width:0;overflow:hidden;white-space:nowrap;margin-left:6px}
+#crumbs .crumb{border:0;background:none;font:inherit;color:var(--sub);padding:2px 6px;border-radius:5px;max-width:16em;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;cursor:pointer;flex:0 1 auto;min-width:3em}
+#crumbs .crumb:hover{background:var(--hl);color:var(--acc)}
+#crumbs .crumb.now{color:var(--fg);cursor:default;flex-shrink:0;max-width:22em}
+#crumbs .sep{color:#c4c8d2;padding:0 1px}#crumbs .crumb-more{padding:0 4px;color:#c4c8d2}
+/* 日記・時系列記録も、ノートと同じ形（小さな行＋大きな題） */
+.stage.diary .dline .dt{font-size:12px;color:#8b909c}
+.stage.diary .dline .dh-kind{height:24px;font-size:12px;padding:0 9px;line-height:22px;border:1px solid var(--line);border-radius:999px;background:var(--bg);color:var(--sub);white-space:nowrap}
+.stage.diary .dline .dh-kind.static{display:inline-block;cursor:default}
+.stage.diary .dline button.ic.dj{width:28px;height:28px;font-size:14px;opacity:.75}.stage.diary .dline button.ic.dj:hover{opacity:1}
+.stage.diary .dline button.ic.dj .ico{width:16px;height:16px}
+.stage.diary .row.sub{margin:-4px 0 8px}
 </style>
 </head>
 <body>
@@ -766,6 +785,7 @@ body{-webkit-user-select:none;user-select:none}
     <button data-mode="diary" title="最後に開いた時系列記録（日記は Ctrl+D）"><i>📔</i></button>
     <button data-tab="i" title="グローバルインデックス（キーワードの一覧）"><i>🏷️</i></button>
     <button data-tab="f" title="ファイル（画像・html・csv など）"><i>📎</i></button>
+    <button id="fold-list" title="左の一覧をたたむ (Ctrl+[)" aria-label="左の一覧"><svg class="ico" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M9 4v16"/></svg></button>
     <button id="more" class="ic" title="メニュー">🧰</button>
   </nav>
   <aside>
@@ -778,13 +798,13 @@ body{-webkit-user-select:none;user-select:none}
   <div id="leftpanel" hidden></div>
   <section id="right">
     <div class="top">
-      <button id="nav-back" class="ic" title="戻る (Ctrl+,)" disabled>⬅️</button><button id="nav-fwd" class="ic" title="進む (Ctrl+.)" disabled>➡️</button>
       <div id="tabbar"></div>
       <button id="save-status" class="ic" aria-live="polite" title="保存済み" hidden>⚠️</button>
       <button id="rec-pc" class="ic" title="録音して文字にする（押すと録音、もう一度押すと止める）。Ctrl+L: 今開いているノートの末尾へ ／ Ctrl+S: ノートには何もせず一覧へ。右クリック: 録音の一覧" aria-label="録音">🎙️</button>
       <button id="stamp-toggle" class="ic" title="行ごとの時刻を表示・非表示（Ctrl+R）。右クリックで、見せ方を選ぶ" aria-label="時刻の表示" aria-pressed="true">⏱️</button><button id="new" class="ic" title="新規">➕</button>
       <button id="imp" hidden></button><button id="vault" hidden></button>
     </div>
+    <div id="where"><button id="nav-back" class="ic" title="戻る (Ctrl+,)" aria-label="戻る" disabled><svg class="ico" viewBox="0 0 24 24"><path d="M15 5l-7 7 7 7"/></svg></button><button id="nav-fwd" class="ic" title="進む (Ctrl+.)" aria-label="進む" disabled><svg class="ico" viewBox="0 0 24 24"><path d="M9 5l7 7-7 7"/></svg></button><nav id="crumbs" aria-label="今いる場所"></nav></div>
     <div id="idbar" hidden></div>
     <div id="pane"></div>
   </section>

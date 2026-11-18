@@ -599,7 +599,7 @@ function drawSortBtns() {   // 検索欄の右: 並び順（押すと 番号→�
 $('#sort-key').onclick = () => { if (mode === 'diary') return; const o = ['fz', 'created', 'updated']; sortBy = o[(o.indexOf(sortBy) + 1) % o.length]; savePrefs(); renderList(); };
 $('#sort-dir').onclick = () => { if (mode === 'diary') diarySortDir = diarySortDir === 'asc' ? 'desc' : 'asc'; else sortDir = sortDir === 'asc' ? 'desc' : 'asc'; savePrefs(); renderList(); };
 // 🔍 検索の画面を開いて、検索欄に入る
-function openSearchTab() { if (tab !== 's') $('#q').value = ''; mode = 'notes'; tab = 's'; renderList(); $('#q').focus(); $('#q').select(); }
+function openSearchTab() { if (listHidden) setListHidden(false); if (tab !== 's') $('#q').value = ''; mode = 'notes'; tab = 's'; renderList(); $('#q').focus(); $('#q').select(); }
 function renderList() {
   rowDots = null;
   drawSortBtns();
@@ -924,7 +924,9 @@ async function openMemoPad() {
 let lastNotesTab = 'd';   // ノートのタブ（デジタル・紙・未整理）の、最後に見ていたもの
 $('#rail').onclick = e => {
   const b = e.target.closest('button'); if (!b) return;
+  if (b.id === 'fold-list') return toggleList();
   if (b.id === 'settings-btn') return settingsDialog();
+  if (b.id !== 'more' && b.id !== 'memopad' && b.dataset.mode !== 'diary' && listHidden) setListHidden(false);   // たたんであるとき、一覧のアイコンを押すと開く
   if (b.id === 'memopad') return openMemoPad();
   if (b.dataset.mode === 'diary') return openLastRecord();
   if (b.dataset.tab === 's') return openSearchTab();
@@ -933,6 +935,7 @@ $('#rail').onclick = e => {
 };
 // ノートのアイコン（Ctrl+O）: 今開いているノートを、左の一覧の真ん中に出す。どの画面からでも同じ
 function openNotesList() {
+  if (listHidden) setListHidden(false);
   const n = cur && cur.k === 'note' ? get(cur.s, cur.id) : null;
   if (document.activeElement && document.activeElement !== document.body) document.activeElement.blur();   // 本文から、カーソルを外す
   mode = 'notes'; tab = n ? (n.noid ? 'u' : n.s) : (['d', 'p', 'u'].includes(tab) ? tab : lastNotesTab); $('#q').value = '';
@@ -1110,19 +1113,72 @@ function idPopup(n) {
   document.addEventListener('keydown', key, true); document.addEventListener('mousedown', out, true);
 }
 
+// 線のアイコン（絵文字ではなく、まわりの文字の色で描く）
+const svg = d => `<svg class="ico" viewBox="0 0 24 24" aria-hidden="true">${d}</svg>`;
+const ICO = { prev: svg('<path d="M15 5l-7 7 7 7"/>'), next: svg('<path d="M9 5l7 7-7 7"/>') };
+
+// ===== 画面ごとの位置（スクロール・カーソル）=====
+// ページ（ノート・日記・索引…）ごとに、最後に見ていた位置を覚える。戻る・進む・タブの切り替えだけでなく、一覧やリンクから開いたときも、そこへ戻す
+// （(n) へのリンク・検索から開いたとき、Ctrl+D・Ctrl+K で書き終わりへ行くときは、そちらが先）
+const pageKey = t => !t ? '' : t.k === 'note' ? `note:${t.s}:${t.id}` : t.k === 'diary' ? `diary:${t.kind || '日記'}:${t.date}`
+  : t.k === 'topic' ? `topic:${t.name}:${t.mode || ''}` : t.k === 'region' ? `region:${t.id}` : t.k === 'tlist' ? `tlist:${t.s}:${t.id}` : t.k === 'empty' ? '' : t.k;
+const VKEY = () => 'yn-view:' + vault;
+let vstate = null, shownKey = '', restoreFor = '';
+function views() {
+  if (!vstate) { try { vstate = new Map(JSON.parse(localStorage.getItem(VKEY()) || '[]')); } catch { vstate = new Map(); } }
+  return vstate;
+}
+let vsaveT = 0;
+function saveViews() { clearTimeout(vsaveT); vsaveT = setTimeout(() => { try { localStorage.setItem(VKEY(), JSON.stringify([...views()].slice(-400))); } catch { } }, 300); }
+// 今の画面の位置を覚える（画面を描き替える前に呼ぶ）
+function leavePage() {
+  if (!shownKey) return;
+  const p = $('#pane'), st = { top: p ? p.scrollTop : 0 };
+  if (/^(note|diary):/.test(shownKey) && lastView && lastView.dom.isConnected) st.pos = lastView.state.selection.main.head;
+  const m = views(); m.delete(shownKey); m.set(shownKey, st); saveViews();
+}
+const viewOf = t => views().get(pageKey(t));
+// これから描く画面の、覚えておいたスクロール位置を、描き終わったあとで戻す（skipRestore で取りやめ）
+function willShow(t) {
+  leavePage(); shownKey = pageKey(t); restoreFor = shownKey;
+  const k = shownKey, st = views().get(k);
+  if (!st || !st.top) return;
+  const put = () => { const p = $('#pane'); if (p && restoreFor === k && shownKey === k) p.scrollTop = st.top; };
+  requestAnimationFrame(put); setTimeout(put, 0); setTimeout(put, 120);   // 本文の高さが決まるのを待って、何度か
+}
+const skipRestore = () => { restoreFor = ''; };
+applyList();
+window.addEventListener('beforeunload', () => { leavePage(); try { localStorage.setItem(VKEY(), JSON.stringify([...views()].slice(-400))); } catch { } });
+
+// ===== 左の一覧の折りたたみ・集中表示（Ctrl+[・Ctrl+]）=====
+let listHidden = (() => { try { return localStorage.getItem('yn-list-hidden') === '1'; } catch { return false; } })();
+function applyList() { const a = document.querySelector('main > aside'); if (a) a.hidden = listHidden; const b = $('#fold-list'); if (b) { b.classList.toggle('on', listHidden); b.title = listHidden ? '左の一覧を出す (Ctrl+[)' : '左の一覧をたたむ (Ctrl+[)'; } }
+function setListHidden(v) { listHidden = !!v; try { localStorage.setItem('yn-list-hidden', listHidden ? '1' : '0'); } catch { } applyList(); }
+const toggleList = () => setListHidden(!listHidden);
+// 集中表示: 左の一覧と右パネルを一緒にたたむ。どちらかが出ていれば両方たたみ、両方たたんであれば両方出す
+function toggleFocus() { const hide = !(listHidden && mgnHidden); setListHidden(hide); if (mgnHidden !== hide) toggleMgn(); }
+document.addEventListener('keydown', e => {
+  if (!(e.ctrlKey || e.metaKey) || e.altKey || e.shiftKey || e.isComposing) return;
+  const l = e.code === 'BracketLeft' || e.key === '[', r = e.code === 'BracketRight' || e.key === ']'; if (!l && !r) return;
+  e.preventDefault(); e.stopPropagation();   // 本文（CodeMirror）の字下げ（Ctrl+[ / ]）より先に取る
+  if (l) toggleList(); else toggleFocus();
+}, true);
+
 // ===== タブ =====
 function rememberPos() {
   flush().catch(() => {});
   const t = tabs[active];
   if (t && t.k === 'note' && lastView && lastView.dom.isConnected) t.pos = lastView.state.selection.main.head;
+  leavePage();
 }
 // 今のタブに開く（Ctrl+クリックなら新しいタブ）。keep なら今のタブを描き直すだけ
 // 履歴: タブごとに「戻る」「進む」を持つ。同じタブで別のページへ移るとき、前のページを積む
 const desc = t => { const { back, fwd, pos, ...d } = t; return d; };
 function place(t, keep) {
-  if (keep && tabs[active]) return tabs[active];
+  if (keep && tabs[active]) { willShow(tabs[active]); return tabs[active]; }
   rememberPos();
   if (bgOpen) { tabs.push(t); newTab = false; return t; }                        // 背景で新しいタブ: 今のページは動かない
+  willShow(t);
   let left = null;
   if (newTab || active < 0 || !tabs[active]) { tabs.push(t); active = tabs.length - 1; }
   else {
@@ -1154,15 +1210,44 @@ function go(dir) {
 }
 $('#nav-back').onclick = () => go(-1);
 $('#nav-fwd').onclick = () => go(1);
+// 今いる場所: このタブで来た道（戻るの履歴の最後の数件）と、今のページ。押すと、そこまで戻る
+const crumbText = t => {
+  if (!t) return '';
+  if (t.k === 'note') { const n = get(t.s, t.id); const ti = n ? limit(titleOf(n) || '無題', 18) : ''; return n && n.noid ? ti : `${t.s === 'p' ? '紙 ' : ''}${t.id}${ti ? ' ' + ti : ''}`; }
+  if (t.k === 'diary') return `${t.kind || '日記'} ${t.date}`;
+  if (t.k === 'topic') return `索引 ${t.name}`;
+  if (t.k === 'region') return t.id === ZERO ? '全体の目次' : `区画 ${t.id}`;
+  if (t.k === 'tlist') return `索引 ${t.id}`;
+  return { similar: '類似', rec: '録音', export: 'エクスポート' }[t.k] || '新しいタブ';
+};
+const CRUMBS = 4;
 function renderNav() {
   const t = tabs[active], b = $('#nav-back'), f = $('#nav-fwd'); if (!b) return;
   b.disabled = !(t && (t.back || []).length); f.disabled = !(t && (t.fwd || []).length);
+  const c = $('#crumbs'); if (!c) return;
+  if (!t || t.k === 'empty') { c.innerHTML = ''; return; }
+  const back = t.back || [], from = Math.max(0, back.length - CRUMBS + 1);
+  const items = back.slice(from).map((x, i) => `<button class="crumb" data-crumb="${back.length - from - i}" title="ここへ戻る">${esc(crumbText(x))}</button>`);
+  c.innerHTML = (from > 0 ? '<span class="crumb-more" title="もっと前は、戻る（Ctrl+,）で">…</span><span class="sep">›</span>' : '')
+    + [...items, `<span class="crumb now" aria-current="page">${esc(crumbText(t))}</span>`].join('<span class="sep" aria-hidden="true">›</span>');
 }
+$('#crumbs')?.addEventListener('click', e => {
+  const b = e.target.closest('[data-crumb]'); if (!b) return;
+  const n = +b.dataset.crumb, t = tabs[active]; if (!t || !n) return;
+  // n 歩まとめて戻る（途中のページは描かない）
+  rememberPos();
+  let cur2 = t;
+  for (let i = 0; i < n && (cur2.back || []).length; i++) {
+    const from = cur2.back, target = { ...from[from.length - 1] }, mine = desc(cur2);
+    target.back = from.slice(0, -1); target.fwd = [...(cur2.fwd || []), mine]; cur2 = target;
+  }
+  tabs[active] = cur2; show(active);
+});
 function show(i) {
   rememberPos();
   active = Math.max(-1, Math.min(i, tabs.length - 1));
   const t = tabs[active];
-  if (!t || t.k === 'empty') { cur = t || null; $('#pane').innerHTML = '<div class="none">左から選ぶか、「＋ 新規」で書き始めます。<br>Ctrl+クリックで新しいタブに開きます。</div>'; renderTabs(); return renderList(); }
+  if (!t || t.k === 'empty') { leavePage(); shownKey = ''; cur = t || null; $('#pane').innerHTML = '<div class="none">左から選ぶか、「＋ 新規」で書き始めます。<br>Ctrl+クリックで新しいタブに開きます。</div>'; renderTabs(); return renderList(); }
   if (t.k === 'note') openNote(t.s, t.id, null, true); else if (t.k === 'diary') openDiary(t.date, true, t.kind); else if (t.k === 'region') openRegion(t.id, true); else if (t.k === 'export') openExport(t, true); else if (t.k === 'similar') openSimilar(t.base, true); else if (t.k === 'rec') openRecList(true); else if (t.k === 'tlist') openTopicList(t.s, t.id, true); else openTopic(t.name, t.mode, true);
 }
 function closeTab(i) {
@@ -1264,9 +1349,13 @@ function openNote(s, id, n, keep, mid) {
     s === 'p' ? '紙の内容を文字で（テキスト化）' : '本文。続き ->1a1　元 1a->　位置 (1)　別ノートの位置 ->1a(1)', () => note.body);
   searchMark();
   const hitAt = searchQ ? (m => Number.isFinite(m) ? m : -1)(Math.min(...qTerms(searchQ).map(t => note.body.toLowerCase().indexOf(t.toLowerCase())).filter(i => i >= 0), Infinity)) : -1;
-  if (n) { const p = L.anchorPos(note.body, n); if (p >= 0) jump(view, p); }
-  else if (hitAt >= 0) view.dispatch({ effects: EditorView.scrollIntoView(hitAt, { y: 'center' }) }); // 検索から開いたら、最初の一致の所へ
-  else if (keep && cur.pos != null) jump(view, Math.min(cur.pos, view.state.doc.length));
+  const vs = viewOf(cur), lastPos = vs && vs.pos != null ? vs.pos : keep ? cur.pos : null;
+  if (n) { const p = L.anchorPos(note.body, n); if (p >= 0) { skipRestore(); jump(view, p); } }
+  else if (hitAt >= 0) { skipRestore(); view.dispatch({ effects: EditorView.scrollIntoView(hitAt, { y: 'center' }) }); } // 検索から開いたら、最初の一致の所へ
+  else if (lastPos != null) { // 最後に見ていた位置へ（スクロールは willShow が戻す。覚えていなければ、カーソルの所を見せる）
+    const p = Math.min(lastPos, view.state.doc.length);
+    if (vs && vs.top != null) { view.dispatch({ selection: { anchor: p } }); if (keep) view.focus(); } else jump(view, p);
+  }
   else if (focusNewBody && s === 'd' && !note.body) view.focus(); // 作ったばかりのノートだけ、本文にカーソルを置く（移動で開いた、空のノートでは、勝手に入らない）
   focusNewBody = false;
 }
@@ -2395,18 +2484,22 @@ async function openDiary(date, keep, kind, toEnd) {
   const mine = diaries.filter(x => (x.kind || '日記') === kind).map(x => x.date).sort(), idx = mine.indexOf(date);
   const lower = (d.lower || []).map(k => `<span class="chip t" data-dkind="${esc(k)}">${esc(k)}</span>`).join('');
   $('#pane').innerHTML = `
-    <div class="row">
+    <div class="stage nomgn diary"><div class="col">
+    <div class="idline dline">
       ${kind === 'メモ帳' ? `<span class="dh-kind static" title="メモ帳">${kindIcon(kind)} ${esc(kind)}</span>` : `<button class="dh-kind" data-kindopen title="${esc(kind)}（押すと、時系列記録を選ぶ・探す・直す）">${kindIcon(kind)} ${esc(kind)}</button>`}
-      <h2 style="margin:0">${date}（${L.weekday(date)}）</h2>
-      <input class="kw" id="d-title" style="flex:1;min-width:140px;margin:0" value="${esc(d.title)}" placeholder="タイトル">
-      <button data-act="dprev" class="ic dj" title="前の${esc(kind)}" aria-label="前">⬅️</button><button data-act="dnext" class="ic dj" title="次の${esc(kind)}" aria-label="次">➡️</button>
+      <span class="dt">${date}（${L.weekday(date)}）</span>
+      <span class="grow"></span>
+      <button data-act="dprev" class="ic dj" title="前の${esc(kind)}" aria-label="前">${ICO.prev}</button><button data-act="dnext" class="ic dj" title="次の${esc(kind)}" aria-label="次">${ICO.next}</button>
       <button data-act="table" class="ic dj" title="表を入れる" aria-label="表">📊</button><button data-act="board" class="ic dj" title="ボードを入れる（Ctrl+G）文字と線を、紙のように書ける" aria-label="ボード">🖍️</button>
       <button data-act="attach" class="ic dj" title="ファイルを添付（ドラッグや貼り付けでも）" aria-label="添付">📎</button>
       ${kind === 'メモ帳' ? `<button data-act="pmemo" class="ic dj${pmemoShown ? ' on' : ''}" title="紙のメモ帳（スマホで撮った写真）と、切り替える" aria-label="紙のメモ帳">📓</button>` : ''}
       <button data-act="ddel" class="ic dj" title="この日の記録を削除" aria-label="削除">🗑️</button>
     </div>
+    <textarea class="ntitle" id="d-title" rows="1" placeholder="タイトル" spellcheck="false">${esc(d.title || '')}</textarea>
     ${kind !== '日記' && kind !== 'メモ帳' ? `<div class="row sub" title="上位の時系列記録（選ぶと変えられる）"><span class="dh-upl" aria-hidden="true">↑</span>${(d.parents && d.parents.length ? d.parents : ['日記']).map(r => `<span class="rchip on" data-dparpick>${esc(r)}</span>`).join('')}<button class="dh-pen" data-dparpick title="上位を選ぶ" aria-label="上位を選ぶ">✏️</button></div>` : ''}
-    <div class="ed" id="ed"></div>`;
+    <div class="ed" id="ed"></div></div></div>`;
+  { const t = $('#d-title'), grow = () => { t.style.height = 'auto'; t.style.height = Math.max(1, t.scrollHeight) + 'px'; }; grow(); t.addEventListener('input', grow);
+    t.addEventListener('keydown', e => { if (e.key === 'Enter' && !e.isComposing && !e.shiftKey) { e.preventDefault(); if (lastView && lastView.dom.isConnected) lastView.focus(); } }); }
   if (kind === 'メモ帳' && pmemoShown) { $('#d-title').oninput = e => { d.title = e.target.value; saveDiary(d); renderList(); }; renderTabs(); renderList(); return renderPaperMemo($('#ed')); }   // 📓 紙のメモ帳に切り替えてあるとき
   const view = editor($('#ed'), d.body, 'note', 'd', v => { d.body = v; saveDiary(d); },
     `今日の${kind}`, () => d.body, true);
@@ -2414,9 +2507,10 @@ async function openDiary(date, keep, kind, toEnd) {
   document.querySelectorAll('[data-dparpick]').forEach(c => c.onclick = () => parentPickDialog(kind, date));
   renderTabs(); renderList();
   // 前に開いていた位置があれば、そこ。Ctrl+D のときは、書き終わり（自動で入る節の手前に、空行・カーソル・空行）
-  if (cur.pos != null && keep) view.dispatch({ selection: { anchor: Math.min(cur.pos, view.state.doc.length) } });
-  else if (toEnd) { goWriteEnd(view, 'diary'); view.focus(); }   // 書き終わりへ行くのは、Ctrl+D・Ctrl+K のときだけ。ふつうに開いたときは、上から
-  else { view.dispatch({ selection: { anchor: 0 } }); view.focus(); view.scrollDOM.scrollTop = 0; }
+  const vs = viewOf(cur), lastPos = vs && vs.pos != null ? vs.pos : keep ? cur.pos : null;
+  if (toEnd) { skipRestore(); goWriteEnd(view, 'diary'); view.focus(); }   // Ctrl+D・Ctrl+K は、いつも書き終わりへ
+  else if (lastPos != null) { view.dispatch({ selection: { anchor: Math.min(lastPos, view.state.doc.length) } }); view.focus(); }   // 最後に見ていた位置へ（スクロールは willShow が戻す）
+  else { view.dispatch({ selection: { anchor: 0 } }); view.focus(); view.scrollDOM.scrollTop = 0; }   // 初めて開いたときは、上から
 }
 // 書き終わりの場所へ（Ctrl+D・Ctrl+K・日記を開いたとき）。diary: 日記・時系列記録・メモ帳 … 自分の文章の最後。自動で入る節（今日のノート・紙の日記・今日のチャットメモ一覧）の手前に、
 // 「本文 / 空行 / カーソルの行 / 空行 / 節」の形を作る。note: ふつうのノート … 最後の文の下に 1 行あけて、カーソル
@@ -2705,7 +2799,7 @@ function loaded(st) {
   if (pendingLang) { settings.lang = pendingLang; pendingLang = null; saveSettings(); }
   vault = st.vault; recovery = new Persistence.RecoveryJournal(localStorage, vault); restoreRecovery(st);
   LC.init(st.docs || {});
-  ({ notes, topics, vault } = st); regions = st.regions || []; readings = st.readings || {}; diaries = st.diaries || []; records = st.records || records; PI.init(st.docs || {}); cur = null; tabs = []; active = -1; refreshFiles();
+  ({ notes, topics, vault } = st); vstate = null; shownKey = ''; regions = st.regions || []; readings = st.readings || {}; diaries = st.diaries || []; records = st.records || records; PI.init(st.docs || {}); cur = null; tabs = []; active = -1; refreshFiles();
   $('#vault').textContent = '📁 ' + vault.split('/').pop(); $('#vault').title = vault + '\n（Brave では Index.md を開くと全部たどれます）';
   try {
     const saved = JSON.parse(localStorage.getItem('pkm-tabs:' + vault) || 'null');
@@ -2831,7 +2925,7 @@ function settingsDialog() {
 const KEYS = [
   ['書く', [['Ctrl+D', '今日の日記を開く（本文の最後にカーソル）'], ['Ctrl+K', '書き終わりへ（日記・時系列記録は自分の文章の最後、ふつうのノートは最後に 1 行あけて）'], ['Esc', '入力欄・本文から出る（ノーマルモード）'], ['Ctrl+M', '新しい (n) を、カーソルの位置に入れる'], ['Ctrl+P', '(p) を入れる'], ['Ctrl+I', ':ID を入れる'], ['Ctrl+R', '行ごとの時刻の、オン・オフ'], ['Ctrl+↑ / ↓', '行を動かす']]],
   ['ノートを作る', [['Ctrl+N', 'IDなしの新しいノート'], ['Ctrl+H', '並列のノート'], ['Ctrl+B', '分岐（子）のノート']]],
-  ['探す・移る', [['Ctrl+F', '左の検索'], ['Ctrl+E', '今のページの中の検索・置換'], ['Ctrl+U', '検索して挿入（ノート・小ノート・リンク・索引）'], ['Ctrl+O', 'ノート一覧へ（今のノートが真ん中）'], ['Ctrl+Q', '左の一覧の一番上へ'], ['Ctrl+J', '左の一覧の折りたたみを、全部たたむ・ひらく'], ['Ctrl+,  /  Ctrl+.', '戻る・進む'], ['Ctrl+\\', '右パネルの、出し入れ']]],
+  ['探す・移る', [['Ctrl+F', '左の検索'], ['Ctrl+E', '今のページの中の検索・置換'], ['Ctrl+U', '検索して挿入（ノート・小ノート・リンク・索引）'], ['Ctrl+O', 'ノート一覧へ（今のノートが真ん中）'], ['Ctrl+Q', '左の一覧の一番上へ'], ['Ctrl+J', '左の一覧の折りたたみを、全部たたむ・ひらく'], ['Ctrl+,  /  Ctrl+.', '戻る・進む'], ['Ctrl+\\', '右パネルの、出し入れ'], ['Ctrl+[', '左の一覧を、たたむ・出す'], ['Ctrl+]', '集中表示（左の一覧と右パネルを、一緒にたたむ・出す）']]],
   ['タブ', [['Ctrl+T', '新しいタブ'], ['Ctrl+W', '閉じる']]],
   ['録音', [['Ctrl+L', '録音して、今のノートの末尾へ'], ['Ctrl+S', '録音して、ノートには何もしない'], ['（録音中）', 'どちらのキーでも止まる']]],
   ['紙の取り込み画面', [['Ctrl+H', '次'], ['Ctrl+B', '子'], ['Ctrl+U', '親の次'], ['Ctrl+K', '前と同じキーワード'], ['Ctrl+S', '飛ばす'], ['Ctrl+D', '日記の日付'], ['Ctrl+E', '拡大']]]
