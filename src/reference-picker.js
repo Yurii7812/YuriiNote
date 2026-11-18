@@ -45,6 +45,7 @@ export const arrowInput=EditorView.inputHandler.of((view,from,to,text)=>{
   const start=ln.from+r.from;
   view.dispatch({changes:{from:start,to,insert:r.text+text},selection:{anchor:start+r.text.length+text.length},userEvent:'input.type'});return true;
 });
+const AUTO_POPUP=false;
 export function extension(space='d') {
   const session=new Ref.Session();let view;
   const cancel=()=>{session.close();close();};
@@ -65,10 +66,12 @@ export function extension(space='d') {
     },cancel,space);controller.owner=view;
   };
   const handle=(v,post,key)=>{if(controller?.owner!==v)return false;return controller.key({key,shiftKey:post});};
+  if(!AUTO_POPUP)return [arrowInput];   // 「:」「->」を打っても候補は出さない。検索は Ctrl+U の画面（insert-search.js）
   return [arrowInput,EditorView.updateListener.of(update),Prec.highest(keymap.of([{key:'Enter',run:v=>handle(v,false,'Enter')},{key:'Shift-Enter',run:v=>handle(v,true,'Enter')},{key:'ArrowDown',run:v=>handle(v,false,'ArrowDown')},{key:'ArrowUp',run:v=>handle(v,false,'ArrowUp')},{key:'Escape',run:v=>handle(v,false,'Escape')}])),EditorView.domEventHandlers({blur(){cancel();}})];
 }
 const fields=new WeakMap();
 export function attachTextareas() {
+  if(!AUTO_POPUP)return;
   document.addEventListener('input',e=>{
     const input=e.target;if(!(input instanceof HTMLTextAreaElement)||input.closest('.rp'))return;
     if(!input.matches('#c-in,.b-edit textarea'))return;
@@ -89,7 +92,7 @@ export function attachEditable(el,getDoc,space='d'){
   const setCaret=pos=>{const t=el.firstChild;if(!t){el.focus();return;}const r=document.createRange(),n=Math.min(pos,t.textContent.length);r.setStart(t,n);r.collapse(true);const s=getSelection();s.removeAllRanges();s.addRange(r);};
   const cancel=()=>{session.close();close();};
   el.addEventListener('input',e=>{
-    if(e.isComposing)return;
+    if(!AUTO_POPUP||e.isComposing)return;
     const value=el.textContent,state=session.update(value,caret(),e.data||'');
     if(!state){if(controller?.owner===el)close();return;}
     const doc=getDoc(),after=value.slice(state.colon+state.len,state.to),other=after.match(/^([0-9][0-9a-z]*)\((\d*)$/);

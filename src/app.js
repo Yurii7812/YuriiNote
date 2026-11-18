@@ -7,6 +7,7 @@ import LinkCore from '../link-core.js';
 import TopicRanking from '../topic-ranking.js';
 import * as LC from './linked-content.js';
 import * as ReferencePicker from './reference-picker.js';
+import * as InsertSearch from './insert-search.js';
 import { plainDoc } from './reference-picker.js';
 import { mdExtensions, tableTemplate, searchExt, setSearch, focusTableAt } from './md.js';
 import { boardTemplate, focusBoardAt } from './board.js';
@@ -885,6 +886,14 @@ document.addEventListener('keydown', e => {
   if ($('#modal').style.display === 'flex' || $('#scan').style.display === 'flex') return;
   e.preventDefault(); e.stopImmediatePropagation();
   if (recPc) recStop(); else recStart(e.code === 'KeyL' ? 'note' : 'list');
+}, true);
+// Ctrl+U: 検索して挿入する画面（書いているノートの、カーソルの位置に入れる）
+document.addEventListener('keydown', e => {
+  if (!(e.ctrlKey || e.metaKey) || e.altKey || e.shiftKey || e.code !== 'KeyU' || e.isComposing) return;
+  if ($('#modal').style.display === 'flex' || $('#scan').style.display === 'flex') return;
+  if (!(lastView && lastView.dom.isConnected)) return;
+  e.preventDefault(); e.stopImmediatePropagation();
+  InsertSearch.open({ view: lastView, space: cur && cur.k === 'note' ? cur.s : 'd', curKey: cur && cur.k === 'note' ? cur.s + ':' + cur.id : '' });
 }, true);
 // Ctrl+O: ノート一覧（今のノートを真ん中に） ／ Ctrl+Q: 左の一覧の一番上へ
 document.addEventListener('keydown', e => {
@@ -2822,7 +2831,7 @@ function settingsDialog() {
 const KEYS = [
   ['書く', [['Ctrl+D', '今日の日記を開く（本文の最後にカーソル）'], ['Ctrl+K', '書き終わりへ（日記・時系列記録は自分の文章の最後、ふつうのノートは最後に 1 行あけて）'], ['Esc', '入力欄・本文から出る（ノーマルモード）'], ['Ctrl+M', '新しい (n) を、カーソルの位置に入れる'], ['Ctrl+P', '(p) を入れる'], ['Ctrl+I', ':ID を入れる'], ['Ctrl+R', '行ごとの時刻の、オン・オフ'], ['Ctrl+↑ / ↓', '行を動かす']]],
   ['ノートを作る', [['Ctrl+N', 'IDなしの新しいノート'], ['Ctrl+H', '並列のノート'], ['Ctrl+B', '分岐（子）のノート']]],
-  ['探す・移る', [['Ctrl+F', '左の検索'], ['Ctrl+E', '今のページの中の検索・置換'], ['Ctrl+O', 'ノート一覧へ（今のノートが真ん中）'], ['Ctrl+Q', '左の一覧の一番上へ'], ['Ctrl+J', '左の一覧の折りたたみを、全部たたむ・ひらく'], ['Ctrl+,  /  Ctrl+.', '戻る・進む'], ['Ctrl+\\', '右パネルの、出し入れ']]],
+  ['探す・移る', [['Ctrl+F', '左の検索'], ['Ctrl+E', '今のページの中の検索・置換'], ['Ctrl+U', '検索して挿入（ノート・小ノート・リンク・索引）'], ['Ctrl+O', 'ノート一覧へ（今のノートが真ん中）'], ['Ctrl+Q', '左の一覧の一番上へ'], ['Ctrl+J', '左の一覧の折りたたみを、全部たたむ・ひらく'], ['Ctrl+,  /  Ctrl+.', '戻る・進む'], ['Ctrl+\\', '右パネルの、出し入れ']]],
   ['タブ', [['Ctrl+T', '新しいタブ'], ['Ctrl+W', '閉じる']]],
   ['録音', [['Ctrl+L', '録音して、今のノートの末尾へ'], ['Ctrl+S', '録音して、ノートには何もしない'], ['（録音中）', 'どちらのキーでも止まる']]],
   ['紙の取り込み画面', [['Ctrl+H', '次'], ['Ctrl+B', '子'], ['Ctrl+U', '親の次'], ['Ctrl+K', '前と同じキーワード'], ['Ctrl+S', '飛ばす'], ['Ctrl+D', '日記の日付'], ['Ctrl+E', '拡大']]]
@@ -3046,7 +3055,7 @@ Object.assign(ctx, {
   targetMemo: LC.targetMemo, addNote: n => notes.push(n),
   renderChanged: () => LC.refresh(), renderTabs, openLink, applyState, readings: () => readings, lastNote: () => lastNote,
  renderList, pick, get, free, refreshDiaries, records: () => records, openNote, openDiary, getDiary,
-  setCur: c => { cur = c; }, setMode: m => { mode = m; }, cur: () => cur, notes: () => notes, vault: () => vault,
+  topics: () => topics, setCur: c => { cur = c; }, setMode: m => { mode = m; }, cur: () => cur, notes: () => notes, vault: () => vault,
   touchNote: n => saveNote(n),
   touchDiary: saveDiary, saveDocument, hasPending: key => saves.has(key),
   openDiaryData: async date => { await flush(); const r = await api.openDiary(date, '日記'); if (r) upsertDiary(r); }
