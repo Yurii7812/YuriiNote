@@ -75,14 +75,14 @@ test('紙のボタンを右クリック: 番号を指定して作れる。その
     assert.match(item.textContent, /紙のトピックIndexを作る/);
     item.click(); await tick(200);
     assert.strictEqual(a.w.document.querySelector('#tn-s').value, 'p', '紙のボタンなので、紙');
-    a.w.document.querySelector('#tn-id').value = '9z'; a.w.document.querySelector('#tn-id').dispatchEvent(new a.w.Event('input', { bubbles: true }));
+    a.w.document.querySelector('#tn-id').value = '9'; a.w.document.querySelector('#tn-id').dispatchEvent(new a.w.Event('input', { bubbles: true }));
     assert.match(a.w.document.querySelector('#tn-note').textContent, /ノートは、まだありません/);
     a.w.document.querySelector('#tn-ok').click(); await tick(400);
     const st = a.store.state();
-    const t = st.topics.find(x => x.entry && x.entry.s === 'p' && x.entry.id === '9z');
-    assert.ok(t, '紙の 9z の索引ができる');
-    assert.ok(/^無名9z-/.test(t.name), '名前は、無名で作る: ' + t.name);
-    assert.ok(!st.notes.some(n => n.id === '9z'), '番号のノートは、作らない');
+    const t = st.topics.find(x => x.entry && x.entry.s === 'p' && x.entry.id === '9');
+    assert.ok(t, '紙の 9 の索引ができる');
+    assert.ok(/^無名9-/.test(t.name), '名前は、無名で作る: ' + t.name);
+    assert.ok(!st.notes.some(n => n.id === '9'), '番号のノートは、作らない');
   } finally { a.close(); }
 });
 
@@ -92,11 +92,11 @@ test('デジタルのボタンを右クリック: ノートの無い番号でも
     await rightClick(a, '#tabs [data-tab="d"]');
     a.w.document.querySelector('.popmenu div').click(); await tick(200);
     assert.strictEqual(a.w.document.querySelector('#tn-s').value, 'd');
-    a.w.document.querySelector('#tn-id').value = '5c'; a.w.document.querySelector('#tn-id').dispatchEvent(new a.w.Event('input', { bubbles: true }));
+    a.w.document.querySelector('#tn-id').value = '5'; a.w.document.querySelector('#tn-id').dispatchEvent(new a.w.Event('input', { bubbles: true }));
     a.w.document.querySelector('#tn-ok').click(); await tick(400);
     const st = a.store.state();
-    assert.ok(st.topics.some(x => x.entry && x.entry.s === 'd' && x.entry.id === '5c'));
-    assert.ok(!st.notes.some(n => n.s === 'd' && n.id === '5c'), 'デジタルでも、ノートは作らない');
+    assert.ok(st.topics.some(x => x.entry && x.entry.s === 'd' && x.entry.id === '5'));
+    assert.ok(!st.notes.some(n => n.s === 'd' && n.id === '5'), 'デジタルでも、ノートは作らない');
   } finally { a.close(); }
 });
 
@@ -109,27 +109,33 @@ test('右クリックしても、いまのタブは変わらない（左クリ�
   } finally { a.close(); }
 });
 
-test('トピックIndexの番号は「ID-何個目」で選ぶ・打つ（1a-1・5c-3）。候補が出る。既にある番号は断る', async () => {
+test('トピックIndexの番号は「区画-何個目」だけ（1-1・5-3）。ノートの ID（1a-1）は断る。既にある番号は断る', async () => {
   const a = await app();
   try {
     await rightClick(a, '#tabs [data-tab="d"]');
     a.w.document.querySelector('.popmenu div').click(); await tick(200);
     const input = a.w.document.querySelector('#tn-id');
-    assert.match(input.value, /^\d+a?-1$/, '最初から「番号-1」の形: ' + input.value);
+    assert.match(input.value, /^\d+-1$/, '最初から「区画-1」の形: ' + input.value);
     const opts = [...a.w.document.querySelectorAll('#tn-ids option')].map(o => o.value);
-    assert.ok(opts.includes('1a-1'), '今ある番号の「次の索引」が、候補に出る: ' + opts.join(','));
-    // 5c の 3 個目を、直接指定
-    input.value = '5c-3'; input.dispatchEvent(new a.w.Event('input', { bubbles: true }));
-    assert.match(a.w.document.querySelector('#tn-note').textContent, /5c-3 を作ります/);
+    assert.ok(opts.length && opts.every(o => /^\d+-\d+$/.test(o)), '候補は区画の番号だけ: ' + opts.join(','));
+    // ノートの ID は断る
+    input.value = '1a-1'; input.dispatchEvent(new a.w.Event('input', { bubbles: true }));
+    assert.match(a.w.document.querySelector('#tn-note').textContent, /区画の番号だけ/);
+    const before = a.store.state().topics.length;
+    a.w.document.querySelector('#tn-ok').click(); await tick(300);
+    assert.equal(a.store.state().topics.length, before, '1a-1 の索引は作られない');
+    // 5 の 3 個目を、直接指定
+    input.value = '5-3'; input.dispatchEvent(new a.w.Event('input', { bubbles: true }));
+    assert.match(a.w.document.querySelector('#tn-note').textContent, /5-3 を作ります/);
     a.w.document.querySelector('#tn-ok').click(); await tick(400);
-    let t = a.store.state().topics.find(x => x.entry && x.entry.id === '5c');
-    assert.ok(t && t.num === 3, '3 個目として作られる（番号 5c-3）: ' + JSON.stringify(t && t.num));
+    let t = a.store.state().topics.find(x => x.entry && x.entry.id === '5');
+    assert.ok(t && t.num === 3, '3 個目として作られる（番号 5-3）: ' + JSON.stringify(t && t.num));
     // 同じ番号は、もう一度作れない
     await rightClick(a, '#tabs [data-tab="d"]'); a.w.document.querySelector('.popmenu div').click(); await tick(200);
-    const i2 = a.w.document.querySelector('#tn-id'); i2.value = '5c-3'; i2.dispatchEvent(new a.w.Event('input', { bubbles: true }));
-    assert.match(a.w.document.querySelector('#tn-note').textContent, /5c-3 は、もうあります/);
-    // 省略すると、次の番号（5c-4）
-    i2.value = '5c'; i2.dispatchEvent(new a.w.Event('input', { bubbles: true }));
-    assert.match(a.w.document.querySelector('#tn-note').textContent, /5c-4 を作ります/);
+    const i2 = a.w.document.querySelector('#tn-id'); i2.value = '5-3'; i2.dispatchEvent(new a.w.Event('input', { bubbles: true }));
+    assert.match(a.w.document.querySelector('#tn-note').textContent, /5-3 は、もうあります/);
+    // 省略すると、次の番号（5-4）
+    i2.value = '5'; i2.dispatchEvent(new a.w.Event('input', { bubbles: true }));
+    assert.match(a.w.document.querySelector('#tn-note').textContent, /5-4 を作ります/);
   } finally { a.close(); }
 });
