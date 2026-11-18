@@ -93,7 +93,7 @@ test('スマホのメモを USB で取り込む: 未整理・日記・記録・�
   assert.deepStrictEqual(mb.replies, [ma.id]);                                       // 分岐元・文脈は、返信の @ になる（親・文脈は持たない）
   assert.ok(!chat.messages.some(m => 'parent' in m || 'ctx' in m));
   assert.strictEqual(st.notes.filter(n => n.noid && n.title !== '読書').length, 0);                       // 普通のメモは、ノートにならない
-  assert.match(st.diaries.find(x => x.kind === '日記').body, /09:32 朝の日記/); assert.match(st.diaries.find(x => x.kind === '夢').body, /09:33 空を飛んだ/);   // 日記・記録には、行としても入る
+  assert.match(st.diaries.filter(x => x.kind === '日記').map(x => x.body).join('\n'), /09:32 朝の日記/); assert.match(st.diaries.filter(x => x.kind === '夢').map(x => x.body).join('\n'), /09:33 空を飛んだ/);   // 日記・記録には、行としても入る
   assert.ok(chat.messages.some(m => m.topic === '日記' && m.text.includes('朝の日記')) && chat.messages.some(m => m.topic === '夢'));
   assert.ok(st.records.some(k => k.name === '夢'));                                                  // 記録の種類は、なければ足される
   assert.ok(chat.topics.some(t => t.name === '読書'));

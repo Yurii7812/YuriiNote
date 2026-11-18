@@ -12,7 +12,7 @@ if (!['plan', 'apply'].includes(mode) || !vault || !fs.existsSync(vault)) {
 
 function copyDir(from, to) { fs.mkdirSync(to, { recursive: true }); fs.cpSync(from, to, { recursive: true }); }
 function appRunning() {
-  try { return execSync('pgrep -f "app-path=" || true', { encoding: 'utf8' }).split('\n').some(l => /YuriiNote|gnosis-work\/ysimple/.test(l)); }
+  try { return execSync('pgrep -f "app-path=" || true', { encoding: 'utf8' }).split('\n').some(l => /YuriiNote|gnosis-work\/ysimple|\/YuriiNote$/.test(l)); }
   catch { return false; }
 }
 const stamp = () => new Date().toISOString().replace(/[-:T]/g, '').slice(0, 14);

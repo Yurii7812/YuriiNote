@@ -55,3 +55,16 @@ test('以前に作られた空のファイルは、開くと片づく', () => {
   v = openVault(dir); v.openDiary('2026-11-17', '夢');
   assert.ok(!fs.existsSync(p), '空のファイルは、ごみ箱へ移る');
 });
+
+test('今日の日記・登録した記録（メモ帳以外）は、何も書かなくても作る。昔の日の空は作らない', () => {
+  const L = require('../lib'), today = L.calendarToday(), dir = tmp();
+  let v = openVault(dir);
+  assert.ok(v.state().diaries.some(d => d.kind === '日記' && d.date === today), '今日の日記がある');
+  assert.ok(fs.existsSync(path.join(dir, stemOf(v, '日記', today) + '.md')), 'ファイルもある');
+  v.addRecord('夢', '日記');
+  assert.ok(v.state().diaries.some(d => d.kind === '夢' && d.date === today), '今日の夢もある（登録した記録）');
+  assert.ok(!v.state().diaries.some(d => d.kind === 'メモ帳' && d.date === today), 'メモ帳は、書かなければ作らない');
+  v.openDiary('2020-01-01', '日記');
+  assert.strictEqual(v.dropEmptyDay('2020-01-01', '日記'), true, '昔の空の日は、閉じれば消える');
+  assert.strictEqual(v.dropEmptyDay(today, '日記'), false, '今日の日記は消さない');
+});

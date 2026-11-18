@@ -82,5 +82,5 @@ test('スマホの受信箱: 時系列記録の種類は、項目だけ取り込
   assert.deepStrictEqual(v.records().map(x => x.name).sort(), ['メモ帳', '仕事', '学び', '夢', '日記'].sort());
   assert.deepStrictEqual(r.done.sort(), ['kinds-1-a.json', 'kinds-2-b.json'], '取り込み済みの印を返せる（スマホが自分で消す）');
   assert.match(summary(r.sum), /時系列記録の種類 2 件/);
-  assert.deepStrictEqual(v.state().diaries, [], '種類を足しても、日・記録のノートは作らない');
+  assert.deepStrictEqual(v.state().diaries.filter(d => d.date !== require('../lib').calendarToday()), [], '種類を足しても、日・記録のノートは作らない（今日の分だけは、空でも作る）');
 });

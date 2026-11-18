@@ -255,6 +255,7 @@ function openVault(vault) {
   const noteHref = (s, id) => stemOf(s, id) ? enc(noteFile(s, id)) : '#';
   // ノートの名前（日時 YYYYMMDDHHmmss。同じ秒なら1秒ずつずらす）
   const freeStem = (date = new Date()) => free14(used, date);
+  const syncUsed = () => { for (const n of notes.values()) if (n.stem) used.add(n.stem); for (const d of diaries.values()) if (d.stem) used.add(d.stem); for (const f of fs.readdirSync(vault)) { const m = f.match(/^(\d{14})(?:\.|$)/); if (m) used.add(m[1]); } };   // 今ある日時の名前を、使用済みに入れ直す（移行で増えた分も）
   const fmOf = n => L.fmDump({ folgezettel: L.isNoid(n.id) ? undefined : n.id, source: n.s === 'p' ? 'paper' : 'digital', created: n.created, updated: n.updated || n.created, kind: n.kind && n.kind !== 'text' ? n.kind : undefined, title: n.title || undefined, keywords: n.keywords && n.keywords.length ? n.keywords : undefined, pinned: n.pinned ? true : undefined, color: n.color || undefined, archived: n.archived ? true : undefined, parent_stem: n.parentStem || undefined });
   const DIARY = '日記', MEMO = 'メモ帳', FIXED = [DIARY, MEMO], dk = (kind, date) => kind + '\n' + date;   // 日記とメモ帳は、いつもある（名前を変えたり、消したりしない）
   const diaryFile = d => `${d.stem}.md`;
@@ -277,6 +278,10 @@ function openVault(vault) {
   const setDayParents = (d, list) => { list = [...new Set(asList(list))]; if (!list.length) list = [DIARY]; d.parents = list; d.parent = list[0] || ''; d.parentsSet = true; };
   // 何も書いていない日・記録（日記・メモ帳・夢…）は、ファイルにしない（開いただけでは作らない。2026-11-17）。上位からのリンクも張らない
   const isEmptyDay = d => !(d.title || '').trim() && !String(d.body || '').trim();
+  // ただし「今日」の日記と、登録された記録（夢…）、その上位は（メモ帳は除く。書かなければ作らない）、空でも作る（2026-11-18 利用者の指示で、11-17 の決定を変更）
+  const todayKinds = () => { const out = new Set([DIARY]); for (const k of recDoc().kinds.map(x => x.name)) if (k) out.add(k); for (const k of [...out]) { let p = k, seen = new Set(); while (p && !seen.has(p)) { seen.add(p); out.add(p); p = kindParent(p); } } out.delete(MEMO); return out; };   // メモ帳は、書かなければ作らない
+  const keepDay = d => d.date === L.calendarToday() && todayKinds().has(d.kind);
+  const hollow = d => isEmptyDay(d) && !keepDay(d);   // 空で、作らなくてよい日・記録
   const kindNames = () => { const out = [DIARY, MEMO]; for (const k of recDoc().kinds.map(x => x.name).concat([...diaries.values()].map(d => d.kind))) if (k && !out.includes(k)) out.push(k); return out; };
   const saveRecDoc = d => { docs.set('K_records', d); put(abs('K_records.json'), JSON.stringify(d, null, 1)); };
   // その日の上位: 日ごとの parent。その種類のその日のノートが無ければ、種類の上位をたどる（その日に無い中間は飛ばす）
@@ -284,7 +289,7 @@ function openVault(vault) {
   const effParents = day => [...new Set(dayParents(day).map(p => upDay(p, day.date)).filter(p => p && p !== day.kind))];
   const effParent = day => effParents(day)[0] || '';
   // この日のノートの下に並べる、下位の記録。日記には最上位の記録、各記録にはその日にある直接の下位
-  const lowerOf = day => [...diaries.values()].filter(o => o.date === day.date && o.kind !== day.kind && !isEmptyDay(o) && (day.kind === DIARY ? (effParents(o).length === 0 || effParents(o).includes(DIARY)) : effParents(o).includes(day.kind))).sort((x, y) => x.kind.localeCompare(y.kind, 'ja'));
+  const lowerOf = day => [...diaries.values()].filter(o => o.date === day.date && o.kind !== day.kind && !hollow(o) && (day.kind === DIARY ? (effParents(o).length === 0 || effParents(o).includes(DIARY)) : effParents(o).includes(day.kind))).sort((x, y) => x.kind.localeCompare(y.kind, 'ja'));
 
   // 「## 今日の記録」: 本文の一番上に、その日の下位の記録へのリンク（題があれば「記録名-題」）。下位が無ければ、見出しごと無し
   const lowerLabel = o => (o.kind + (o.title ? '-' + o.title : '')).replace(/[\[\]\n]/g, ' ');
@@ -551,6 +556,7 @@ function openVault(vault) {
     }
   }
   function rebuild() {
+    ensureToday();
     numberTopics();
     mergePaperIndex(); pruneDiaryLinks();
     for (const d of diaries.values()) syncLowerSection(d);
@@ -563,7 +569,7 @@ function openVault(vault) {
     }
     const files = new Map([...chatFiles, ['Index.md', indexMd()], [KEYWORDS, keywordsMd()], [UNSORTED, unsortedMd()], [LIST.d, listMd('d')], [LIST.p, listMd('p')], [DIARY_LIST, diaryListMd()]]);
     for (const d of diaries.values()) {
-      if (isEmptyDay(d)) { const f = diaryFile(d); if (cache.has(f) || fs.existsSync(abs(f))) removeFile(f); continue; }   // 空の日・記録は、書かない（前に作った空のファイルは、ごみ箱へ）
+      if (hollow(d)) { const f = diaryFile(d); if (cache.has(f) || fs.existsSync(abs(f))) removeFile(f); continue; }   // 空の日・記録は、書かない（前に作った空のファイルは、ごみ箱へ）
       files.set(diaryFile(d), diaryMd(d));
     }
     for (const n of notes.values()) files.set(noteFile(n.s, n.id), noteMd(n));
@@ -606,13 +612,21 @@ function openVault(vault) {
   const pubDiary = d => ({ kind: d.kind, date: d.date, title: d.title, body: d.body, parent: dayParents(d)[0] || '', parents: dayParents(d), stem: d.stem, pages: d.kind === DIARY ? pages.get(d.date) || [] : [], lower: lowerOf(d).map(o => o.kind) });
   const ensureDiary = (date, kind = DIARY) => {
     if (!diaries.has(dk(kind, date))) {
-      const d = { kind, date, title: '', body: '', parent: '', parents: [], parentsSet: false, stem: freeStem(), created: L.now() };
+      const d = { kind, date, title: '', body: '', parent: '', parents: [], parentsSet: false, stem: (syncUsed(), freeStem()), created: L.now() };
       diaries.set(dk(kind, date), d);
       if (kind !== DIARY && !earlierExplicit(d) && kindParents(kind).length) setDayParents(d, kindParents(kind));   // 前の選び方が無い最初の日だけ、種類の初期値を、その日の上位にする
     }
     return diaries.get(dk(kind, date));
   };
+  // 今日の日記・記録（と上位）を、無ければ作る。日記には、今日作ったノートのリンクも
+  function ensureToday() {
+    const date = L.calendarToday();
+    for (const k of todayKinds()) ensureDiary(date, k);
+    for (const n of notes.values()) if (n.s === 'd' && noteDay(n) === date) linkNote(n);
+  }
   // その日に作ったデジタルノートへのリンクを、日記の「今日のノート」に足す（無ければ日記も作る）
+  // ノートが載る日記の日: 暦の日付（0 時で変わる。Ctrl+D の「今日」と同じ。2026-11-18 利用者の指示）
+  const noteDay = n => { const m = String(n.created || '').match(/^\d{4}-\d{2}-\d{2}/); return m && L.isDate(m[0]) ? m[0] : ''; };
   const isBlank = n => (!n.kind || n.kind === 'text') && !(n.body || '').trim() && !(n.title || '').trim();
   // 日記の「今日のノート」の1行: [題](ファイル名.md)。ID を付け替えても、ファイル名は変わらないので、リンクはそのまま
   const noteLabel = n => {
@@ -623,7 +637,9 @@ function openVault(vault) {
   const linkNote = n => {
     if (isBlank(n)) { n.pending = true; return; }                  // まだ何も書いていないノートは、日記に載せない（書いたら載る）
     n.pending = false;
-    const date = L.dayOf(n.created); if (!date) return;
+    const date = noteDay(n); if (!date) return;
+    const href = noteHref('d', n.id);   // 別の日の日記に（日付の区切り時刻の扱いが違った頃の）リンクが残っていれば外す
+    for (const o of diaries.values()) if (o.kind === DIARY && o.date !== date && o.body.includes(`](${href})`)) o.body = o.body.split('\n').filter(l => l.trim() !== `[${noteLabel(n)}](${href})` && !(l.startsWith('[') && l.trim().endsWith(`](${href})`))).join('\n');
     const d = ensureDiary(date, DIARY);
     if (d.body.includes(`](${noteHref('d', n.id)})`)) return;
     if (!L.isNoid(n.id) && L.tokens(d.body).some(t => t.k === 'ref' && t.id === n.id && !t.n && (!t.sp || t.sp === 'd'))) return;   // 昔の「:ID」の行が、まだある（読み直すときに、リンクに直る）
@@ -677,7 +693,7 @@ function openVault(vault) {
     openDiary(date, kind = DIARY) {
       if (!L.isDate(date)) return false;
       const d = ensureDiary(date, kind);
-      if (kind === DIARY) for (const n of notes.values()) if (n.s === 'd' && L.dayOf(n.created) === date) linkNote(n);
+      if (kind === DIARY) for (const n of notes.values()) if (n.s === 'd' && noteDay(n) === date) linkNote(n);
       const nb = L.normDay(d.body); if (nb !== d.body) { d.body = nb; d.updated = L.now(); }   // 前に、リンクの下に入った文章も、上へ
       rebuild(); return pubDiary(d);
     },
@@ -689,7 +705,7 @@ function openVault(vault) {
       d.updated = L.now(); rebuild(); return pubDiary(d);
     },
     // 閉じた・離れた日・記録が、まだ空なら、記録ごと消す（ファイルは、もう無い）
-    dropEmptyDay(date, kind = DIARY) { const d = diaries.get(dk(kind, date)); if (!d || !isEmptyDay(d)) return false; diaries.delete(dk(kind, date)); rebuild(); return true; },
+    dropEmptyDay(date, kind = DIARY) { const d = diaries.get(dk(kind, date)); if (!d || !hollow(d)) return false; diaries.delete(dk(kind, date)); rebuild(); return true; },
     deleteDiary(date, kind = DIARY) { const d = diaries.get(dk(kind, date)); if (!d) return false; removeFile(diaryFile(d)); diaries.delete(dk(kind, date)); rebuild(); return true; },
     // 日記・時系列記録のメモは、時刻が同じでも各1件1行。メモ間に空行を入れない
     appendToDay(kind, date, text) {

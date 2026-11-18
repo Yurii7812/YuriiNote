@@ -879,8 +879,8 @@ document.addEventListener('keydown', e => {
 
 // 🗒️ メモ帳: 日記と同じ、1日ごとの記録。ボタンを押すと、今日のメモ帳がすぐ開く
 // 📔: 今日の日記をすぐ開く
-async function openTodayDiary() {
-  setKind('日記'); mode = 'diary'; $('#q').value = ''; renderList(); await openDiary(L.calendarToday(), false, '日記');
+async function openTodayDiary(toEnd) {
+  setKind('日記'); mode = 'diary'; $('#q').value = ''; renderList(); await openDiary(L.calendarToday(), false, '日記', toEnd);
   setTimeout(() => { if (lastView && lastView.dom.isConnected) lastView.focus(); }, 60);
 }
 async function openMemoPad() {
@@ -938,7 +938,7 @@ document.addEventListener('keydown', e => {
 document.addEventListener('keydown', e => {
   if (!(e.ctrlKey || e.metaKey) || e.altKey || e.shiftKey || e.code !== 'KeyD') return;
   if ($('#modal').style.display === 'flex' || $('#scan').style.display === 'flex') return;
-  e.preventDefault(); e.stopImmediatePropagation(); openTodayDiary();
+  e.preventDefault(); e.stopImmediatePropagation(); openTodayDiary(true);
 }, true);
 // ===== 左の一覧のキー操作（文字を入力していないとき）=====
 // ↓/j ↑/k: 次・前のノート  ←/h: 親  →/l: 子  [ ]: 前・次の兄弟  Enter: そのノートに決める（書き始める）  o: 探し始めたノートに戻る  Esc: 一覧の操作をやめる
@@ -2326,7 +2326,7 @@ function parentPickDialog(kind, date, onDone) {
     q.oninput = draw; draw(); q.focus();
   });
 }
-async function openDiary(date, keep, kind) {
+async function openDiary(date, keep, kind, toEnd) {
   kind = kind || (cur && cur.k === 'diary' && keep ? cur.kind : curKind) || '日記';
   if (bgOpen) { place({ k: 'diary', date, kind }, false); return; }
   let d = getDiary(date, kind);
@@ -2358,9 +2358,10 @@ async function openDiary(date, keep, kind) {
   $('#d-title').oninput = e => { d.title = e.target.value; saveDiary(d); renderList(); };
   document.querySelectorAll('[data-dparpick]').forEach(c => c.onclick = () => parentPickDialog(kind, date));
   renderTabs(); renderList();
-  // 書く場所は、自分の文章の最後（自動で入る節の手前に、空行・カーソル・空行）。前に開いていた位置があれば、そこ
+  // 前に開いていた位置があれば、そこ。Ctrl+D のときは、書き終わり（自動で入る節の手前に、空行・カーソル・空行）
   if (cur.pos != null && keep) view.dispatch({ selection: { anchor: Math.min(cur.pos, view.state.doc.length) } });
-  else { goWriteEnd(view, 'diary'); view.focus(); }
+  else if (toEnd) { goWriteEnd(view, 'diary'); view.focus(); }   // 書き終わりへ行くのは、Ctrl+D・Ctrl+K のときだけ。ふつうに開いたときは、上から
+  else { view.dispatch({ selection: { anchor: 0 } }); view.focus(); view.scrollDOM.scrollTop = 0; }
 }
 // 書き終わりの場所へ（Ctrl+D・Ctrl+K・日記を開いたとき）。diary: 日記・時系列記録・メモ帳 … 自分の文章の最後。自動で入る節（今日のノート・紙の日記・今日のチャットメモ一覧）の手前に、
 // 「本文 / 空行 / カーソルの行 / 空行 / 節」の形を作る。note: ふつうのノート … 最後の文の下に 1 行あけて、カーソル
