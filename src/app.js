@@ -925,6 +925,7 @@ $('#rail').onclick = e => {
 // ノートのアイコン（Ctrl+O）: 今開いているノートを、左の一覧の真ん中に出す。どの画面からでも同じ
 function openNotesList() {
   const n = cur && cur.k === 'note' ? get(cur.s, cur.id) : null;
+  if (document.activeElement && document.activeElement !== document.body) document.activeElement.blur();   // 本文から、カーソルを外す
   mode = 'notes'; tab = n ? (n.noid ? 'u' : n.s) : (['d', 'p', 'u'].includes(tab) ? tab : lastNotesTab); $('#q').value = '';
   renderList(); requestAnimationFrame(() => centerOn('#list .item.on', true));
 }
