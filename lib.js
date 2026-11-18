@@ -302,13 +302,30 @@ function topicLine(line) {
   }
   return rowOf(line, 0);
 }
+// 索引・地図の番号の「-」の後ろ（区画の番号のあと）: 1, 2 … のほか、0（雑の地図）・all（地図の地図）・1-2（1 の続き）・1a（1 の掘り下げ）・all-2 など
+const TSUF = /^(?:all|\d+)(?:-\d+|[a-z]+\d*)*$/;
+const isTopicNum = n => (Number.isInteger(n) && n > 0) || (typeof n === 'string' && TSUF.test(n) && n !== 'al');
+const TNO = /^\d+[a-z0-9]*-(?:all|\d+)(?:-\d+|[a-z]+\d*)*$/;
+const isTopicNo = t => TNO.test(t) && !/^\d{4}-\d{2}-\d{2}$/.test(t);   // 日付（2026-11-19）は番号にしない
+// 並び: all → 0 → 1 → 1-2 → 1a → 2 …（数字は数として）
+function cmpTopicNum(a, b) {
+  const key = n => { n = String(n == null || n === 0 ? 1 : n); return (n.match(/all|\d+|[a-z]+|-/g) || []).map(x => x === 'all' ? -2 : /^\d+$/.test(x) ? +x : x); };
+  const A = key(a), B = key(b);
+  for (let i = 0; i < Math.max(A.length, B.length); i++) {
+    const x = A[i], y = B[i]; if (x === undefined) return -1; if (y === undefined) return 1; if (x === y) continue;
+    if (typeof x === 'number' && typeof y === 'number') return x - y;
+    if (typeof x === 'number') return x === -2 ? -1 : -1; if (typeof y === 'number') return 1;
+    return x < y ? -1 : 1;
+  }
+  return 0;
+}
 // 「キーワード ID ID …」の 1 行（base は、行の先頭からの位置）
 function rowOf(line, base) {
   const parts = [...line.matchAll(/[^\s,、，]+/g)], ids = [], tnos = [];
   let i = parts.length - 1, pt;
   while (i >= 0) {
     const t = parts[i][0], from = base + parts[i].index;
-    if (/^\d+[a-z0-9]*-\d+$/.test(t)) { tnos.unshift({ tno: t, from, to: from + t.length }); i--; continue; }   // 0-1 のような、索引の番号（その索引へのリンク）
+    if (isTopicNo(t)) { tnos.unshift({ tno: t, from, to: from + t.length }); i--; continue; }   // 0-1 のような、索引の番号（その索引へのリンク）
     const dot = /^[*＊]./.test(t), bare = dot ? t.slice(1) : t;   // 番号の前の * は、赤い点（入口の目印）
     if (!(pt = parseIdTok(bare))) break;
     ids.unshift(dot ? { ...pt, tok: t, dot: true, dotAt: from, from: from + 1, to: from + t.length } : { ...pt, from, to: from + t.length }); i--;
@@ -516,7 +533,7 @@ const now = (d = new Date()) => {
 };
 const parseTime = c => { const m = (c || '').match(/^(\d{4})-(\d{2})-(\d{2})(?: (\d{2}):(\d{2})(?::(\d{2}))?)?/); return m ? new Date(+m[1], +m[2] - 1, +m[3], +(m[4] || 0), +(m[5] || 0), +(m[6] || 0)) : null; };
 
-module.exports = { TMARK, colonToArrow, colonToArrowKeep,
+module.exports = { TSUF, isTopicNum, isTopicNo, cmpTopicNum, TMARK, colonToArrow, colonToArrowKeep,
   codeRanges, MDLINK, ID, isId, splitAnchor, tok, cmpId, sibling, child, parentIn, root, region, isRegionOnly, zkMigrate,
   tokens, anchorPos, selfTarget, bodyToMd, mdToBody,
   fzRange, fzSubtree, remapSubtree, remapRefs, remapTopicText, exportMd, defOf, topicText, legacyTopicText, parseIdTok, isNoid, noidStem, isStem, STEM, fmParse, fmDump, parseTime, KINDS, deriveBody, setDayStart, todayStr, calendarToday, dayOf, weekday, isDate, addToSection, normDay, diaryTree, topicLine, mergeTopic, addToTopic, removeFromTopic, toHira, kanaRow, ROWS, byReading, kwAnchor, fileName, splitKw, now

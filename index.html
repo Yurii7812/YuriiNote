@@ -831,6 +831,10 @@ body{-webkit-user-select:none;user-select:none}
 .bstage .btitle:focus{background:var(--hl)}
 .bstage .bline .nm{opacity:.55}.bstage .bline .nm:hover{opacity:1}
 #bboard{flex:1 1 auto;min-height:0}
+/* 静かな枠: 書いている間は、まわりの枠・ボタンを薄くする（マウスを動かすと戻る） */
+#rail,#tabbar,#where,#topbar-right,.idline,.bline,.thead,main>aside{transition:opacity .35s}
+body.typing #rail,body.typing #tabbar,body.typing #where,body.typing .idline,body.typing main>aside{opacity:.28}
+body.typing .bstage .bline .nm,body.typing .bstage .bline .bdraw{opacity:.2}
 /* 入る・出るの動き */
 #pane.zin{animation:yn-zin .2s ease-out}#pane.zout{animation:yn-zout .2s ease-out}
 @keyframes yn-zin{from{transform:scale(.86);opacity:.35}to{transform:none;opacity:1}}

@@ -45,7 +45,8 @@ let searchQ = ''; // いま検索している語（一覧と、開いたノー�
 const get = (s, id) => notes.find(n => n.s === s && n.id === id);
 const free = (s, id) => { while (get(s, id)) id = L.sibling(id); return id; };
 const topicOf = (s, id) => topicsOf(s, id)[0];
-const topicsOf = (s, id) => topics.filter(t => t.entry && t.entry.s === s && t.entry.id === id).sort((a, b) => (a.num || 1) - (b.num || 1));   // 同じ番号に複数（1-1, 1-2）
+const topicsOf = (s, id) => topics.filter(t => t.entry && t.entry.s === s && t.entry.id === id).sort((a, b) => L.cmpTopicNum(a.num, b.num));   // 同じ番号に複数（1-all, 1-0, 1-1, 1-1-2, 1-1a, 1-2 …）
+const maxNum = list => Math.max(0, ...list.map(t => t.num).filter(n => Number.isInteger(n)));   // 数の番号だけ（1-0・1-all などの文字の番号は数えない）
 const topicsWith = n => topics.map(t => ({ t, kws: L.mergeTopic(t).rows.filter(r => r[n.s].some(x => L.splitAnchor(x).id === n.id)).map(r => r.kw) })).filter(x => x.kws.length);
 const allKeywords = () => [...new Set(notes.flatMap(n => n.keywords))].sort(L.byReading(k => readings[k]));
 const readingOf = k => readings[k] || (PI.pendingEntries().find(e => e.kw === k) || {}).reading || '';   // 取り込み前の紙のキーワードの読みも
@@ -453,8 +454,8 @@ const chips = (v, k) => [['d', v.d], ['p', v.p]].filter(([s]) => isVisS(s)).map(
 const stripId = name => name.replace(/^[0-9][0-9a-z]*-/, '') || name;
 const topicNo = t => t.entry ? `${t.entry.id}-${t.num || 1}` : '';   // 1-1, 1-2, … グループIndexは 0-1, 0-2
 // 索引は、作るときは名前をつけない（無名）。中身が育ってから、名前をつける。無名の索引は、番号（1-1）だけで呼ぶ
-const AUTO = /^無名[0-9][0-9a-z]*-\d+/, isAuto = name => AUTO.test(name), shown = name => isAuto(name) ? name.slice(2) : stripId(name);
-const autoName = (sp, id) => { let n = Math.max(0, ...topicsOf(sp, id).map(t => t.num || 0)) + 1, nm; do nm = `無名${id}-${n++}` + (sp === 'p' ? 'p' : ''); while (topics.find(t => t.name === nm)); return nm; };
+const AUTO = /^無名[0-9][0-9a-z]*-(?:all|\d)/, isAuto = name => AUTO.test(name), shown = name => isAuto(name) ? name.slice(2) : stripId(name);
+const autoName = (sp, id) => { let n = maxNum(topicsOf(sp, id)) + 1, nm; do nm = `無名${id}-${n++}` + (sp === 'p' ? 'p' : ''); while (topics.find(t => t.name === nm)); return nm; };
 const topicLabel = t => isAuto(t.name) ? (topicNo(t) || shown(t.name)) : (topicNo(t) ? topicNo(t) + ' ' : '') + stripId(t.name);
 const tchip = name => `<span class="chip t" data-topic="${esc(name)}">${esc(shown(name))}</span>`;
 const firstLine = n => (Stamp.strip(n.body).split('\n').find(x => x.trim()) || '').replace(n.kind === 'brainstorm' ? /^\s*- / : /^#+\s*/, '').trim().slice(0, 40);
@@ -1145,6 +1146,14 @@ function leavePage() {
 }
 const viewOf = t => views().get(pageKey(t));
 // これから描く画面の、覚えておいたスクロール位置を、描き終わったあとで戻す（skipRestore で取りやめ）
+// 静かな枠: 本文・盤面に文字を打っている間は、枠を薄くする。マウスを動かす・本文から出ると戻る
+document.addEventListener('keydown', e => {
+  if (e.ctrlKey || e.metaKey || e.altKey || e.key === 'Escape' || e.key.length !== 1 && !['Enter', 'Backspace', 'Process'].includes(e.key)) return;
+  const t = e.target; if (t && t.closest && (t.closest('.cm-content') || t.closest('.bb-input')) && !t.closest('#modal')) document.body.classList.add('typing');
+}, true);
+let calmX = -1, calmY = -1;
+document.addEventListener('mousemove', e => { if (Math.abs(e.clientX - calmX) + Math.abs(e.clientY - calmY) > 6) document.body.classList.remove('typing'); calmX = e.clientX; calmY = e.clientY; });
+document.addEventListener('focusout', () => setTimeout(() => { const a = document.activeElement; if (!(a && a.closest && (a.closest('.cm-content') || a.closest('.bb-input')))) document.body.classList.remove('typing'); }, 0));
 // 入る・出るの動き（0.2 秒）: 盤面（ブレスト・地図）のノードのリンクで別の画面へ入るときは、押した所から広がる。戻るときは、その所へ縮む
 let zoomFrom = null, zoomT = 0;
 const zoomBack = new Map();
@@ -2115,7 +2124,7 @@ function regionDialog(n) {
     <div class="da-lab">🏷️ グローバルIndexの名前（普通のノートのキーワードと同じ。いくつでも登録できます）</div>
     <div class="kwlist">${kws.length ? kws.map(k => `<div class="kwrow rkrow"><span>${esc(k)}</span><small class="sub">${esc(readings[k] || '')}</small><button class="rkx" data-rkdel="${esc(k)}" title="解除（グローバルIndexから外す）">✕</button></div>`).join('') : '<div class="msub">まだ登録していません</div>'}</div>
     <button id="rg-kw" class="da-wide">🏷️ 名前を登録<small>名前と読みを入れます（グローバルIndexに並びます）</small></button>
-    <button id="rg-mk" class="da-wide" title="この区画の下に、新しい索引（${esc(n)}-1, ${esc(n)}-2 …）を作ります">➕ 新しいトピックIndexを作る<small>${esc(n)}-${Math.max(0, ...topicsOf('d', n).map(t => t.num || 0)) + 1}（無名で作ります。名前は題を押して付けます）</small></button>
+    <button id="rg-mk" class="da-wide" title="この区画の下に、新しい索引（${esc(n)}-1, ${esc(n)}-2 …）を作ります">➕ 新しいトピックIndexを作る<small>${esc(n)}-${maxNum(topicsOf('d', n)) + 1}（無名で作ります。名前は題を押して付けます）</small></button>
     <div class="da-bar"><span class="grow"></span><button id="rg-cancel">やめる</button><button id="rg-ok" class="p">名前を保存</button></div></div>`;
   $('#modal').style.display = 'flex'; $('#rg-name').focus();
   const close = () => { $('#modal').style.display = 'none'; };
@@ -2139,8 +2148,9 @@ function regionDialog(n) {
 }
 function topicNewDialog(kw = '', presetId = '', side = 'd') {
   const rootFree = sp => { const c = cur && cur.k === 'note' ? L.region(cur.id) : 0; return String(c || (regions[0] && regions[0].n) || 1); };   // 初めの番号は、今のノートの区画（無ければ最初の区画）
-  const nextNum = (sp, id) => Math.max(0, ...topicsOf(sp, id).map(t => t.num || 0)) + 1;   // その番号の次の索引（1-1 のあとは 1-2）
-  const parseNo = str => { const m = /^(.+?)(?:-(\d+))?$/.exec(String(str || '').trim().toLowerCase()); return m ? { id: m[1], n: m[2] ? +m[2] : 0 } : { id: '', n: 0 }; };   // 「3a-2」→ 番号 3a の 2 個目
+  const nextNum = (sp, id) => maxNum(topicsOf(sp, id)) + 1;   // その番号の次の索引（1-1 のあとは 1-2）
+  // 「3-2」→ 区画 3 の 2 個目。「1-0」雑の地図・「1-all」地図の地図・「1-1-2」1-1 の続き・「1-1a」1-1 の掘り下げ も書ける
+  const parseNo = str => { const m = /^([^-]+)(?:-(.+))?$/.exec(String(str || '').trim().toLowerCase()); if (!m) return { id: '', n: 0 }; const r = m[2]; return { id: m[1], n: !r ? 0 : /^\d+$/.test(r) && +r > 0 ? +r : L.TSUF.test(r) ? r : NaN }; };
   const idsOf = k => { const v = globalIndex().find(x => x[0] === k); return v ? v[1] : { d: [], p: [] }; };
   $('#modal .box').innerHTML = `<div class="dlg-a">
     <h3>➕ トピックIndexを作る</h3>
@@ -2159,7 +2169,7 @@ function topicNewDialog(kw = '', presetId = '', side = 'd') {
   const refresh = () => {
     const k = $('#tn-kw').value.trim(), sp = $('#tn-s').value, { id, n } = parseNo($('#tn-id').value);
     const exists = !!get(sp, id), region = sp === 'd' && L.isRegionOnly(id), num = n || (id ? nextNum(sp, id) : 0);
-    $('#tn-note').textContent = !id ? '' : !L.isRegionOnly(id) ? '索引の番号は、区画の番号だけです（例: 1-1）。ノートの ID（1a-1 など）にはできません' : topicsOf(sp, id).some(t => (t.num || 0) === num) ? `${sp === 'p' ? '紙 ' : ''}${id}-${num} は、もうあります` : `${sp === 'p' ? '紙 ' : ''}${id}-${num} を作ります。` + (region ? `区画 ${id} の索引（ノートは作りません）` : exists ? `既存のノート ${id} の索引になります` : `${id} のノートは、まだありません（ノートは作らず、索引だけ作ります）`);
+    $('#tn-note').textContent = !id ? '' : !L.isRegionOnly(id) ? '索引の番号は、区画の番号だけです（例: 1-1）。ノートの ID（1a-1 など）にはできません' : Number.isNaN(num) ? '「-」の後ろは、1・2 …、0（雑の地図）、all（地図の地図）、1-2（続き）、1a（掘り下げ）の形です' : topicsOf(sp, id).some(t => String(t.num || 0) === String(num)) ? `${sp === 'p' ? '紙 ' : ''}${id}-${num} は、もうあります` : `${sp === 'p' ? '紙 ' : ''}${id}-${num} を作ります。` + (region ? `区画 ${id} の索引（ノートは作りません）` : exists ? `既存のノート ${id} の索引になります` : `${id} のノートは、まだありません（ノートは作らず、索引だけ作ります）`);
     const v = k ? idsOf(k) : null;
     $('#tn-pre').textContent = v ? (v.d.length + v.p.length >= 2 ? `${k} ${[...v.d, ...v.p.map(x => '紙' + x)].join(' ')}` + (exists && !(sp === 'd' ? v.d : v.p).includes(id) || !exists ? ` ${sp === 'p' ? '紙' : ''}${id}` : '') + `　→ ${sp === 'p' ? '紙' : ''}${id} の上に赤い点が付きます` : 'このキーワードのIDは2つ未満です') : '';
   };
@@ -2177,7 +2187,8 @@ function topicNewDialog(kw = '', presetId = '', side = 'd') {
     const k = $('#tn-kw').value.trim(), sp = $('#tn-s').value, { id, n } = parseNo($('#tn-id').value);
     if (!L.isRegionOnly(id)) return alert('索引の番号は、区画の番号だけです（例: 1-1）。ノートの ID（1a-1 など）にはできません');
     const num = n || nextNum(sp, id);
-    if (topicsOf(sp, id).some(t => (t.num || 0) === num)) return alert(`${id}-${num} の索引は、もうあります`);
+    if (Number.isNaN(num)) return alert('「-」の後ろは、1・2 …、0（雑の地図）、all（地図の地図）、1-2（続き）、1a（掘り下げ）の形です');
+    if (topicsOf(sp, id).some(t => String(t.num || 0) === String(num))) return alert(`${id}-${num} の索引は、もうあります`);
     const auto = `無名${id}-${num}` + (sp === 'p' ? 'p' : ''), name = $('#tn-name').value.trim() || (topics.find(t => t.name === auto) ? autoName(sp, id) : auto);
     if (topics.find(t => t.name === name)) return alert('その名前は既にあります');
     let v = null;
@@ -3116,6 +3127,7 @@ function settingsDialog() {
 // ⌨️ キー一覧（Ctrl に統一。割り当てを足したら、ここにも書く）
 const KEYS = [
   ['書く', [['Ctrl+D', '今日の日記を開く（本文の最後にカーソル）'], ['Ctrl+K', '書き終わりへ（日記・時系列記録は自分の文章の最後、ふつうのノートは最後に 1 行あけて）'], ['Esc', '入力欄・本文から出る（ノーマルモード）'], ['Ctrl+M', '新しい (n) を、カーソルの位置に入れる'], ['Ctrl+P', '(p) を入れる'], ['Ctrl+I', ':ID を入れる'], ['Ctrl+R', '行ごとの時刻の、オン・オフ'], ['Ctrl+↑ / ↓', '行を動かす']]],
+  ['盤面（ブレスト・地図）', [['Enter', '書いて、すぐ下に次'], ['Tab', '書いて、右に広げる（線でつなぐ）'], ['Ctrl+0', '全体を見る'], ['Ctrl+ホイール', '拡大・縮小'], ['Space', 'ノードに合わせて、のぞく（Enter で開く）'], ['Ctrl+U', 'ノードの文字欄で、探して入れる']]],
   ['ノートを作る', [['Ctrl+N', 'IDなしの新しいノート'], ['Ctrl+H', '並列のノート'], ['Ctrl+B', '分岐（子）のノート']]],
   ['探す・移る', [['Ctrl+F', '左の検索'], ['Ctrl+E', '今のページの中の検索・置換'], ['Ctrl+U', '検索して挿入（ノート・小ノート・リンク・索引）'], ['Ctrl+O', 'ノート一覧へ（今のノートが真ん中）'], ['Ctrl+Q', '左の一覧の一番上へ'], ['Ctrl+J', '左の一覧の折りたたみを、全部たたむ・ひらく'], ['Ctrl+,  /  Ctrl+.', '戻る・進む'], ['Ctrl+\\', '右パネルの、出し入れ'], ['Ctrl+[', '左の一覧を、たたむ・出す'], ['Ctrl+]', '集中表示（左の一覧と右パネルを、一緒にたたむ・出す）']]],
   ['タブ', [['Ctrl+T', '新しいタブ'], ['Ctrl+W', '閉じる']]],

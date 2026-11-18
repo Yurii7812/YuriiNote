@@ -378,7 +378,7 @@ function openVault(vault) {
     const shownBody = n.kind === 'memo-group' ? MemoGroup.markdown(n.data, docs.get('C_チャット')) : n.body;
     const body = BODY + L.bodyToMd(shownBody, (x, sp) => noteHref(sp || n.s, x)) + '\n' + NAV;
     if (L.isNoid(n.id)) return [fmOf(n).replace(/\n$/, ''), n.data ? `<!-- pkm-data ${J(n.data)} -->` : null, head, '', body, ''].filter(x => x !== null).join('\n');
-    const has = x => !!get(n.s, x), parent = L.parentIn(n.id, has), kids = ids(n.s).filter(x => L.parentIn(x, has) === n.id), own = [...topics.values()].filter(o => o.entry && o.entry.s === n.s && o.entry.id === n.id).sort((a, b) => (a.num || 1) - (b.num || 1));
+    const has = x => !!get(n.s, x), parent = L.parentIn(n.id, has), kids = ids(n.s).filter(x => L.parentIn(x, has) === n.id), own = [...topics.values()].filter(o => o.entry && o.entry.s === n.s && o.entry.id === n.id).sort((a, b) => L.cmpTopicNum(a.num, b.num));
     const listed = [...topics.values()].filter(o => L.mergeTopic(o).rows.some(r => r[n.s].some(x => L.splitAnchor(x).id === n.id)));
     const line = (k, items) => items.length ? `${k}: ${items.join('　')}` : null;
     const top = [line('ParentBranch', parent ? [lk(n.s, parent)] : []), line('TopicBranch', own.map(o => ml(topicHref(o.name), o.name))), line('Topic', listed.map(o => ml(topicHref(o.name), o.name)))].filter(Boolean);
@@ -551,8 +551,9 @@ function openVault(vault) {
     const by = new Map();
     for (const t of topics.values()) { if (!t.entry) continue; const k = t.entry.s + ':' + t.entry.id; if (!by.has(k)) by.set(k, []); by.get(k).push(t); }
     for (const list of by.values()) {
-      const used = new Set(list.filter(t => t.num > 0).map(t => t.num)); let next = Math.max(0, ...used) + 1;
-      for (const t of list.slice().sort((a, b) => a.name.localeCompare(b.name, 'ja'))) { if (!(t.num > 0) || list.some(o => o !== t && o.num === t.num && o.name.localeCompare(t.name, 'ja') < 0)) t.num = next++; }
+      // 番号は 1, 2 … のほか、文字の番号（0・all・1-2・1a …）も持てる。無い・重なるものだけ、次の数を付ける
+      let next = Math.max(0, ...list.filter(t => Number.isInteger(t.num) && t.num > 0).map(t => t.num)) + 1;
+      for (const t of list.slice().sort((a, b) => a.name.localeCompare(b.name, 'ja'))) { if (!L.isTopicNum(t.num) || list.some(o => o !== t && String(o.num) === String(t.num) && o.name.localeCompare(t.name, 'ja') < 0)) t.num = next++; }
     }
   }
   function rebuild() {
