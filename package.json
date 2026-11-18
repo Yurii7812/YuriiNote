@@ -54,6 +54,7 @@
       "memo-group.js",
       "lib.js",
       "board-core.js",
+      "assets/cards/**",
       "update.js",
       "phone.js",
       "capture.js",

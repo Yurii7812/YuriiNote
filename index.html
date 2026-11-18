@@ -814,6 +814,16 @@ body{-webkit-user-select:none;user-select:none}
 .bb-peek .pk-h{display:flex;gap:8px;align-items:baseline;padding:10px 12px 4px}.bb-peek .pk-h b{flex:1;font-size:15px}.bb-peek .pk-h small{color:var(--sub)}
 .bb-peek pre{flex:1;margin:0;padding:4px 12px;overflow:hidden;white-space:pre-wrap;font:inherit;font-size:13px;color:var(--sub)}
 .bb-peek .pk-f{padding:6px 12px;font-size:11.5px;color:#b3b7c2;border-top:1px solid var(--line)}
+/* カード（タロット・易・発想カード）のノード: 絵の下に名前 */
+.bb-node.k-tarot,.bb-node.k-iching,.bb-node.k-prompt{display:flex;flex-direction:column;align-items:center;gap:4px;max-width:150px;text-align:center;font-size:13px}
+.bb-node .cd.tarot{width:82px;height:137px;border-radius:5px;overflow:hidden;box-shadow:0 1px 4px rgba(0,0,0,.18)}
+.bb-node .cd.tarot img{width:100%;height:100%;object-fit:cover;display:block}.bb-node .cd.tarot img.rev{transform:rotate(180deg)}
+.bb-node .cd.iching{width:96px;height:137px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:8px;border:1px solid var(--line);border-radius:6px;background:#fff}
+.bb-node .cd.iching svg{width:62px;fill:var(--fg)}.bb-node .cd.iching .mv{fill:var(--red)}.bb-node .cd.iching b{font-size:13px}
+.bb-node .cd.prompt{width:120px;min-height:120px;display:flex;flex-direction:column;gap:6px;padding:8px;border-radius:6px;border-top:5px solid var(--pc);background:#fff;box-shadow:0 1px 4px rgba(0,0,0,.12);text-align:left}
+.bb-node .cd.prompt small{color:var(--sub);font-size:11px}.bb-node .cd.prompt b{font-size:15px}.bb-node .cd.prompt span{font-size:12px;color:var(--sub);line-height:1.4}
+.bb-node .cd-t{max-width:150px}
+.bstage .bline .bdraw{font-size:13px;padding:2px 10px}
 /* ブレストのノート: 上に小さな行（ID・題）、その下は全部盤面 */
 .bstage{flex:1 1 auto;min-height:0;display:flex;flex-direction:column}
 .bstage .bline{display:flex;align-items:center;gap:8px;padding:8px 16px 6px;border-bottom:1px solid var(--line)}

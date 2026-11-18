@@ -628,7 +628,7 @@ function openVault(vault) {
   // その日に作ったデジタルノートへのリンクを、日記の「今日のノート」に足す（無ければ日記も作る）
   // ノートが載る日記の日: 暦の日付（0 時で変わる。Ctrl+D の「今日」と同じ。2026-11-18 利用者の指示）
   const noteDay = n => { const m = String(n.created || '').match(/^\d{4}-\d{2}-\d{2}/); return m && L.isDate(m[0]) ? m[0] : ''; };
-  const isBlank = n => (!n.kind || n.kind === 'text') && !(n.body || '').trim() && !(n.title || '').trim();
+  const isBlank = n => (!n.kind || n.kind === 'text' || (n.kind === 'brainstorm' && !(n.data && (n.data.s || []).length))) && !(n.body || '').trim() && !(n.title || '').trim();   // ブレストも、まだ何も書いていなければ
   // 日記の「今日のノート」の1行: [題](ファイル名.md)。ID を付け替えても、ファイル名は変わらないので、リンクはそのまま
   const noteLabel = n => {
     const t = (n.title || '').trim() || ((Stamp.strip(n.body || '').split('\n').map(x => x.replace(/^#+\s*/, '').trim()).find(Boolean)) || '');

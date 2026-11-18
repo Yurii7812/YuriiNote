@@ -14,11 +14,11 @@ async function app(setup) {
   store.saveDoc('K_settings', { lang: 'ja' });
   store.saveNote({ s: 'd', id: '1', created: '2026-11-10 09:00:00', title: 'ふつう', body: 'a' });
   if (setup) setup(store);
-  const dom = new JSDOM(html, { url: 'http://localhost/', runScripts: 'outside-only', pretendToBeVisual: true, virtualConsole: new VirtualConsole() });
+  const vc = new VirtualConsole(); if (process.env.BS_DEBUG) vc.on('jsdomError', e => console.log('JSDOM', e.message)); const dom = new JSDOM(html, { url: 'http://localhost/', runScripts: 'outside-only', pretendToBeVisual: true, virtualConsole: vc });
   const w = dom.window;
   w.matchMedia = () => ({ matches: false, addEventListener() {}, removeEventListener() {} }); w.ResizeObserver = class { observe() {} unobserve() {} disconnect() {} };
   w.HTMLElement.prototype.scrollIntoView = function () {}; w.Range.prototype.getClientRects = () => []; w.Range.prototype.getBoundingClientRect = () => ({ left: 0, right: 0, top: 0, bottom: 0, width: 0, height: 0 });
-  w.confirm = () => true; w.alert = () => {}; w.Element.prototype.setPointerCapture = () => {};
+  w.confirm = () => true; w.alert = () => {}; w.Element.prototype.setPointerCapture = () => {}; if (!w.crypto || !w.crypto.getRandomValues) Object.defineProperty(w, 'crypto', { value: require('crypto').webcrypto });
   w.api = new Proxy({}, { get(_, key) { if (String(key).startsWith('on')) return () => {}; if (key === 'load' || key === 'state') return async () => structuredClone(store.state()); if (key === 'suggest') return async k => k; if (typeof store[key] === 'function') return async (...a) => structuredClone(store[key](...structuredClone(a))); return async () => null; } });
   w.eval(bundled); await tick(300);
   const $ = s => w.document.querySelector(s), $$ = s => [...w.document.querySelectorAll(s)];
@@ -134,5 +134,26 @@ test('ノートの中の小さなボード: v1 を読み、文字同士をつな
     await tick(600);
     const body = a.store.state().notes.find(n => n.id === '5').body;
     assert.match(body, /\{"v":2,"h":\d+,"t":\[\[10,10,"x"\],\[100,10,"y"\],\[200,10,"z"\]\],"l":\[\[1,2\]\],"s":\[\]\}/);
+  } finally { a.close(); }
+});
+
+test('引く: ヘキサグラムを一度に 7 枚（位置の名前つき）、易は本卦と之卦。ノートにはカードの名前だけ（画像は入れない）', async () => {
+  const a = await app(st => st.saveNote({ s: 'd', id: '6', created: '2026-11-12 09:00:00', title: '占い', body: '', kind: 'brainstorm', data: { v: 2, t: [[40, 40, '問い']], l: [], s: [] } }));
+  try {
+    await a.open('d', '6');
+    a.$('[data-act="bdraw"]').click(); await tick(50); await a.menu('ヘキサグラム');
+    await tick(500); let t = a.bs()[0].data.t;
+    assert.strictEqual(a.$$('#bboard .bb-node').length, 8, '盤面に 8 個');
+    assert.strictEqual(t.length, 8);
+    assert.ok(t.slice(1).every(x => /^tarot:[mwcsp]\d+:[ur]$/.test(x[3])), 'どのカードかは種類に');
+    assert.deepStrictEqual(t.slice(1).map(x => x[2].split('：')[0]), ['過去', '現在', '近い未来', '自分の気持ち', '相手の気持ち', 'アドバイス', '結論']);
+    assert.ok(t[1][0] > 40, '今ある中身の右に置く');
+    assert.strictEqual(a.$$('#bboard .bb-node.k-tarot img').length, 7, 'カードの絵');
+    a.$('[data-act="bdraw"]').click(); await tick(50); await a.menu('易'); await tick(500);
+    t = a.bs()[0].data.t; const ic = t.filter(x => /^iching:/.test(x[3]));
+    assert.ok(ic.length >= 1 && /^本卦：第\d+卦/.test(ic[0][2]));
+    const md = fs.readFileSync(path.join(a.dir, fs.readdirSync(a.dir).find(f => f.startsWith(a.bs()[0].stem))), 'utf8');
+    assert.ok(!/\.jpg/.test(md), 'vault に画像のファイル名を書かない');
+    assert.match(md, /- 過去：/);
   } finally { a.close(); }
 });

@@ -73,7 +73,7 @@ export function mountBoard(root, o) {
   }
   const drawPen = () => { pen.innerHTML = st.s.map((f, i) => `<path class="bb-stroke" d="${smooth(f)}"/><path class="bb-shit" data-s="${i}" d="${smooth(f)}"/>`).join(''); };
   function draw() {
-    box.innerHTML = st.n.map(a => `<div class="bb-node${a.k ? ' k-' + a.k : ''}" data-n="${a.id}" style="left:${a.x}px;top:${a.y}px">${opt.render(a.text, a)}</div>`).join('');
+    box.innerHTML = st.n.map(a => `<div class="bb-node${a.k ? ' k-' + a.k.split(':')[0] : ''}" data-n="${a.id}" style="left:${a.x}px;top:${a.y}px">${opt.render(a.text, a)}</div>`).join('');
     root.classList.toggle('empty', !st.n.length && !st.s.length);
     drawLines(); drawPen();
     if (editing) placeInput();
@@ -238,7 +238,7 @@ export function mountBoard(root, o) {
     }
     if (d.line) { const i = +d.line.dataset.l; return popMenu(e, [['🗑️ 線を消す', () => commit(() => st.l.splice(i, 1)), true]]); }
     if (d.stroke) { const i = +d.stroke.dataset.s; return popMenu(e, [['🗑️ ペンの線を消す', () => commit(() => st.s.splice(i, 1)), true]]); }
-    popMenu(e, [['✏️ ここに書く', () => edit(0, { x: d.x - 8, y: d.y - 14 })], ['🔍 全体を見る（Ctrl+0）', fit], ...(undo.length ? [['↶ 元に戻す（Ctrl+Z）', () => back(undo, redo)]] : [])]);
+    popMenu(e, [['✏️ ここに書く', () => edit(0, { x: d.x - 8, y: d.y - 14 })], ...(opt.spaceMenu ? opt.spaceMenu({ x: d.x, y: d.y }, api) : []), ['🔍 全体を見る（Ctrl+0）', fit], ...(undo.length ? [['↶ 元に戻す（Ctrl+Z）', () => back(undo, redo)]] : [])]);
   }
   root.addEventListener('wheel', e => {
     e.preventDefault();
@@ -263,6 +263,14 @@ export function mountBoard(root, o) {
     setView(v) { if (v && isFinite(v.s)) { view = { s: v.s, tx: v.tx, ty: v.ty }; apply(); } },
     fit, redraw: draw, edit, reveal,
     focusNode(id, cls = 'bb-focus') { const e = elOf(id); if (!e) return; box.querySelectorAll('.' + cls).forEach(x => x.classList.remove(cls)); e.classList.add(cls); reveal(id); },
+    // まとめて置く（1 回の「元に戻す」）。list の x, y は at からのずれ。links は list の番号の組。from があれば、最初のノードと線でつなぐ
+    add(list, links = [], at = null, from = 0) {
+      const bb = bounds(), p = at || (bb ? { x: bb.x1 + 90, y: bb.y0 } : api.middle()); let ids = [];   // 場所を決めていなければ、今ある中身の右に
+      commit(() => { let id = C.nextId(st); ids = list.map(a => { const n = { id: id++, x: Math.round(p.x + a.x), y: Math.round(p.y + a.y), text: a.text, ...(a.k ? { k: a.k } : {}) }; st.n.push(n); return n.id; }); for (const [i, j] of links) st.l.push([ids[i], ids[j]]); if (from && byId(from) && ids[0]) st.l.push([from, ids[0]]); });
+      if (!at) setTimeout(() => ids[0] && reveal(ids[0]), 0);
+      return ids;
+    },
+    middle() { const W = root.clientWidth || 600, H = root.clientHeight || 400; if (!view) return { x: 40, y: 40 }; return { x: Math.round((W / 2 - view.tx) / view.s - 120), y: Math.round((H / 2 - view.ty) / view.s - 100) }; },
     update(id, text) { commit(() => { const a = byId(id); if (a) a.text = text; }); },
     nodeEl: elOf,
   };
