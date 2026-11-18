@@ -33,7 +33,7 @@ const ZERO = '0';   // 0番: 区画（1, 2, 3 …）を順に、名前（題）�
 let notes = [], topics = [], readings = {}, tab = 'd', cur = null, vault = '', regions = [];
 // 開いているタブ（Obsidian 風）。cur は今のタブ
 let tabs = [], active = -1, newTab = false, bgOpen = false;
-let mode = 'notes', diaries = [], records = [{ name: '日記', parent: '' }], lastNote = null, curKind = (() => { try { return localStorage.getItem('pkm-kind') || '日記'; } catch { return '日記'; } })(); // 左の列で選んでいる種類（ノート・日記…）
+let mode = 'notes', diaries = [], records = [{ name: '日記', parent: '' }], lastNote = null, lastRec = '日記', curKind = (() => { try { return localStorage.getItem('pkm-kind') || '日記'; } catch { return '日記'; } })(); // 左の列で選んでいる種類（ノート・日記…）
 let selMode = false, picked = new Set(), lastPick = null; // 一括選択
 let searchQ = ''; // いま検索している語（一覧と、開いたノートの中の印に使う）
 const get = (s, id) => notes.find(n => n.s === s && n.id === id);
@@ -524,14 +524,15 @@ const fileUsage = name => {
 const fileUsedCount = name => { const u = fileUsage(name); return u.notes.length + u.diaries.length + u.memos.length; };
 const PICX = /^\.(png|jpe?g|gif|webp|svg|bmp|avif)$/;
 const fileThumb = f => PICX.test(f.ext) ? `<img class="fth" loading="lazy" src="${esc(vaultUrl())}${encodeURIComponent(f.name)}" alt="">` : `<span class="fth ic">${fileIcon(f.ext)}</span>`;   // 画像は縮小して、そのまま。ほかは、種類の絵
-const fileRow = (f, q = '') => `<div class="item note frow" data-file="${esc(f.name)}"><div class="nrow">${fileThumb(f)}<div class="ftx"><div class="nt">${f.title ? mk(f.title, q) : `<span class="sub">（タイトルなし）</span> ${mk(f.orig, q)}`}</div><div class="ns">${esc(f.name)}${f.title && f.orig !== f.name ? ' · ' + mk(f.orig, q) : ''}${f.desc ? ' · ' + mk(f.desc.slice(0, 40), q) : ''}${(() => { const n = fileUsedCount(f.name); return n ? ` · 🔗 ${n} 件で使用` : ' · 使われていません'; })()}</div></div></div></div>`;
+const fmtSize = n => n < 1024 ? n + ' B' : n < 1048576 ? Math.round(n / 1024) + ' KB' : (n / 1048576).toFixed(1) + ' MB';
+const fileRow = (f, q = '') => `<div class="item note frow" data-file="${esc(f.name)}"><div class="nrow">${fileThumb(f)}<div class="ftx"><div class="nt">${f.title ? mk(f.title, q) : `<span class="sub">（タイトルなし）</span> ${mk(f.orig, q)}`}</div><div class="ns">${fmtSize(f.size)} · ${esc(f.name)}${f.title && f.orig !== f.name ? ' · ' + mk(f.orig, q) : ''}${f.desc ? ' · ' + mk(f.desc.slice(0, 40), q) : ''}${(() => { const n = fileUsedCount(f.name); return n ? ` · 🔗 ${n} 件で使用` : ' · 使われていません'; })()}</div></div></div></div>`;
 function fileDialog(name) {
   const f = filesCache.find(x => x.name === name); if (!f) return;
   const isImg = /^\.(png|jpe?g|gif|webp|svg|bmp|avif)$/.test(f.ext);
   // 案A: 上に題（そのまま直せる・自動で保存）／左に中身／右に「使われているところ」と説明／下に操作
   $('#modal .box').innerHTML = `<div class="fidlg">
     <div class="fi-hd"><span class="fi-ic">${fileIcon(f.ext)}</span><input id="fi-t" value="${esc(f.title)}" placeholder="題（取り込んだ名前が入ります）"><button id="fi-x" class="fi-x" title="閉じる (Esc)">✕</button></div>
-    <div class="fi-meta">${esc(name)} ・ ${f.size < 1024 ? f.size + ' B' : Math.round(f.size / 1024) + ' KB'} ・ ${esc(f.added)}${f.orig !== name ? ` ・ 取り込んだ名前: ${esc(f.orig)}` : ''}</div>
+    <div class="fi-meta">${esc(name)} ・ ${fmtSize(f.size)} ・ ${esc(f.added)}${f.orig !== name ? ` ・ 取り込んだ名前: ${esc(f.orig)}` : ''}</div>
     <div class="fi-body">
       <div class="fi-pvbox"><div class="fi-lab">中身</div><div id="fi-pv">${isImg ? `<img class="fi-img" src="file://${esc(vault + '/' + name)}">` : `<div class="fi-none">${fileIcon(f.ext)}<br>読み込んでいます…</div>`}</div></div>
       <div class="fi-side"><div id="fi-use"></div><div class="fi-lab">説明（探すときに使います）</div><textarea id="fi-d" rows="3" placeholder="例: 本の表紙の画像">${esc(f.desc)}</textarea></div>
@@ -892,6 +893,13 @@ async function openTodayDiary(toEnd) {
   setKind('日記'); mode = 'diary'; $('#q').value = ''; renderList(); await openDiary(L.calendarToday(), false, '日記', toEnd);
   setTimeout(() => { if (lastView && lastView.dom.isConnected) lastView.focus(); }, 60);
 }
+// 📔: 最後に開いた時系列記録（日記・夢…）の、今日を開く。日記は Ctrl+D
+async function openLastRecord() {
+  const k = records.some(r => r.name === lastRec) ? lastRec : '日記';
+  if (k === '日記') return openTodayDiary();
+  setKind(k); mode = 'diary'; $('#q').value = ''; renderList(); await openDiary(L.todayStr(), false, k);
+  setTimeout(() => { if (lastView && lastView.dom.isConnected) lastView.focus(); }, 60);
+}
 async function openMemoPad() {
   const NAME = 'メモ帳';   // いつもある時系列記録
   setKind(NAME); mode = 'diary'; $('#q').value = ''; renderList(); await openDiary(L.todayStr(), false, NAME);
@@ -902,7 +910,7 @@ $('#rail').onclick = e => {
   const b = e.target.closest('button'); if (!b) return;
   if (b.id === 'settings-btn') return settingsDialog();
   if (b.id === 'memopad') return openMemoPad();
-  if (b.dataset.mode === 'diary') return openTodayDiary();
+  if (b.dataset.mode === 'diary') return openLastRecord();
   if (b.dataset.tab === 's') return openSearchTab();
   if (b.dataset.tab) { mode = 'notes'; tab = b.dataset.tab; $('#q').value = ''; renderList(); return; }   // タグ・ファイル
   if (b.dataset.mode === 'notes') { mode = 'notes'; tab = ['d', 'p', 'u'].includes(tab) ? tab : lastNotesTab; $('#q').value = ''; renderList(); }
@@ -2240,7 +2248,8 @@ const upsertDiary = (r, since = saves.revision) => {
   if (d) { if (!saves.has(diaryKey(r)) && !saves.changedSince(diaryKey(r), since)) Object.assign(d, r); return d; }
   diaries.push(r); return r;
 };
-const setKind = k => { curKind = k; try { localStorage.setItem('pkm-kind', k); } catch { } };
+if (curKind !== 'メモ帳') lastRec = curKind;
+const setKind = k => { curKind = k; if (k !== 'メモ帳') lastRec = k; try { localStorage.setItem('pkm-kind', k); } catch { } };
 const kindIcon = n => n === '日記' ? '📔' : n === 'メモ帳' ? '🗒️' : '📓';
 function diaryList() {
   if (!records.some(r => r.name === curKind)) setKind('日記');

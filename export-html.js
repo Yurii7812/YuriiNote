@@ -20,7 +20,6 @@ function buildHtml({ title = 'YuriiNote', notes = [], generated = '' } = {}) {
 <title>${esc(title)}</title>
 <style>
 :root{--bg:#fbfaf7;--fg:#24262b;--sub:#6b7080;--line:#e2e1db;--acc:#2f5fd0;--side:#f2f1ec;--red:#c0392b}
-@media (prefers-color-scheme:dark){:root{--bg:#1d1f24;--fg:#e4e5e8;--sub:#9aa0ad;--line:#33363e;--acc:#7da2ff;--side:#23262c;--red:#ff7b6b}}
 *{box-sizing:border-box}
 body{margin:0;background:var(--bg);color:var(--fg);font:16px/1.85 system-ui,"Hiragino Sans","Noto Sans JP",sans-serif;display:flex;min-height:100vh}
 nav{width:280px;flex:none;background:var(--side);border-right:1px solid var(--line);padding:14px 10px;overflow:auto;position:sticky;top:0;height:100vh}
