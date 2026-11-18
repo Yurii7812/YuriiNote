@@ -6,6 +6,7 @@
 //   paper-*.json  {"type":"paper","at":"…","image":"paper-….jpg","name"?:{id,kws}} と画像  → 紙のカードの写真。スマホで名前（ID）を付けてあれば、そのまま紙のノートに。無ければ PC の紙の取り込み画面で
 //   pm-*.json     {"type":"pmemo","book":"A","page":13,"image":"pm-….jpg"} と画像        → 紙のメモ帳のページ（P_memo-A-13.jpg）
 //   rec-*.json    {"type":"audio","at":"…","file":"rec-….m4a","sec":12} と音声            → 録音。PC で文字にする（録音の一覧へ）
+//   file-*.json   {"type":"file","at":"…","file":"file-….pdf","name":"元の名前.pdf"} と本体   → ファイル一覧へ（元の名前・日時の名前で保存。同じ中身は重ねない）
 //   kinds-*.json  {"type":"kinds","kinds":["夢","仕事"]}            → スマホで作った時系列記録の種類（項目だけ。PC に無いものを足す。中身は送らない）
 //   mark-*.json   {"type":"mark","kind":"メモ帳","date":"…","at":"…","n":3}              → 取り込み済みの吹き出しにメンションした: その行に (3) を付ける
 //   note-*.json の parent / parentName と rel（child|sibling）               → その子（分岐）・並列の ID で作る
@@ -18,8 +19,8 @@ const stampAt = at => { const m = String(at || '').match(/^(\d{4}-\d{2}-\d{2})[ 
 const oneLine = t => String(t).replace(/\r?\n+/g, ' ').trim();
 
 // files: [{name, buf}]（buf は Buffer）。papers: 紙の写真の保存先を決める関数 (name, buf) => 保存した名前（省略時は保存しない）
-function importInbox(v, files, { papers, seen, named, pmemo, audio, suggest, ids } = {}) {   // ids: スマホのノートのファイル名 → 付けた ID（子・並列の親をたどるため。呼び出し側が覚える）   // seen: すでに取り込んだファイル名の集まり（消さずに残してあるものを、二度取り込まない）
-  const sum = { memos: 0, diaries: 0, notes: 0, papers: 0, named: 0, pmemos: 0, audios: 0, marks: 0, kinds: 0, skipped: 0, already: 0 };
+function importInbox(v, files, { papers, seen, named, pmemo, audio, file, suggest, ids } = {}) {   // ids: スマホのノートのファイル名 → 付けた ID（子・並列の親をたどるため。呼び出し側が覚える）   // seen: すでに取り込んだファイル名の集まり（消さずに残してあるものを、二度取り込まない）
+  const sum = { memos: 0, diaries: 0, notes: 0, papers: 0, named: 0, pmemos: 0, audios: 0, files: 0, marks: 0, kinds: 0, skipped: 0, already: 0 };
   const done = [], bad = [];
   const by = new Map(files.map(f => [f.name, f]));
   const sorted = files.filter(f => /\.json$/.test(f.name)).sort((a, b) => a.name.localeCompare(b.name));   // 名前に時刻が入っているので、書いた順
@@ -46,6 +47,8 @@ function importInbox(v, files, { papers, seen, named, pmemo, audio, suggest, ids
         if (pmemo) pmemo(d, by.get(d.image).buf); sum.pmemos++; done.push(f.name, d.image);
       } else if (d.type === 'audio' && d.file && by.has(d.file)) {
         if (audio) audio({ ...d, at: stampAt(d.at) }, by.get(d.file).buf); sum.audios++; done.push(f.name, d.file);
+      } else if (d.type === 'file' && d.file && by.has(d.file)) {   // スマホから送ったファイル（何でも）→ PC のファイル一覧
+        if (file) file({ ...d, name: String(d.name || d.file) }, by.get(d.file).buf); sum.files++; done.push(f.name, d.file);
       } else if (d.type === 'kinds' && Array.isArray(d.kinds)) {   // 項目だけ。PC に無い種類を足す（あるもの・使えない名前は、そのまま）
         for (const k of d.kinds) if (typeof k === 'string' && k.trim() && v.addRecord && v.addRecord(k.trim())) sum.kinds++;
         done.push(f.name);
@@ -56,6 +59,6 @@ function importInbox(v, files, { papers, seen, named, pmemo, audio, suggest, ids
   }
   return { sum, done, bad };
 }
-const summary = s => [s.memos && `メモ ${s.memos} 件`, s.diaries && `日記 ${s.diaries} 件`, s.notes && `ノート ${s.notes} 件`, s.named && `名前つきの紙 ${s.named} 枚`, s.papers && `紙のカード ${s.papers} 枚（名前は取り込み画面で）`, s.pmemos && `紙のメモ帳 ${s.pmemos} ページ`, s.audios && `録音 ${s.audios} 件（文字にします）`, s.kinds && `時系列記録の種類 ${s.kinds} 件`, s.marks && `メンションの印 ${s.marks} 件`].filter(Boolean).join('、');
+const summary = s => [s.memos && `メモ ${s.memos} 件`, s.diaries && `日記 ${s.diaries} 件`, s.notes && `ノート ${s.notes} 件`, s.named && `名前つきの紙 ${s.named} 枚`, s.papers && `紙のカード ${s.papers} 枚（名前は取り込み画面で）`, s.pmemos && `紙のメモ帳 ${s.pmemos} ページ`, s.audios && `録音 ${s.audios} 件（文字にします）`, s.files && `ファイル ${s.files} 件（ファイル一覧へ）`, s.kinds && `時系列記録の種類 ${s.kinds} 件`, s.marks && `メンションの印 ${s.marks} 件`].filter(Boolean).join('、');
 
 module.exports = { importInbox, summary };

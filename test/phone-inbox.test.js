@@ -19,7 +19,7 @@ test('スマホの受信箱: メモ帳・日記・ノート・紙を取り込み
     { name: 'broken.json', buf: Buffer.from('{') }, J('memo-7-g.json', { type: 'memo', at: '2026-11-13 12:00', text: '   ' })
   ];
   const r = importInbox(v, files, { papers: (name, buf) => got.push([name, buf.length]) });
-  assert.deepStrictEqual(r.sum, { memos: 3, diaries: 1, notes: 1, papers: 1, named: 0, pmemos: 0, audios: 0, marks: 0, kinds: 0, skipped: 2, already: 0 });
+  assert.deepStrictEqual(r.sum, { memos: 3, diaries: 1, notes: 1, papers: 1, named: 0, pmemos: 0, audios: 0, files: 0, marks: 0, kinds: 0, skipped: 2, already: 0 });
   const memo = v.state().diaries.find(d => d.kind === 'メモ帳' && d.date === '2026-11-13').body;
   assert.strictEqual(memo, '朝の考え<!--2026-11-13 08:12:00-->\n二つ目 の続き<!--2026-11-13 10:40:00-->\n時刻なし<!--2026-11-13 11:00:00-->');   // いつも秒まで   // 1件1行・改行は空白に・全部に年月日と時刻
   assert.match(v.state().diaries.find(d => d.kind === '日記' && d.date === '2026-11-13').body, /今日は読書をした。<!--\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}-->/);
@@ -83,4 +83,14 @@ test('スマホの受信箱: 時系列記録の種類は、項目だけ取り込
   assert.deepStrictEqual(r.done.sort(), ['kinds-1-a.json', 'kinds-2-b.json'], '取り込み済みの印を返せる（スマホが自分で消す）');
   assert.match(summary(r.sum), /時系列記録の種類 2 件/);
   assert.deepStrictEqual(v.state().diaries.filter(d => d.date !== require('../lib').calendarToday()), [], '種類を足しても、日・記録のノートは作らない（今日の分だけは、空でも作る）');
+});
+
+test('スマホから送ったファイルは、ファイル一覧に入る（元の名前を残す）', () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'pi-')), v = openVault(dir), got = [];
+  const J = (name, o) => ({ name, buf: Buffer.from(JSON.stringify(o)) });
+  const r = importInbox(v, [J('file-1.json', { type: 'file', at: '2026-11-18 10:00', file: 'file-1.pdf', name: '請求書.pdf' }), { name: 'file-1.pdf', buf: Buffer.from('%PDF-x') }], { file: (d, buf) => { got.push([d.name, buf.length]); v.addFiles([{ name: d.name, bytes: buf }]); } });
+  assert.strictEqual(r.sum.files, 1); assert.deepStrictEqual(got, [['請求書.pdf', 6]]);
+  assert.deepStrictEqual(r.done.sort(), ['file-1.json', 'file-1.pdf']);
+  const f = v.filesInfo(); assert.strictEqual(f.length, 1); assert.strictEqual(f[0].orig, '請求書.pdf');
+  assert.match(summary(r.sum), /ファイル 1 件/);
 });

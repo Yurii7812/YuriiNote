@@ -75,8 +75,8 @@ class MainActivity : Activity() {
             }
             override fun onShowFileChooser(w: WebView, cb: ValueCallback<Array<Uri>>, p: FileChooserParams): Boolean {
                 chooser?.onReceiveValue(null); chooser = cb
-                val i = Intent(Intent.ACTION_GET_CONTENT).apply { addCategory(Intent.CATEGORY_OPENABLE); type = "image/*"; putExtra(Intent.EXTRA_ALLOW_MULTIPLE, true) }
-                return try { startActivityForResult(Intent.createChooser(i, "写真を選ぶ"), 2); true } catch (e: Exception) { chooser = null; false }
+                val i = Intent(Intent.ACTION_GET_CONTENT).apply { addCategory(Intent.CATEGORY_OPENABLE); type = p.acceptTypes?.firstOrNull { it.isNotBlank() } ?: "*/*"; putExtra(Intent.EXTRA_ALLOW_MULTIPLE, true) }   // 写真のとき image/*、ファイルのとき何でも
+                return try { startActivityForResult(Intent.createChooser(i, if (i.type == "*/*") "ファイルを選ぶ" else "写真を選ぶ"), 2); true } catch (e: Exception) { chooser = null; false }
             }
             override fun onJsConfirm(v: WebView, url: String, msg: String, r: JsResult): Boolean {
                 AlertDialog.Builder(this@MainActivity).setMessage(msg).setPositiveButton("はい") { _, _ -> r.confirm() }.setNegativeButton("いいえ") { _, _ -> r.cancel() }.setOnCancelListener { r.cancel() }.show(); return true

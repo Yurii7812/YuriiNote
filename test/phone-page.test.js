@@ -86,3 +86,29 @@ test('時系列記録の種類: スマホで作った種類は、項目だけ、
     assert.deepStrictEqual(p.errors, []);
   } finally { p.close(); }
 });
+
+test('ファイルのタブ: 送ったファイルが並び、PC に送る前でも・取り込み済みでも、消せる（ごみ箱へ）', async () => {
+  const f = (n, name) => [`file-${n}.json`, JSON.stringify({ type: 'file', at: '2026-11-18 10:0' + n + ':00', file: `file-${n}.pdf`, name, size: 2048 })];
+  const p = await page({ files: Object.fromEntries([f(1, '請求書.pdf'), f(2, 'メモ.txt')]), meta: { 'imported.json': { names: ['file-1.json'] } } });
+  try {
+    assert.ok(p.w.document.querySelector('.tabs [data-t="files"]'), '下のタブに「ファイル」がある');
+    p.w.document.querySelector('.tabs [data-t="files"]').click(); await tick();
+    const rows = [...p.w.document.querySelectorAll('#fl-list .row')];
+    assert.strictEqual(rows.length, 2); assert.match(rows[0].textContent, /メモ\.txt/); assert.match(p.w.document.querySelector('#fl-list').textContent, /取り込み済み/);
+    for (let i = 0; i < 2; i++) { p.w.document.querySelector('#fl-list [data-fdel]').click(); await tick(); }
+    assert.deepStrictEqual(Object.keys(p.files()), [], '未送信も、取り込み済みも、消せる');
+    assert.deepStrictEqual(p.errors, []);
+  } finally { p.close(); }
+});
+
+test('ノートの吹き出し: 🗑️ を押すだけで、PC に送っていないノートも、取り込み済みのノートも消せる', async () => {
+  const nt = (n, b) => [`note-${n}.json`, JSON.stringify({ type: 'note', created: '2026-11-18 10:0' + n + ':00', body: b })];
+  const p = await page({ files: Object.fromEntries([nt(1, '送っていない'), nt(2, '送った')]), meta: { 'imported.json': { names: ['note-2.json'] } } });
+  try {
+    p.w.document.querySelector('.tabs [data-t="notes"]').click(); await tick();
+    assert.strictEqual(p.w.document.querySelectorAll('.bub [data-bdel]').length, 2, '吹き出しごとに、消すボタンがある');
+    for (let i = 0; i < 2; i++) { p.w.document.querySelector('.bub [data-bdel]').click(); await tick(); }
+    assert.deepStrictEqual(Object.keys(p.files()), []);
+    assert.deepStrictEqual(p.errors, []);
+  } finally { p.close(); }
+});

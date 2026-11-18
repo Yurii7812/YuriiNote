@@ -4,7 +4,7 @@ import { StateField } from '@codemirror/state';
 import Core from '../link-core.js';
 import L from '../lib.js';
 import Urls from '../url-links.js';
-import { ctx, $, esc, dialog, toast, popMenu, renderMd, uid } from './shared.js';
+import { ctx, $, esc, dialog, toast, popMenu, renderMd, uid, vaultUrl } from './shared.js';
 let links = { items: [] }, display = { occurrences: {} }, cache = {}, version = 0;
 const widgets = new Set();
 export function init(docs) {
@@ -152,17 +152,34 @@ function occurrenceKey(owner,text,from,uri){const prefix=text.slice(Math.max(0,f
 export function enhance(el,{path=[],owner='rendered'}={}) {
   owner=JSON.stringify([path,owner]);
   for(const img of [...el.querySelectorAll('img')]){const src=img.getAttribute('src')||'';let uri=src;if(/^\d{14}(?:-\d+)?\.md$/.test(src))uri='note:'+src.slice(0,-3);if(/^(link|memo|note):/.test(uri))img.replaceWith(embed(uri,path,JSON.stringify([owner,uri,img.alt]),img.alt));}
+  for(const a of [...el.querySelectorAll('a[data-file]')]){   // 読む画面でも、取り込んだファイルのリンクの後ろに、小さなサムネイル
+    const f=a.dataset.file||'';if(/^https?:/.test(f)||/\.md$/i.test(f)||a.closest('.url-preview,.file-preview')||a.nextElementSibling?.classList?.contains('fc-inline'))continue;
+    let nm=f;try{nm=decodeURIComponent(f);}catch{}const info=ctx.fileInfo&&ctx.fileInfo(nm);if(info)a.after(fileThumbEl(info,'fc-inline'));
+  }
   for(const a of [...el.querySelectorAll('p>a:only-child')]){const url=a.dataset.file||a.getAttribute('href');if(!/^https?:\/\//.test(url||''))continue;const p=a.parentElement;if(Stamp.stripLine(p.textContent).trim()!==a.textContent.trim())continue;const index=[...el.querySelectorAll('a')].filter(x=>(x.dataset.file||x.getAttribute('href'))===url).indexOf(a);p.replaceWith(urlPreview(url,JSON.stringify([owner,url,index]),null,a.textContent));}
 }
 // ===== 取り込んだファイルの紹介の札（URL の札と同じ形）: 行が [名前](ファイル名) だけで、そのファイルが取り込み済みのとき =====
 const fileMeta = {};   // html の <title> と説明（読んだら覚える）
 const FILE_ICON = e => /^\.(png|jpe?g|gif|webp|svg|bmp|avif)$/.test(e) ? '🖼' : /^\.html?$/.test(e) ? '🌐' : /^\.(csv|tsv|xlsx?)$/.test(e) ? '📊' : /^\.pdf$/.test(e) ? '📕' : '📄';
 const fmtSize = n => n < 1024 ? n + ' B' : n < 1048576 ? (n / 1024).toFixed(n < 10240 ? 1 : 0) + ' KB' : (n / 1048576).toFixed(1) + ' MB';
+// ファイルのサムネイル: 画像は縮小した本物、ほかは種類の絵。カード・文中・一覧で同じ部品
+const IMG_EXT = /^\.(png|jpe?g|gif|webp|svg|bmp|avif)$/;
+function fileThumbEl(info, cls) {
+  if (IMG_EXT.test(info.ext)) { const img = document.createElement('img'); img.className = cls + ' fc-img'; img.loading = 'lazy'; img.alt = ''; try { img.src = vaultUrl() + encodeURIComponent(info.name); } catch { } return img; }
+  const ic = document.createElement('span'); ic.className = cls; ic.textContent = FILE_ICON(info.ext); return ic;
+}
+// 文の途中のファイルのリンクの後ろに出す、小さなサムネイル
+class InlineThumbWidget extends WidgetType {
+  constructor(name) { super(); this.name = name; }
+  eq(o) { return o.name === this.name; }
+  toDOM() { const info = ctx.fileInfo && ctx.fileInfo(this.name), el = info ? fileThumbEl(info, 'fc-inline') : document.createElement('span'); return el; }
+  ignoreEvent() { return true; }
+}
 export function filePreview(name, label = '', existingRoot = null) {
   const info = ctx.fileInfo && ctx.fileInfo(name); if (!info) return null;
   const root = existingRoot || document.createElement('div'); root.replaceChildren(); root.className = 'url-preview file-preview'; root.dataset.user = ''; root.dataset.fileCard = name; root._lcBound = true;
   const link = document.createElement('a'); link.dataset.file = name; link.className = 'url-preview-link';
-  const ic = document.createElement('span'); ic.className = 'fc-ic'; ic.textContent = FILE_ICON(info.ext);
+  const ic = fileThumbEl(info, 'fc-ic');
   const texts = document.createElement('span'), title = document.createElement('b'), desc = document.createElement('small'), meta = document.createElement('small');
   const m = fileMeta[name] || {};
   title.textContent = m.title || info.title || label || name; desc.textContent = m.desc || info.desc || '';
@@ -204,6 +221,14 @@ export function decorations(owner,space='d') {
           const token=Stamp.stripLine(line).trim(),md=/^\[([^\]]*)\]\((https?:\/\/[^\s)]+)\)$/.exec(token),url=md?.[2]||(/^https?:\/\/\S+$/.test(token)?token:null);
           if(url)result.push(Decoration.widget({widget:new ContentWidget(url,md?.[1]||'',occurrenceKey(owner,text,pos,url)),block:true,side:1}).range(pos+line.length));
           else { const fm=/^\[([^\]]*)\]\(([^)\s/:]+\.[A-Za-z0-9]{1,8})\)$/.exec(token); if(fm&&!/\.md$/i.test(fm[2])){let nm=fm[2];try{nm=decodeURIComponent(nm);}catch{}if(ctx.fileInfo&&ctx.fileInfo(nm))result.push(Decoration.widget({widget:new FileCardWidget(nm,fm[1]),block:true,side:1}).range(pos+line.length));} }
+        }
+        if(!embeds){   // 文の中のファイルのリンク（行がリンクだけのときは、上の札になる）: リンクの後ろに、小さなサムネイル
+          const alone=/^\[[^\]]*\]\([^)\s/:]+\.[A-Za-z0-9]{1,8}\)$/.test(Stamp.stripLine(line).trim());
+          if(!alone)for(const m of line.matchAll(/(?<!!)\[([^\]]*)\]\(([^)\s/:]+\.[A-Za-z0-9]{1,8})\)/g)){
+            const at=pos+m.index;if(blocked.some(([a,b])=>at>=a&&at<b)||/\.md$/i.test(m[2]))continue;
+            let nm=m[2];try{nm=decodeURIComponent(nm);}catch{}
+            if(ctx.fileInfo&&ctx.fileInfo(nm))result.push(Decoration.widget({widget:new InlineThumbWidget(nm),side:1}).range(at+m[0].length));
+          }
         }
       }
       pos+=line.length+1;

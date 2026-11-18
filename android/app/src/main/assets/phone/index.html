@@ -19,7 +19,7 @@ input,textarea,select{font:inherit;color:var(--fg)}
 .ib.on{background:var(--acc-bg);border-color:var(--acc);color:var(--acc)}
 main{flex:1;min-height:0;display:flex;flex-direction:column;position:relative}
 .pane{display:none;flex:1;min-height:0;flex-direction:column}.pane.on{display:flex}
-.tabs{flex:none;display:grid;grid-template-columns:repeat(5,1fr);border-top:1px solid var(--line);padding-bottom:max(4px,env(safe-area-inset-bottom))}
+.tabs{flex:none;display:grid;grid-template-columns:repeat(6,1fr);border-top:1px solid var(--line);padding-bottom:max(4px,env(safe-area-inset-bottom))}
 .tabs button{border:0;background:transparent;padding:8px 0 6px;font-size:11px;color:var(--sub);display:flex;flex-direction:column;align-items:center;gap:2px}
 .tabs button span{font-size:22px;line-height:1}.tabs button.on{color:var(--acc);font-weight:700}
 .chips{flex:none;display:flex;gap:6px;padding:10px 12px 0;overflow-x:auto}
@@ -59,7 +59,7 @@ main{flex:1;min-height:0;display:flex;flex-direction:column;position:relative}
 .bubs{flex:1;min-height:0;overflow:auto;padding:8px 10px 14px;display:flex;flex-direction:column;gap:8px}
 .bub{border-radius:14px;background:var(--bub);padding:9px 12px;line-height:1.6;white-space:pre-wrap;word-break:break-word;border:2px solid transparent}
 .bub.mine{background:var(--mine)}.bub.sel{border-color:var(--acc)}
-.bub .bh{display:flex;gap:8px;align-items:baseline;margin-bottom:2px}
+.bub .bh{display:flex;gap:8px;align-items:baseline;margin-bottom:2px}.bub .bt{flex:1;min-width:0}.bub .bdel{flex:none;border:0;background:transparent;font-size:15px;padding:0 2px;opacity:.55}
 .bub .bid{font:700 13px ui-monospace,monospace;color:var(--red)}.bub .bid small{font:400 11px var(--font);color:var(--sub);margin-left:4px}
 .bub .bt{font-weight:700;font-size:14px;flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .bub .bx{font-size:14.5px;color:var(--fg);max-height:7.5em;overflow:hidden}.bub.open .bx{max-height:none}
@@ -181,7 +181,7 @@ main{flex:1;min-height:0;display:flex;flex-direction:column;position:relative}
     <div class="compose"><button class="ib" id="n-arrow" aria-label="ほかのノートへのリンク（->ID）">→</button><textarea id="note-in" rows="1" placeholder="新しいノート"></textarea><button class="ib" id="n-expand" aria-label="大きく書く">⤢</button><button class="send" id="note-send" aria-label="追加">⬆️</button></div>
   </section>
   <section class="pane" id="p-edit">
-    <div class="datebar" style="padding-bottom:6px"><button class="ib" id="edit-back" aria-label="戻る">◀</button><b id="edit-state"></b><span style="width:42px"></span></div>
+    <div class="datebar" style="padding-bottom:6px"><button class="ib" id="edit-back" aria-label="戻る">◀</button><b id="edit-state"></b><button class="ib" id="edit-del" aria-label="このノートを消す（ごみ箱へ）" hidden>🗑️</button></div>
     <textarea class="editor" id="edit-body" placeholder="書き始める" spellcheck="false"></textarea>
     <div class="edtools"><button id="t-arrow" title="ほかのノートへのリンク（->ID）">→ リンク</button><button id="t-n" title="次の (n)">(n)</button><button id="t-hash">#</button><button id="t-list">・</button></div>
   </section>
@@ -225,6 +225,11 @@ main{flex:1;min-height:0;display:flex;flex-direction:column;position:relative}
       <div class="nmbtns"><button class="primary" id="sp-save">分けて保存する</button></div>
     </div>
   </section>
+  <section class="pane" id="p-files">
+    <div class="recbox" style="padding:14px"><button class="chip on" id="fl-pick" style="font-size:16px;padding:12px 20px">📎 ファイルを選んで PC へ送る</button><div class="recmsg" style="margin-top:8px">写真・PDF・文書など、何でも選べます（いくつでも）。<br>USB で PC につなぐと、PC の「ファイル」の一覧に入ります。</div></div>
+    <div id="fl-hint"></div>
+    <div class="list" id="fl-list"></div>
+  </section>
   <section class="pane" id="p-rec">
     <div class="recbox"><div class="rectime" id="rec-time">00:00</div><button class="recbtn" id="rec-btn" aria-label="録音"></button><div class="recmsg" id="rec-msg">押すと録音を始めます。画面を消しても続きます。<br>PC に取り込むと、PC で文字にします。</div></div>
     <div id="rec-hint"></div>
@@ -232,7 +237,7 @@ main{flex:1;min-height:0;display:flex;flex-direction:column;position:relative}
   </section>
 </main>
 <div class="selbar" id="selbar" hidden><button class="chip" id="sel-all">全部</button><span id="sel-n"></span><span class="grow"></span><button class="chip danger" id="sel-del">🗑️ ごみ箱へ</button><button class="chip" id="sel-x">やめる</button></div>
-<nav class="tabs"><button data-t="memo" class="on"><span>📒</span>メモ帳</button><button data-t="diary"><span>📔</span>日記</button><button data-t="notes"><span>📝</span>ノート</button><button data-t="paper"><span>📷</span>紙</button><button data-t="rec"><span>🎙️</span>録音</button></nav>
+<nav class="tabs"><button data-t="memo" class="on"><span>📒</span>メモ帳</button><button data-t="diary"><span>📔</span>日記</button><button data-t="notes"><span>📝</span>ノート</button><button data-t="paper"><span>📷</span>紙</button><button data-t="rec"><span>🎙️</span>録音</button><button data-t="files"><span>📎</span>ファイル</button></nav>
 <div class="sheet" id="sheet" hidden><div class="bar"><input id="sheet-q" placeholder="🔎 リンクするノートを探す（ID・題）" autocomplete="off"><button class="ib" id="sheet-x" aria-label="やめる">✖️</button></div><div class="help">押すと、<b>->ID</b> が入ります</div><div class="res" id="sheet-res"></div></div>
 <div class="sheet act" id="act" hidden><div class="ah" id="act-h"></div><div id="act-b"></div><button class="ai" id="act-x">やめる</button></div>
 <div class="sheet" id="trashsheet" hidden><div class="bar"><b style="flex:1;font-size:16px;line-height:44px">🗑️ ごみ箱（スマホ）</b><button class="chip" id="trash-empty">空にする</button><button class="ib" id="trash-x" aria-label="閉じる">✖️</button></div><div class="help">消した写真・録音です。「戻す」で元に戻せます。</div><div class="res" id="trash-res"></div></div>
@@ -383,7 +388,7 @@ $('#fmt-x').onclick = () => { $('#fmtsheet').hidden = true; };
 
 // ---- タブ
 let tab = 'memo', memoDay = today(), diaryDay = today(), kind = Native.pref('kind') || '日記', editing = null;
-const TITLES = { memo: 'メモ帳', diary: '日記', notes: 'ノート', paper: '紙', edit: 'ノート', name: '紙に名前を付ける', split: '見開きを分ける', rec: '録音' };
+const TITLES = { memo: 'メモ帳', diary: '日記', notes: 'ノート', paper: '紙', edit: 'ノート', name: '紙に名前を付ける', split: '見開きを分ける', rec: '録音', files: 'ファイル' };
 const FULL = new Set(['edit', 'name', 'split']);   // 下のタブを隠す画面
 function show(t) {
   if (t === 'memo' && tab !== 'memo') memoDay = today();    // メモ帳・日記は、いつも今日を開く（日付を選ぶと、その日を開く）
@@ -418,6 +423,7 @@ function draw() {
   else if (tab === 'name') drawName();
   else if (tab === 'split') drawSplit();
   else if (tab === 'rec') drawRec();
+  else if (tab === 'files') drawFiles();
 }
 
 // ==== メモ帳・日記（チャット）====
@@ -498,7 +504,7 @@ document.addEventListener('click', e => {
   const c = e.target.closest('[data-clear]'); if (c) { clearImported(c); return; }
 });
 // 取り込み済みを、スマホから消す（消すかどうかは、利用者が決める）
-const CLEAR = { chat: t => t === 'memo' || t === 'diary' || t === 'mark', note: t => t === 'note', paper: t => t === 'paper', pmemo: t => t === 'pmemo', rec: t => t === 'audio' };
+const CLEAR = { chat: t => t === 'memo' || t === 'diary' || t === 'mark', note: t => t === 'note', paper: t => t === 'paper', pmemo: t => t === 'pmemo', rec: t => t === 'audio', file: t => t === 'file' };
 // 取り込み済みを、種類をまたいで、全部、スマホから消す（上のバーの 🗑️）。消すかどうかは、利用者が決める
 function clearAllImported() {
   const ok = t => Object.values(CLEAR).some(f => f(t));
@@ -536,7 +542,7 @@ function noteModel() {
 const bubHtml = m => {
   const body = stripStamps(m.body || '').replace(/^#\s+.*\n?/, '').trim(), long = body.split('\n').length > 5 || body.length > 240;
   return `<div class="bub mine${m.key === focusKey ? ' sel' : ''}" data-k="${esc(m.key)}" style="margin-left:${Math.min(m.depth || 0, 6) * 12}px">`
-    + `<div class="bh"><span class="bid">${m.sent ? '✔ PC' : '📱 未送信'}</span><span class="bt">${esc(m.title || '（無題）')}</span></div>`
+    + `<div class="bh"><span class="bid">${m.sent ? '✔ PC' : '📱 未送信'}</span><span class="bt">${esc(m.title || '（無題）')}</span><button class="bdel" data-bdel="${esc(m.key)}" aria-label="消す（ごみ箱へ）">🗑️</button></div>`
     + (body && body !== m.title ? `<div class="bx">${esc(body)}</div>${long ? '<button class="more" data-more>続きを見る</button>' : ''}` : '') + '</div>';
 };
 function drawNotes(scroll = true) {
@@ -573,6 +579,13 @@ $('#bubs').addEventListener('click', e => {
   focusKey = b.dataset.k; Native.setPref('focus', focusKey); drawNotes(false);
 });
 longPress('.bub[data-k]', b => noteActions(b.dataset.k));
+// 吹き出しの 🗑️: 押すだけで消せる（PC に送っていなくても、取り込み済みでも。ごみ箱へ。戻せる）
+document.addEventListener('click', e => {
+  const b = e.target.closest('[data-bdel]'); if (!b) return; e.stopPropagation(); e.preventDefault();
+  const m = noteModel().all.find(x => x.key === b.dataset.bdel); if (!m) return;
+  if (!confirm(m.sent ? 'スマホから、このノートを消しますか？（PC には取り込み済みです。ごみ箱から戻せます）' : 'このノートを消しますか？（まだ PC に送っていません。ごみ箱から戻せます）')) return;
+  trashItem(m.it); load(); draw(); toast('🗑️ ごみ箱へ移しました');
+}, true);
 function noteActions(key) {
   const m = noteModel().all.find(x => x.key === key); if (!m) return;
   actions(m.title || '（無題）', [
@@ -603,6 +616,7 @@ function openEditor(name, initial = '') {
   const ta = $('#edit-body'); ta.value = editing ? editing.d.body : initial; ta.readOnly = !!(editing && isSent(editing));
   const m = draftMode && draftMode.base;
   $('#edit-state').textContent = editing && isSent(editing) ? '✔ PC に取り込み済み（ここでは直せません）' : editing ? 'ノートを直す' : m ? `「${String(m.title || '').slice(0, 12)}」${draftMode.rel === 'child' ? 'の子' : 'と並列'}` : '新しいノート（ID なし）';
+  $('#edit-del').hidden = !editing;   // 消すのは、PC に送っていなくても、取り込み済みでもできる（ごみ箱へ。戻せる）
   show('edit'); if (!ta.readOnly) ta.focus();
 }
 let saveTimer = null;
@@ -612,6 +626,7 @@ function saveNote() {
   else { if (!body.trim()) { (Native.toTrash || Native.remove)(editing.name); editing = null; return; } editing.d.body = body; editing.d.updated = nowAt(); save(editing.name, editing.d); }
 }
 $('#edit-body').addEventListener('input', () => { clearTimeout(saveTimer); saveTimer = setTimeout(saveNote, 400); });
+$('#edit-del').onclick = () => { if (!editing) return; if (!confirm(isSent(editing) ? 'スマホから、このノートを消しますか？（PC には取り込み済みです。ごみ箱から戻せます）' : 'このノートを消しますか？（まだ PC に送っていません。ごみ箱から戻せます）')) return; clearTimeout(saveTimer); trashItem(editing); editing = null; nMode = null; draftMode = null; load(); show('notes'); toast('🗑️ ごみ箱へ移しました'); };
 $('#edit-back').onclick = () => { clearTimeout(saveTimer); saveNote(); load(); nMode = null; draftMode = null; show('notes'); };
 const ins = text => { const ta = $('#edit-body'); if (ta.readOnly) return; insertTo(ta, text); };
 $('#t-n').onclick = () => { const nums = [...$('#edit-body').value.matchAll(/\((\d+)\)/g)].map(m => +m[1]); ins(`(${(nums.length ? Math.max(...nums) : 0) + 1})`); };
@@ -926,6 +941,30 @@ $('#trash-res').onclick = e => {
 };
 $('#trash-empty').onclick = e => { const b = e.target; if (b.dataset.sure !== '1') { b.dataset.sure = '1'; b.textContent = '本当に？ もう一度'; setTimeout(() => { b.dataset.sure = ''; b.textContent = '空にする'; }, 4000); return; } const n = Native.emptyTrash(); b.dataset.sure = ''; b.textContent = '空にする'; drawTrash(); toast(`🗑️ ${n} 個を完全に消しました`); };
 
+// ==== ファイル（何でも選んで、PC へ送る。送ったものは、PC に取り込まれたら消せる。取り込む前でも消せる）====
+const fileIconOf = n => /\.(png|jpe?g|gif|webp|bmp|avif)$/i.test(n) ? '🖼' : /\.pdf$/i.test(n) ? '📕' : /\.(csv|tsv|xlsx?)$/i.test(n) ? '📊' : /\.html?$/i.test(n) ? '🌐' : /\.(mp3|m4a|wav|ogg)$/i.test(n) ? '🎵' : /\.(mp4|mov|webm)$/i.test(n) ? '🎬' : '📄';
+const isPicName = n => /\.(png|jpe?g|gif|webp|bmp|avif)$/i.test(n);
+const sizeText = b => b < 1024 ? b + ' B' : b < 1048576 ? Math.round(b / 1024) + ' KB' : (b / 1048576).toFixed(1) + ' MB';
+function drawFiles() {
+  const fl = items.filter(i => i.d.type === 'file').sort((a, b) => (b.d.at || '').localeCompare(a.d.at || ''));
+  $('#fl-list').innerHTML = fl.length ? fl.map(it => `<div class="row">${isPicName(it.d.file) ? `<img src="${esc(imgUrl(it.d.file))}" loading="lazy" style="width:46px;height:46px;object-fit:cover;border-radius:6px;flex:none" alt="">` : `<span style="font-size:30px;width:46px;text-align:center;flex:none">${fileIconOf(it.d.name)}</span>`}<span class="t">${esc(it.d.name)}<br><small style="color:var(--sub)">${esc(showAt(it.d.at))}${it.d.size ? ' ・ ' + sizeText(+it.d.size) : ''}</small></span><span class="badge${isSent(it) ? ' ok' : ''}">${isSent(it) ? '✔ 取り込み済み' : '未送信'}</span><button class="ib" data-fdel="${esc(it.name)}" aria-label="ごみ箱へ">🗑️</button></div>`).join('') : '<div class="none">送ったファイルは、まだありません</div>';
+  $('#fl-hint').innerHTML = hintFor(fl.map(x => x.name), 'file');
+}
+$('#fl-list').onclick = e => { const b = e.target.closest('[data-fdel]'); if (!b) return; const it = items.find(i => i.name === b.dataset.fdel); if (it && confirm(isSent(it) ? 'このファイルを、スマホから消しますか？（PC には取り込み済みです。ごみ箱から戻せます）' : 'このファイルを、ごみ箱へ移しますか？（まだ PC に送っていません。ごみ箱から戻せます）')) { trashItem(it); load(); drawFiles(); } };
+$('#fl-pick').onclick = () => {
+  const f = document.createElement('input'); f.type = 'file'; f.multiple = true;   // accept を付けない: 何でも選べる
+  f.onchange = async () => {
+    let n = 0;
+    for (const file of f.files) {
+      const b64 = await new Promise(rs => { const fr = new FileReader(); fr.onload = () => rs(String(fr.result).split(',')[1] || ''); fr.onerror = () => rs(''); fr.readAsDataURL(file); });
+      const ext = ((file.name.match(/\.([A-Za-z0-9]{1,8})$/) || [])[1] || 'bin').toLowerCase(), id = rid(), body = `file-${id}.${ext}`;
+      if (!Native.writeB64(body, b64)) { toast('「' + file.name + '」を保存できませんでした'); continue; }
+      save(`file-${id}.json`, { type: 'file', at: nowAt(), file: body, name: file.name, size: file.size }); n++;
+    }
+    load(); drawFiles(); if (n) toast(`📎 ${n} 件を入れました。PC につなぐと送られます`);
+  };
+  f.click();
+};
 // ==== 録音（スマホでは録るだけ。PC に取り込むと、PC で文字にする）====
 const recState = () => { try { return JSON.parse(Native.recState ? Native.recState() : '{}'); } catch { return {}; } };
 const mmss = s => `${pad(Math.floor(s / 60))}:${pad(s % 60)}`;

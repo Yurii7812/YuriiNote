@@ -248,6 +248,7 @@ async function runPhoneImport() {
     // スマホで付けた名前（ID・キーワード）: PC でまだ使っていない ID なら、そのまま紙のノートにする（使っていれば、取り込み画面へ回す）
     named: (d, buf) => { const id = String(d.name.id).toLowerCase(); if (!require('./lib').isId(id) || v.state().notes.some(n => n.s === 'p' && n.id === id)) return false; v.saveImage('p', id, buf); named.push({ id, kws: (d.name.kws || []).map(String) }); v.saveNote({ s: 'p', id, keywords: (d.name.kws || []).map(String), body: '' }); return true; },
     pmemo: (d, buf) => pmemos.push({ d, buf }),
+    file: (d, buf) => { v.addFiles([{ name: d.name, bytes: buf }]); },   // スマホから送ったファイル → ファイル一覧（元の名前を残す。同じ中身は重ねない）
     audio: (d, buf) => recAdd({ at: d.at, sec: +d.sec || 0, buf, ext: path.extname(d.file) || '.m4a', src: 'phone' }),
     suggest: (base, rel) => { const ns = v.state().notes, b = ns.find(n => n.s === 'd' && n.id === base && !n.noid); return b ? X.suggest(ns, b, rel) : null; }
   });

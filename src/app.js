@@ -29,6 +29,7 @@ const $ = s => document.querySelector(s);
 const esc = s => String(s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
 const SP = { d: 'デジタル', p: '紙' };
 
+const ZERO = '0';   // 0番: 区画（1, 2, 3 …）を順に、名前（題）で並べた目次。ノートではなく、いつもある
 let notes = [], topics = [], readings = {}, tab = 'd', cur = null, vault = '', regions = [];
 // 開いているタブ（Obsidian 風）。cur は今のタブ
 let tabs = [], active = -1, newTab = false, bgOpen = false;
@@ -508,6 +509,11 @@ const topicRow = (t, zero = false) => `<div class="item topicrow${cur && cur.k =
 
 // ===== 取り込んだファイル（画像・html・csv など）。タイトルと説明を付けて、探せるようにする =====
 let filesCache = [], fileFilter = 'all', filesBusy = false;
+const FSORT = { added: '追加した日時', name: '名前', title: '題', ext: '種類', size: '大きさ', used: '使われている数' };
+let fileSort = (() => { try { return JSON.parse(localStorage.getItem('pkm-file-sort')) || {}; } catch { return {}; } })();
+if (!FSORT[fileSort.by]) fileSort.by = 'added'; if (fileSort.dir !== 'asc') fileSort.dir = 'desc';
+const saveFileSort = () => { try { localStorage.setItem('pkm-file-sort', JSON.stringify(fileSort)); } catch { } };
+const sortFiles = list => { const sg = fileSort.dir === 'asc' ? 1 : -1, k = { added: f => f.added, name: f => f.orig || f.name, title: f => f.title || '', ext: f => f.ext, size: f => f.size, used: f => fileUsedCount(f.name) }[fileSort.by]; return list.slice().sort((a, b) => { const x = k(a), y = k(b); return sg * (typeof x === 'number' ? x - y : String(x).localeCompare(String(y), 'ja', { numeric: true })) || (b.added || '').localeCompare(a.added || ''); }); };
 const refreshFiles = async () => { if (filesBusy) return; filesBusy = true; try { const x = await api.filesInfo(); if (JSON.stringify(x) !== JSON.stringify(filesCache)) { filesCache = x; if (tab === 'f' && !$('#q').value) renderList(); } } finally { filesBusy = false; } };
 const fileIcon = e => /^\.(png|jpe?g|gif|webp|svg|bmp|avif)$/.test(e) ? '🖼' : /^\.html?$/.test(e) ? '🌐' : /^\.(csv|tsv|xlsx?)$/.test(e) ? '📊' : /^\.pdf$/.test(e) ? '📕' : '📄';
 // ファイルが使われている、ノート・日記（本文のリンク `](ファイル名` で探す）
@@ -516,7 +522,9 @@ const fileUsage = name => {
   return { notes: notes.filter(n => has(n.body)), diaries: diaries.filter(d => has(d.body)), memos: [] };
 };
 const fileUsedCount = name => { const u = fileUsage(name); return u.notes.length + u.diaries.length + u.memos.length; };
-const fileRow = (f, q = '') => `<div class="item note frow" data-file="${esc(f.name)}"><div class="nrow"><div class="nt">${fileIcon(f.ext)} ${f.title ? mk(f.title, q) : `<span class="sub">（タイトルなし）</span> ${mk(f.orig, q)}`}</div><div class="ns">${esc(f.name)}${f.title && f.orig !== f.name ? ' · ' + mk(f.orig, q) : ''}${f.desc ? ' · ' + mk(f.desc.slice(0, 40), q) : ''}${(() => { const n = fileUsedCount(f.name); return n ? ` · 🔗 ${n} 件で使用` : ' · 使われていません'; })()}</div></div></div>`;
+const PICX = /^\.(png|jpe?g|gif|webp|svg|bmp|avif)$/;
+const fileThumb = f => PICX.test(f.ext) ? `<img class="fth" loading="lazy" src="${esc(vaultUrl())}${encodeURIComponent(f.name)}" alt="">` : `<span class="fth ic">${fileIcon(f.ext)}</span>`;   // 画像は縮小して、そのまま。ほかは、種類の絵
+const fileRow = (f, q = '') => `<div class="item note frow" data-file="${esc(f.name)}"><div class="nrow">${fileThumb(f)}<div class="ftx"><div class="nt">${f.title ? mk(f.title, q) : `<span class="sub">（タイトルなし）</span> ${mk(f.orig, q)}`}</div><div class="ns">${esc(f.name)}${f.title && f.orig !== f.name ? ' · ' + mk(f.orig, q) : ''}${f.desc ? ' · ' + mk(f.desc.slice(0, 40), q) : ''}${(() => { const n = fileUsedCount(f.name); return n ? ` · 🔗 ${n} 件で使用` : ' · 使われていません'; })()}</div></div></div></div>`;
 function fileDialog(name) {
   const f = filesCache.find(x => x.name === name); if (!f) return;
   const isImg = /^\.(png|jpe?g|gif|webp|svg|bmp|avif)$/.test(f.ext);
@@ -642,8 +650,8 @@ function renderList() {
     refreshFiles();
     const fl = filesCache.filter(f => (fileFilter === 'all' || !f.title) && (!q || qm({ id: '', s: 'd', noid: true, title: f.title || '', body: [f.desc, f.orig, f.name].join('\n'), kw: [], readings: '', created: '' })));
     const nUntitled = filesCache.filter(f => !f.title).length;
-    out.push(`<div class="fbar"><button class="fpill${fileFilter === 'all' ? ' on' : ''}" data-ff="all">すべて <b>${filesCache.length}</b></button><button class="fpill${fileFilter === 'untitled' ? ' on' : ''}" data-ff="untitled">題なし <b>${nUntitled}</b></button></div>`);
-    out.push(...fl.map(f => fileRow(f)));   // map にそのまま渡すと、行の番号が検索語の欄に入って落ちる
+    out.push(`<div class="fbar"><button class="fpill${fileFilter === 'all' ? ' on' : ''}" data-ff="all">すべて <b>${filesCache.length}</b></button><button class="fpill${fileFilter === 'untitled' ? ' on' : ''}" data-ff="untitled">題なし <b>${nUntitled}</b></button><span class="grow" style="flex:1"></span><select id="ff-sort" title="並べ替え">${Object.entries(FSORT).map(([k, v]) => `<option value="${k}"${fileSort.by === k ? ' selected' : ''}>${v}</option>`).join('')}</select><button class="fpill" id="ff-dir" title="${fileSort.dir === 'asc' ? '昇順（押すと降順）' : '降順（押すと昇順）'}">${fileSort.dir === 'asc' ? '⬆️' : '⬇️'}</button></div>`);
+    out.push(...sortFiles(fl).map(f => fileRow(f)));   // map にそのまま渡すと、行の番号が検索語の欄に入って落ちる
     if (!fl.length) out.push(`<div class="none">${q ? '見つかりません' : fileFilter === 'untitled' ? 'タイトルのないファイルはありません' : '取り込んだ画像・html・csv などが、ここに並びます。ノートにドラッグしても取り込めます'}</div>`);
   } else if (tab === 'i') {
     // Index: グローバルIndex（キーワードの一覧）
@@ -661,6 +669,7 @@ function renderList() {
     const byFz = sortBy === 'fz' && tab !== 'u';
     if (byFz && (tab === 'd' || tab === 'p')) for (const t of topics.filter(x => (!x.entry || !get(x.entry.s, x.entry.id)) && !(x.entry && x.entry.s === 'd' && L.isRegionOnly(x.entry.id)) && (x.entry ? x.entry.s : 'd') === tab).sort((a, b) => a.name.localeCompare(b.name, 'ja'))) out.push(topicRow(t)); // 親のノートがまだないもの（取り込み前の紙の番号など）は、その側の先頭
     // デジタルは、区画（1, 2 …）の行を、そのノートの手前に出す（初めて出てくるところ。残りは最後）。区画の下に、その索引（1-1…）
+    if (byFz && tab === 'd') out.push(regionRow(ZERO));   // 0番（目次）は、番号順の先頭
     const shownRegion = new Set(), regionHead = r => { shownRegion.add(r); for (const t of uniqueTopics(topicsOf('d', r).filter(topicVisible))) out.push(topicRow(t)); out.push(regionRow(r)); };   // 区画の索引（1-1…）は、区画の行の上に出す
     for (const n of list) {
       if (byFz && foldIds.size && fzHidden(n)) continue;   // たたまれた親の下は、出さない
@@ -907,7 +916,8 @@ $('#list').addEventListener('click', e => {
   { const sd = e.target.closest('#sb-dir'); if (sd) { if (sd.dataset.diary) diarySortDir = diarySortDir === 'asc' ? 'desc' : 'asc'; else sortDir = sortDir === 'asc' ? 'desc' : 'asc'; savePrefs(); return renderList(); } }
 });
 $('#list').addEventListener('dragstart', e => { const n = e.target.closest('[data-id]'); if (n) e.dataTransfer.setData('text/plain', n.dataset.id); });
-$('#list').addEventListener('click', e => { const p = e.target.closest('[data-ff]'); if (p) { fileFilter = p.dataset.ff; renderList(); } });
+$('#list').addEventListener('change', e => { if (e.target.id === 'ff-sort') { fileSort.by = e.target.value; saveFileSort(); renderList(); } });
+$('#list').addEventListener('click', e => { if (e.target.closest('#ff-dir')) { fileSort.dir = fileSort.dir === 'asc' ? 'desc' : 'asc'; saveFileSort(); renderList(); return; } const p = e.target.closest('[data-ff]'); if (p) { fileFilter = p.dataset.ff; renderList(); } });
 $('#list').addEventListener('change', e => { if (e.target.id === 'sb-by') { sortBy = e.target.value; savePrefs(); renderList(); } });
 // 紙・デジタルのボタンを右クリック: トピックIndexを作る（番号を指定。その番号のノートが無くても作れる）
 $('#tabs').oncontextmenu = e => {
@@ -1132,7 +1142,7 @@ function closeTab(i) {
   if (gone && gone.k === 'diary') releaseDay(gone.date, gone.kind || '日記');   // 閉じた日・記録が、まだ空なら、消す
 }
 const tabLabel = t => t.k === 'note' ? (n => `${n && icon(n) ? icon(n) + ' ' : ''}${n ? esc(titleOf(n).slice(0, 16)) : esc(t.id)}<small>${n && n.noid ? 'IDなし' : (t.s === 'p' ? '紙 ' : '') + esc(t.id)}</small>`)(get(t.s, t.id))
-  : t.k === 'topic' ? `📑 ${esc(t.name)}` : t.k === 'region' ? `🗂️ ${esc(t.id)} <small>${esc((regions.find(x => x.n === t.id) || {}).name || '無名')}</small>` : t.k === 'diary' ? `${kindIcon(t.kind || '日記')} ${esc(t.date.slice(5))} <small>${esc(t.kind || '日記')}</small>` : t.k === 'similar' ? '🔍 類似' : t.k === 'rec' ? '🎙️ 録音' : t.k === 'tlist' ? `📑 ${esc(t.id)}` : t.k === 'export' ? '📤 エクスポート' : '新しいタブ';
+  : t.k === 'topic' ? `📑 ${esc(t.name)}` : t.k === 'region' ? `🗂️ ${esc(t.id)} <small>${esc(t.id === ZERO ? '目次' : (regions.find(x => x.n === t.id) || {}).name || '無名')}</small>` : t.k === 'diary' ? `${kindIcon(t.kind || '日記')} ${esc(t.date.slice(5))} <small>${esc(t.kind || '日記')}</small>` : t.k === 'similar' ? '🔍 類似' : t.k === 'rec' ? '🎙️ 録音' : t.k === 'tlist' ? `📑 ${esc(t.id)}` : t.k === 'export' ? '📤 エクスポート' : '新しいタブ';
 // 右のパネル（キーワード・索引・つながり）を、試しに、左の一覧の右（ノートの左）に置く。panelLeft を切ると、元の右に戻る
 let panelLeft = (() => { try { return localStorage.getItem('ysimple-panel-left') === '1'; } catch { return false; } })();   // 標準は、右（元の位置）
 function syncLeftPanel() {
@@ -1779,13 +1789,23 @@ function topicAddDialog(note) {
 // 索引を単独で作る。親は新しいノート（新しいID）か、既存のノート
 // キーワードを指定すると、そのキーワードのIDが最初から入り、Index に赤い点が付く（IDが2つ以上のときだけ）
 // 区画の行（デジタルの一覧）。番号と名前だけ。クリックで名前を付ける・変える。＋索引で、その区画の索引（1-1…）を作る
-const regionRow = r => { const g = regions.find(x => x.n === r) || { name: '' }; return `<div class="item region${cur && cur.k === 'region' && cur.id === r ? ' on' : ''}${decided && decided.k === 'region' && decided.id === r ? ' decided' : ''}" data-region="${esc(r)}"><div class="nrow"><div class="nt"><b>${esc(r)}</b> ${g.name ? esc(g.name) : '<span class="sub">無名</span>'}</div></div></div>`; };
+const regionRow = r => { const g = r === ZERO ? { name: '目次' } : regions.find(x => x.n === r) || { name: '' }; return `<div class="item region${cur && cur.k === 'region' && cur.id === r ? ' on' : ''}${decided && decided.k === 'region' && decided.id === r ? ' decided' : ''}" data-region="${esc(r)}"><div class="nrow"><div class="nt"><b>${esc(r)}</b> ${g.name ? esc(g.name) : '<span class="sub">無名</span>'}</div></div></div>`; };
 const uniqueTopics = list => [...new Map(list.map(t => [t.name, t])).values()];
 // 区画のページ（左の一覧の「1」を押すと開く）: 名前・グローバルIndexの名前・子ノート（直接の子だけ。タイトル付き）・トピックIndex
 // 区画の新しい子ノートの番号: 最後の子の次（1a の次は 1b）。子が無ければ a
 const nextRegionKid = n => { const ks = regionKids(n), id = ks.length ? L.sibling(ks[ks.length - 1].id) : n + 'a'; return free('d', id); };
 function regionKids(n) { const has = x => !!get('d', x); return notes.filter(m => m.s === 'd' && !m.noid && String(L.region(m.id)) === n && !L.parentIn(m.id, has)).sort((a, b) => L.cmpId(a.id, b.id)); }
+function openZero(keep) {
+  cur = place({ k: 'region', id: ZERO }, keep); mode = 'notes';
+  if (!inPreview) decided = { k: 'region', id: ZERO };
+  if (!inPreview && !$('#q').value) tab = 'd';
+  const list = regions.filter(g => g.n !== ZERO).slice().sort((a, b) => a.n - b.n);
+  $('#pane').innerHTML = `<div class="row thead rgh"><span class="ti-ic">🗂️</span><h2 class="tname">${ZERO} <small class="sub">目次</small></h2></div>
+    <table class="ti">${list.map(g => `<tr><td class="kidt" data-zero="${esc(g.n)}"><b>${esc(g.n)}</b> ${g.name ? esc(g.name) : '<span class="sub">（名前なし）</span>'}</td><td></td></tr>`).join('') || '<tr><td class="none">まだ区画がありません</td></tr>'}</table>`;
+  renderTabs(); renderList();
+}
 function openRegion(n, keep) {
+  if (n === ZERO) return openZero(keep);
   cur = place({ k: 'region', id: n }, keep); mode = 'notes';
   if (!inPreview) decided = { k: 'region', id: n };   // 選んでいる行（黄色い枠）は、1 か所だけ。直前のノートの枠は外れる
   if (!inPreview && !$('#q').value) tab = 'd';
@@ -1796,6 +1816,7 @@ function openRegion(n, keep) {
     <table class="ti">${kids.map(m => `<tr><td class="kidt" data-s="d" data-id="${esc(m.id)}">${esc(titleOf(m) || '（無題）')}</td><td>${chip('d', m.id)}</td></tr>`).join('') || '<tr><td class="none">まだノートがありません。「📝 新しい子ノート」で作ります</td></tr>'}</table>`;   // 普通のトピックIndexと同じ表（左に名前、右に番号）
   renderTabs(); renderList();
 }
+$('#pane').addEventListener('click', e => { const z = e.target.closest('[data-zero]'); if (z && cur && cur.k === 'region' && cur.id === ZERO) openRegion(z.dataset.zero); });
 const regionRefresh = n => { if (cur && cur.k === 'region' && cur.id === n) openRegion(n, true); };
 async function regionAct(act) {
   const n = cur.id;
