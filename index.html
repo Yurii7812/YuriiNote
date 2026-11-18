@@ -84,6 +84,7 @@ aside.selmode #selbar{position:absolute;left:0;right:0;top:0;height:56px;box-siz
 .bd-stage{position:relative;touch-action:none;cursor:text;user-select:none;outline:none;width:100%;height:100%}
 .bd-svg{position:absolute;left:0;top:0;width:100%;height:100%;pointer-events:none;overflow:hidden}
 .bd-stroke{fill:none;stroke:var(--acc);stroke-width:2.4;stroke-linecap:round;stroke-linejoin:round}
+.bd-link{stroke:#c4c8d2;stroke-width:1.4}.bd-hit{stroke:transparent;stroke-width:12;pointer-events:stroke;cursor:pointer}.bd-temp{stroke:var(--acc);stroke-width:1.6;stroke-dasharray:4 4}
 .bd-t{position:absolute;font-size:17px;line-height:1.5;padding:1px 4px;border-radius:4px;white-space:pre-wrap;overflow-wrap:anywhere;cursor:pointer;color:var(--fg);outline:none;min-width:8px}
 .bd-t:hover{background:var(--acc-bg)}.bd-t.edit{background:var(--acc-bg);cursor:text;user-select:text}.bd-t.move{cursor:grabbing}
 .md-table{border-collapse:collapse}.md-table th,.md-table td{border:1px solid var(--line);padding:5px 10px;min-width:4.6em;height:1.9em;outline:none;white-space:pre-wrap;overflow-wrap:anywhere;vertical-align:top;cursor:text}
@@ -779,23 +780,52 @@ body{-webkit-user-select:none;user-select:none}
 .thead .tview{display:inline-flex;border:1px solid var(--line);border-radius:8px;overflow:hidden;margin-right:4px}
 .thead .tview .tbtn{border:0;border-radius:0;margin:0}.thead .tview .tbtn+.tbtn{border-left:1px solid var(--line)}
 .thead .tview .tbtn.on{background:var(--acc-bg,#eef1fc);color:var(--acc);font-weight:600}
-.tmap{position:relative;outline:none;margin-top:6px}
-.tmap .tm-canvas{position:relative;min-width:100%;touch-action:none;cursor:text}
-.tmap .tm-lines{position:absolute;left:0;top:0;width:100%;height:100%;overflow:visible;pointer-events:none}
-.tmap .tm-line{stroke:#c4c8d2;stroke-width:1.4}
-.tmap .tm-hit{stroke:transparent;stroke-width:12;pointer-events:stroke;cursor:pointer}
-.tmap .tm-temp{stroke:var(--acc);stroke-width:1.6;stroke-dasharray:4 4}
-.tmap .tm-node{position:absolute;display:flex;flex-wrap:wrap;align-items:center;gap:4px 6px;max-width:240px;padding:5px 9px;border-radius:8px;background:var(--bg,#fff);cursor:pointer;user-select:none;line-height:1.35}
-.tmap .tm-node:hover{background:var(--hl)}
-.tmap .tm-node.target{box-shadow:0 0 0 2px var(--acc)}
-.tmap .tm-node.tfocus{box-shadow:0 0 0 2px #f2b84b}
 .tmap .tm-kw{font-size:15px;color:var(--fg);font-weight:500}
 .tmap .tm-ids{display:inline-flex;flex-wrap:wrap;gap:3px}
 .tmap .tm-ids .chip{font-size:11.5px;padding:0 6px;margin:0}
 .tmap .tmk{font-size:13px}
-.tmap .tm-input{position:absolute;z-index:3;min-width:260px;font:inherit;font-size:15px;padding:5px 9px;border:1px solid var(--acc);border-radius:8px;background:#fff;outline:none;box-shadow:0 4px 14px rgba(20,20,30,.08)}
-.tmap .tm-empty{position:absolute;left:40px;top:40px;color:var(--sub);font-size:14px;pointer-events:none}
-.tmap .tm-hint{position:sticky;bottom:0;left:0;padding:6px 2px;font-size:12px;color:#a9aebb;background:linear-gradient(transparent,var(--bg,#fff) 40%)}
+.tmap .bb-node{display:flex;flex-wrap:wrap;align-items:center;gap:4px 6px;max-width:240px;white-space:normal}
+.bb-node.tfocus{box-shadow:0 0 0 2px #f2b84b}
+#pane:has(> .bstage),#pane:has(#tmap){padding:0;display:flex;flex-direction:column;overflow:hidden}
+#pane:has(#tmap)>.row{padding-left:24px;padding-right:24px}#pane:has(#tmap)>.row:first-child{margin-top:12px}
+#tmap{flex:1 1 auto;min-height:0;margin-top:4px;border-top:1px solid var(--line)}
+/* 盤面（ブレストのノート・索引の地図で共通）。白い盤面に箱なしの文字、細い灰色の線。動かす・拡大は world の transform */
+.bb{position:relative;overflow:hidden;outline:none;touch-action:none;cursor:text;background:var(--bg);user-select:none}
+.bb-world{position:absolute;left:0;top:0;transform-origin:0 0}
+.bb-lines,.bb-pen{position:absolute;left:0;top:0;width:1px;height:1px;overflow:visible;pointer-events:none}
+.bb-line{stroke:#c4c8d2;stroke-width:1.4}
+.bb-hit{stroke:transparent;stroke-width:12;pointer-events:stroke;cursor:pointer}
+.bb-temp{stroke:var(--acc);stroke-width:1.6;stroke-dasharray:4 4}
+.bb-stroke{fill:none;stroke:var(--fg);stroke-width:2.2;stroke-linecap:round;stroke-linejoin:round}
+.bb-shit{fill:none;stroke:transparent;stroke-width:12;pointer-events:stroke}
+.bb-node{position:absolute;width:max-content;max-width:280px;padding:4px 8px;border-radius:7px;font-size:15px;line-height:1.45;color:var(--fg);cursor:pointer;white-space:pre-wrap;overflow-wrap:anywhere;background:var(--bg)}
+.bb-node:hover{background:var(--hl)}
+.bb-node.target{box-shadow:0 0 0 2px var(--acc)}
+.bb-node.bb-focus{box-shadow:0 0 0 2px #f2b84b}
+.bb-node.moving{opacity:.75;cursor:grabbing}
+.bb-node.editing{visibility:hidden}
+.bb-node .chip{font-size:12px;padding:0 6px;margin:0 2px}
+.bb-anc{font-size:11px;color:var(--sub);vertical-align:1px}
+.bb-input{position:absolute;z-index:3;width:max-content;min-width:180px;max-width:320px;field-sizing:content;resize:none;overflow:hidden;font:inherit;font-size:15px;line-height:1.45;padding:3px 7px;border:1px solid var(--acc);border-radius:7px;background:#fff;color:var(--fg);outline:none;box-shadow:0 4px 14px rgba(20,20,30,.08);user-select:text}
+.bb-hint{position:absolute;left:12px;bottom:8px;right:12px;font-size:12px;color:#b3b7c2;pointer-events:none;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;opacity:0;transition:opacity .2s}
+.bb.empty .bb-hint,.bb:hover .bb-hint{opacity:1}
+.bb.empty::before{content:'空いている所をクリックして、書き始めます';position:absolute;left:50%;top:42%;transform:translate(-50%,-50%);color:var(--sub);font-size:15px;pointer-events:none}
+.bb-peek{position:fixed;z-index:40;width:360px;max-height:260px;display:flex;flex-direction:column;background:#fff;border:1px solid var(--line);border-radius:10px;box-shadow:0 8px 28px rgba(0,0,0,.16);outline:none;overflow:hidden}
+.bb-peek .pk-h{display:flex;gap:8px;align-items:baseline;padding:10px 12px 4px}.bb-peek .pk-h b{flex:1;font-size:15px}.bb-peek .pk-h small{color:var(--sub)}
+.bb-peek pre{flex:1;margin:0;padding:4px 12px;overflow:hidden;white-space:pre-wrap;font:inherit;font-size:13px;color:var(--sub)}
+.bb-peek .pk-f{padding:6px 12px;font-size:11.5px;color:#b3b7c2;border-top:1px solid var(--line)}
+/* ブレストのノート: 上に小さな行（ID・題）、その下は全部盤面 */
+.bstage{flex:1 1 auto;min-height:0;display:flex;flex-direction:column}
+.bstage .bline{display:flex;align-items:center;gap:8px;padding:8px 16px 6px;border-bottom:1px solid var(--line)}
+.bstage .btitle{flex:0 1 26em;min-width:6em;border:0;outline:none;background:none;font:inherit;font-size:17px;font-weight:600;color:var(--fg);padding:2px 4px;border-radius:6px}
+.bstage .btitle:focus{background:var(--hl)}
+.bstage .bline .nm{opacity:.55}.bstage .bline .nm:hover{opacity:1}
+#bboard{flex:1 1 auto;min-height:0}
+/* 入る・出るの動き */
+#pane.zin{animation:yn-zin .2s ease-out}#pane.zout{animation:yn-zout .2s ease-out}
+@keyframes yn-zin{from{transform:scale(.86);opacity:.35}to{transform:none;opacity:1}}
+@keyframes yn-zout{from{transform:scale(1.12);opacity:.35}to{transform:none;opacity:1}}
+@media (prefers-reduced-motion:reduce){#pane.zin,#pane.zout{animation:none}}
 </style>
 </head>
 <body>

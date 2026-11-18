@@ -488,9 +488,10 @@ const fmDump = o => '---\n' + Object.entries(o).filter(([, v]) => v !== undefine
 
 // ===== ノートの種類: text（文章）/ rp（なりきりチャット）/ canvas（キャンバス）=====
 // なりきり・キャンバスはデータ（data）を持ち、本文はそこから作る（検索やMarkdownで文字が見えるように）
-const KINDS = { text: '', rp: '🎭', canvas: '🗺', 'memo-group': '💬 ノート化' };
+const KINDS = { text: '', rp: '🎭', canvas: '🗺', 'memo-group': '💬 ノート化', brainstorm: '🧠' };
 function deriveBody(kind, data) {
   data = data || {};
+  if (kind === 'brainstorm') return require('./board-core').treeText(require('./board-core').fromBoard(data));   // ブレスト: ノードを木の形の文章に（検索・(n)・バックリンクが効く）
   if (kind === 'rp') {
     const cast = data.cast || [];
     return `# ${data.title || '会話'}\n\n` + (data.messages || []).map(m => {

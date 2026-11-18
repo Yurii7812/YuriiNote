@@ -33,10 +33,10 @@ test('リスト型の索引を開くと、地図に作り替えて保存する�
   const a = await app();
   try {
     await a.openT();
-    const nodes = [...a.w.document.querySelectorAll('.tmap .tm-node')].map(e => e.textContent);
+    const nodes = [...a.w.document.querySelectorAll('.tmap .bb-node')].map(e => e.textContent);
     assert.deepStrictEqual(nodes, ['⭕道具', 'ペン1', '紙1a', '⬆️上の話1']);
-    assert.strictEqual(a.w.document.querySelectorAll('.tmap .tm-line').length, 3, '見出しと、その下の行を結ぶ');
-    assert.ok(a.$('.tmap .tm-node .chip[data-s="d"][data-id="1a"]'), 'ID はチップ（押すと開く）');
+    assert.strictEqual(a.w.document.querySelectorAll('.tmap .bb-line').length, 3, '見出しと、その下の行を結ぶ');
+    assert.ok(a.$('.tmap .bb-node .chip[data-s="d"][data-id="1a"]'), 'ID はチップ（押すと開く）');
     await tick(600);
     const t = a.store.state().topics.find(x => x.name === '道具の索引');
     assert.ok(t.map && t.map.n.length === 4, '地図を保存した');
@@ -48,14 +48,14 @@ test('空きをクリックして書くと、索引の文字に行が増える�
   const a = await app();
   try {
     await a.openT();
-    const cv = a.$('.tmap .tm-canvas');
+    const cv = a.$('.tmap');
     a.ptr('pointerdown', cv, 500, 300); a.ptr('pointerup', cv, 500, 300); await tick(50);
-    const inp = a.$('.tmap .tm-input'); assert.ok(inp, '入力欄が出る');
+    const inp = a.$('.tmap .bb-input'); assert.ok(inp, '入力欄が出る');
     inp.value = '消しゴム 1a';
     inp.dispatchEvent(new a.w.KeyboardEvent('keydown', { key: 'Enter', bubbles: true, cancelable: true })); await tick(600);
     const t = a.store.state().topics.find(x => x.name === '道具の索引');
     assert.strictEqual(t.text, TEXT + '\n消しゴム 1a');
-    assert.ok([...a.w.document.querySelectorAll('.tmap .tm-node')].some(e => e.textContent === '消しゴム1a'));
+    assert.ok([...a.w.document.querySelectorAll('.tmap .bb-node')].some(e => e.textContent === '消しゴム1a'));
     a.$('[data-act="tlistv"]').click(); await tick(200);
     assert.ok(a.$('table.ti'), 'リスト');
     assert.match(a.$('table.ti').textContent, /消しゴム/);
@@ -68,9 +68,9 @@ test('ノードをクリックして直す。空にすると消える', async ()
   const a = await app();
   try {
     await a.openT();
-    const pen = [...a.w.document.querySelectorAll('.tmap .tm-node')].find(e => e.textContent === 'ペン1');
+    const pen = [...a.w.document.querySelectorAll('.tmap .bb-node')].find(e => e.textContent === 'ペン1');
     a.ptr('pointerdown', pen, 10, 10); a.ptr('pointerup', pen, 10, 10); await tick(50);
-    const inp = a.$('.tmap .tm-input'); assert.strictEqual(inp.value, 'ペン 1');
+    const inp = a.$('.tmap .bb-input'); assert.strictEqual(inp.value, 'ペン 1');
     inp.value = ''; inp.dispatchEvent(new a.w.KeyboardEvent('keydown', { key: 'Enter', bubbles: true, cancelable: true })); await tick(600);
     const t = a.store.state().topics.find(x => x.name === '道具の索引');
     assert.strictEqual(t.text, '@道具\n紙 1a\n^上の話 1');

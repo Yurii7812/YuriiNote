@@ -53,6 +53,7 @@
       "store.js",
       "memo-group.js",
       "lib.js",
+      "board-core.js",
       "update.js",
       "phone.js",
       "capture.js",

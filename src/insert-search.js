@@ -50,7 +50,8 @@ function preview(it) {
   if (it.type === 'link') return `${x.title || ''}\n\n` + (x.targets || []).map(t => '・' + (t.title || t.id || t.stem || '')).join('\n');
   return `${x.name}${x.entry ? '（' + x.entry.id + '）' : ''}\n\n` + (it.kws || []).map(k => '・' + k).join('\n');
 }
-export function open({ view, space = 'd', curKey = '' } = {}) {
+// insert を渡すと、本文（view）ではなく、そこへ入れる（盤面のノードの文字欄など）。閉じただけなら insert(null)
+export function open({ view, space = 'd', curKey = '', insert } = {}) {
   const items = allItems(); let kind = 'all', at = 0, shown = [];
   const sel = view ? view.state.selection.main : null;
   dialog(`<div class="isr"><div class="isr-h"><input id="isr-q" placeholder="探す（空白で区切ると、すべて含む）" autocomplete="off" spellcheck="false"><div class="isr-k">${KINDS.map(([k, l]) => `<button data-k="${k}"${k === 'all' ? ' class="on"' : ''}>${l}</button>`).join('')}</div></div>
@@ -63,6 +64,7 @@ export function open({ view, space = 'd', curKey = '' } = {}) {
     };
     const done = (i, post) => {
       const it = shown[i]; if (!it) return; const t = insertText(it, post, space, curKey) + (it.type === 'link' ? '' : ' '); close();
+      if (insert) return insert(t);
       if (view && view.dom.isConnected) { view.dispatch({ changes: { from: sel.from, to: sel.to, insert: t }, selection: { anchor: sel.from + t.length } }); view.focus(); }
     };
     $('#isr-q').oninput = () => { at = 0; draw(); };
@@ -70,7 +72,7 @@ export function open({ view, space = 'd', curKey = '' } = {}) {
       if (e.isComposing || e.keyCode === 229) return;
       if (e.key === 'ArrowDown' || e.key === 'ArrowUp') { e.preventDefault(); at = Math.max(0, Math.min(shown.length - 1, at + (e.key === 'ArrowDown' ? 1 : -1))); draw(); }
       else if (e.key === 'Enter') { e.preventDefault(); done(at, e.shiftKey); }
-      else if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); close(); if (view?.dom.isConnected) view.focus(); }
+      else if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); close(); if (insert) insert(null); else if (view?.dom.isConnected) view.focus(); }
     };
     $('#isr-list').onclick = e => { const r = e.target.closest('[data-i]'); if (r) { at = +r.dataset.i; draw(); } };
     $('#isr-list').ondblclick = e => { const r = e.target.closest('[data-i]'); if (r) done(+r.dataset.i, false); };

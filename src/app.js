@@ -25,6 +25,8 @@ import UrlLinks from '../url-links.js';
 import Persistence from '../persistence.js';
 import { setLang } from './i18n.js';
 import { mountMap } from './mapboard.js';
+import { mountBoard } from './board-engine.js';
+import BC from '../board-core.js';
 import TopicMap from '../topic-map.js';
 let pendingLang = null;
 
@@ -454,7 +456,7 @@ const AUTO = /^無名[0-9][0-9a-z]*-\d+/, isAuto = name => AUTO.test(name), show
 const autoName = (sp, id) => { let n = Math.max(0, ...topicsOf(sp, id).map(t => t.num || 0)) + 1, nm; do nm = `無名${id}-${n++}` + (sp === 'p' ? 'p' : ''); while (topics.find(t => t.name === nm)); return nm; };
 const topicLabel = t => isAuto(t.name) ? (topicNo(t) || shown(t.name)) : (topicNo(t) ? topicNo(t) + ' ' : '') + stripId(t.name);
 const tchip = name => `<span class="chip t" data-topic="${esc(name)}">${esc(shown(name))}</span>`;
-const firstLine = n => (Stamp.strip(n.body).split('\n').find(x => x.trim()) || '').replace(/^#+\s*/, '').trim().slice(0, 40);
+const firstLine = n => (Stamp.strip(n.body).split('\n').find(x => x.trim()) || '').replace(n.kind === 'brainstorm' ? /^\s*- / : /^#+\s*/, '').trim().slice(0, 40);
 const titleOf = n => (n.title || '').trim() || (firstLine(n) || '（無題）');
 // 検索: 一致した所を mark で囲む（大文字小文字は区別しない）
 const escRe = q => q.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
@@ -893,7 +895,7 @@ document.addEventListener('keydown', e => {
 document.addEventListener('keydown', e => {
   if (!(e.ctrlKey || e.metaKey) || e.altKey || e.shiftKey || e.code !== 'KeyU' || e.isComposing) return;
   if ($('#modal').style.display === 'flex' || $('#scan').style.display === 'flex') return;
-  if (!(lastView && lastView.dom.isConnected)) return;
+  if (!(lastView && lastView.dom.isConnected) || document.activeElement?.closest?.('.bb')) return;   // 盤面の文字欄では、盤面が開く
   e.preventDefault(); e.stopImmediatePropagation();
   InsertSearch.open({ view: lastView, space: cur && cur.k === 'note' ? cur.s : 'd', curKey: cur && cur.k === 'note' ? cur.s + ':' + cur.id : '' });
 }, true);
@@ -1137,12 +1139,32 @@ function leavePage() {
   if (!shownKey) return;
   const p = $('#pane'), st = { top: p ? p.scrollTop : 0 };
   if (/^(note|diary):/.test(shownKey) && lastView && lastView.dom.isConnected) st.pos = lastView.state.selection.main.head;
+  if (curBoard && curBoard.el.isConnected && curBoard.api.view) st.bv = curBoard.api.view;   // 盤面（ブレスト・地図）は、拡大率と位置
   const m = views(); m.delete(shownKey); m.set(shownKey, st); saveViews();
 }
 const viewOf = t => views().get(pageKey(t));
 // これから描く画面の、覚えておいたスクロール位置を、描き終わったあとで戻す（skipRestore で取りやめ）
+// 入る・出るの動き（0.2 秒）: 盤面（ブレスト・地図）のノードのリンクで別の画面へ入るときは、押した所から広がる。戻るときは、その所へ縮む
+let zoomFrom = null, zoomT = 0;
+const zoomBack = new Map();
+function enterFrom(el) { const r = el.getBoundingClientRect(); zoomFrom = { x: r.left + r.width / 2, y: r.top + r.height / 2, from: shownKey }; clearTimeout(zoomT); zoomT = setTimeout(() => { zoomFrom = null; }, 1500); }
+document.addEventListener('click', e => { const c = e.target.closest && e.target.closest('.bb .chip'); if (c) enterFrom(c); }, true);
+function playZoom(cls, at) {
+  const p = $('#pane'); if (!p || matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+  const r = p.getBoundingClientRect();
+  p.style.transformOrigin = `${Math.round(at.x - r.left)}px ${Math.round(at.y - r.top)}px`;
+  p.classList.remove('zin', 'zout'); void p.offsetWidth; p.classList.add(cls);
+  setTimeout(() => p.classList.remove(cls), 260);
+}
 function willShow(t) {
-  leavePage(); shownKey = pageKey(t); restoreFor = shownKey;
+  const oldKey = shownKey, newKey = pageKey(t);
+  let anim = null;
+  if (zoomFrom && zoomFrom.from === oldKey && newKey !== oldKey) { anim = ['zin', zoomFrom]; zoomBack.set(newKey, zoomFrom); }
+  else { const zb = zoomBack.get(oldKey); if (zb && zb.from === newKey && newKey) anim = ['zout', zb]; }
+  zoomFrom = null;
+  if (anim) setTimeout(() => playZoom(anim[0], anim[1]), 0);
+  leavePage(); shownKey = pageKey(t); restoreFor = shownKey; curBoard = null;
+  if (boardFull) { boardFull = false; boardList = false; applyList(); }
   const k = shownKey, st = views().get(k);
   if (!st || !st.top) return;
   const put = () => { const p = $('#pane'); if (p && restoreFor === k && shownKey === k) p.scrollTop = st.top; };
@@ -1154,11 +1176,12 @@ window.addEventListener('beforeunload', () => { leavePage(); try { localStorage.
 
 // ===== 左の一覧の折りたたみ・集中表示（Ctrl+[・Ctrl+]）=====
 let listHidden = (() => { try { return localStorage.getItem('yn-list-hidden') === '1'; } catch { return false; } })();
-function applyList() { const a = document.querySelector('main > aside'); if (a) a.hidden = listHidden; const b = $('#fold-list'); if (b) { b.classList.toggle('on', listHidden); b.title = listHidden ? '左の一覧を出す (Ctrl+[)' : '左の一覧をたたむ (Ctrl+[)'; } }
-function setListHidden(v) { listHidden = !!v; try { localStorage.setItem('yn-list-hidden', listHidden ? '1' : '0'); } catch { } applyList(); }
-const toggleList = () => setListHidden(!listHidden);
+let boardFull = false, boardList = false, curBoard = null;   // ブレストを開いている間は、左の一覧を自動でたたむ（Ctrl+[ で出せる。ほかの画面へ移ると元に戻る）
+function applyList() { const a = document.querySelector('main > aside'); if (a) a.hidden = listHidden || (boardFull && !boardList); const b = $('#fold-list'); if (b) { b.classList.toggle('on', listHidden); b.title = listHidden ? '左の一覧を出す (Ctrl+[)' : '左の一覧をたたむ (Ctrl+[)'; } }
+function setListHidden(v) { if (boardFull && !v) { boardList = true; if (!listHidden) return applyList(); } listHidden = !!v; try { localStorage.setItem('yn-list-hidden', listHidden ? '1' : '0'); } catch { } applyList(); }
+const toggleList = () => { if (boardFull) { boardList = !boardList; if (boardList && listHidden) setListHidden(false); else applyList(); return; } setListHidden(!listHidden); };
 // 集中表示: 左の一覧と右パネルを一緒にたたむ。どちらかが出ていれば両方たたみ、両方たたんであれば両方出す
-function toggleFocus() { const hide = !(listHidden && mgnHidden); setListHidden(hide); if (mgnHidden !== hide) toggleMgn(); }
+function toggleFocus() { if (boardFull) return toggleList(); const hide = !(listHidden && mgnHidden); setListHidden(hide); if (mgnHidden !== hide) toggleMgn(); }
 document.addEventListener('keydown', e => {
   if (!(e.ctrlKey || e.metaKey) || e.altKey || e.shiftKey || e.isComposing) return;
   const l = e.code === 'BracketLeft' || e.key === '[', r = e.code === 'BracketRight' || e.key === ']'; if (!l && !r) return;
@@ -1313,6 +1336,7 @@ function openNote(s, id, n, keep, mid) {
   const note = get(s, id); if (!note) return;
   if (bgOpen) { place({ k: 'note', s, id }, false); return; }
   cur = place({ k: 'note', s, id }, keep); mode = 'notes'; lastNote = { s, id };
+  if (note.kind === 'brainstorm') return openBrainstorm(note, n, keep);
   if (!inPreview) decided = { k: 'note', s, id };
   if (!$('#q').value) tab = note.noid ? 'u' : s;
   const kind = note.kind || 'text', noid = !!note.noid, text = kind === 'text';
@@ -1323,6 +1347,7 @@ function openNote(s, id, n, keep, mid) {
         ${s === 'd' && noid ? '<button class="gid" data-act="giveid" title="IDをつける" aria-label="IDをつける">🆔</button>' : ''}
         ${s === 'p' ? '<span class="dt">紙</span>' : ''}${L.KINDS[kind] ? `<span class="dt">${L.KINDS[kind]}</span>` : ''}
         ${s === 'd' ? `<span class="dt">${esc(note.created)}</span>` : ''}
+        ${text && s === 'd' && !(note.body || '').trim() ? '<button class="nb" id="to-bs" data-act="tobs" title="このノートをブレストにする（何も書いていないときだけ）" aria-label="ブレストにする">🧠</button>' : ''}
         ${'<span class="grow"></span>'}${noid ? (s === 'd' && text ? '<button class="nb" data-act="sib" title="IDなしのまま、並列のノートを作る（親にIDが付くと、IDも決まる）" aria-label="並列">↔️</button><button class="nb" data-act="chi" title="IDなしのまま、分岐のノートを作る（このノートにIDが付くと、IDも決まる）" aria-label="分岐">🌱</button>' : '') : `<button class="nb" data-act="sib" title="並列のノートを作る（同じ階層の次: ${esc(free(s, L.sibling(id)))}）" aria-label="並列">↔️ <small>${esc(free(s, L.sibling(id)))}</small></button><button class="nb" data-act="chi" title="分岐のノートを作る（一つ下: ${esc(free(s, L.child(id)))}）" aria-label="分岐">🌱 <small>${esc(free(s, L.child(id)))}</small></button>`}<button class="ic nm" data-act="mgn" title="右の欄を隠す・出す (Ctrl+\\)"><svg class="ico" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M15 4v16"/></svg></button><button class="ic nm" data-act="nmenu" title="このノートのメニュー">${'<svg class="ico" viewBox="0 0 24 24"><circle cx="5" cy="12" r="1.3"/><circle cx="12" cy="12" r="1.3"/><circle cx="19" cy="12" r="1.3"/></svg>'}</button>
       </div>
       <textarea class="ntitle" id="f-title" rows="1" placeholder="タイトル" spellcheck="false">${esc(note.title || '')}</textarea>
@@ -1347,7 +1372,7 @@ function openNote(s, id, n, keep, mid) {
     $('#nbody').querySelector('pre').textContent = note.body || '';
     return;
   }
-  const view = editor($('#ed'), note.body, 'note', s, v => { note.body = v; saveNote(note); renderList(); },
+  const view = editor($('#ed'), note.body, 'note', s, v => { note.body = v; saveNote(note); renderList(); if (v.trim()) $('#to-bs')?.remove(); },
     s === 'p' ? '紙の内容を文字で（テキスト化）' : '本文。続き ->1a1　元 1a->　位置 (1)　別ノートの位置 ->1a(1)', () => note.body);
   searchMark();
   const hitAt = searchQ ? (m => Number.isFinite(m) ? m : -1)(Math.min(...qTerms(searchQ).map(t => note.body.toLowerCase().indexOf(t.toLowerCase())).filter(i => i >= 0), Infinity)) : -1;
@@ -1360,6 +1385,99 @@ function openNote(s, id, n, keep, mid) {
   }
   else if (focusNewBody && s === 'd' && !note.body) view.focus(); // 作ったばかりのノートだけ、本文にカーソルを置く（移動で開いた、空のノートでは、勝手に入らない）
   focusNewBody = false;
+}
+// ===== ブレストのノート（kind: brainstorm）=====
+// 中身は盤面（data = 形式 v2: { v:2, t, l, s }）。本文は、ノードを木の形にした文章（自動。検索・(n)・バックリンクが効く）
+// 開くと、盤面が画面いっぱい（左の一覧は自動でたたむ。Ctrl+[ で出せる）。戻る・進む・タブ・今いる場所は、ほかのノートと同じ
+const nodeHtml = (text, s = 'd') => {   // ノードの文字: ID はチップ（押すと開く）、(n) は小さく
+  let out = '', last = 0;
+  for (const t of L.tokens(text)) {
+    if (t.from < last) continue;
+    out += esc(text.slice(last, t.from));
+    if (t.k === 'ref') out += chip(t.sp || s, t.id + (t.n ? `(${t.n})` : ''));
+    else if (t.k === 'self') out += `<span class="bb-anc">${esc(t.text)}</span>`;
+    else out += esc(t.text);
+    last = t.to;
+  }
+  return (out + esc(text.slice(last))).replace(/\n/g, '<br>');
+};
+const anchorsIn = texts => L.tokens(texts.join('\n')).filter(t => t.k === 'self' && t.bare).map(t => +t.n);
+function openBrainstorm(note, n, keep) {
+  const { s, id } = note, noid = !!note.noid;
+  if (!inPreview) decided = { k: 'note', s, id };
+  if (!$('#q').value) tab = noid ? 'u' : s;
+  boardFull = true; boardList = false; applyList();
+  $('#pane').innerHTML = `<div class="bstage">
+    <div class="idline bline">
+      ${noid ? '<span class="idin" id="f-id">IDなし</span>' : `<button class="idin" id="f-id" data-act="copyid" title="IDをコピー" aria-label="ID ${esc(id)} をコピー">${esc(id)}</button>`}
+      ${s === 'd' && noid ? '<button class="gid" data-act="giveid" title="IDをつける" aria-label="IDをつける">🆔</button>' : ''}
+      <span class="dt">🧠 ブレスト</span>
+      <input class="btitle" id="f-title" placeholder="題" spellcheck="false" value="${esc(note.title || '')}">
+      <span class="grow"></span>
+      <button class="ic nm" data-act="bfit" title="全体を見る (Ctrl+0)"><svg class="ico" viewBox="0 0 24 24"><path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5"/></svg></button>
+      <button class="ic nm" data-act="nmenu" title="このノートのメニュー"><svg class="ico" viewBox="0 0 24 24"><circle cx="5" cy="12" r="1.3"/><circle cx="12" cy="12" r="1.3"/><circle cx="19" cy="12" r="1.3"/></svg></button>
+    </div>
+    <div id="bboard"></div></div>`;
+  const tf = $('#f-title');
+  tf.oninput = () => { note.title = tf.value; if (note.data) note.data.title = note.title; saveNote(note); renderList(); renderTabs(); };
+  tf.onkeydown = e => { if (e.key === 'Enter' && !e.isComposing) { e.preventDefault(); $('#bboard').focus(); } };
+  const data = note.data || {};
+  const save = m => { note.data = { ...BC.toBoard(m), title: note.title || '' }; delete note.data.h; note.body = L.deriveBody('brainstorm', note.data); saveNote(note); renderList(); renderTabs(); };
+  const vs = viewOf(cur), el = $('#bboard');
+  const b = mountBoard(el, {
+    model: BC.fromBoard(data), view: vs && vs.bv, placeholder: '書く（Enter＝下に次・Tab＝右に広げる）',
+    hint: 'クリック＝書く　ドラッグ＝ペン　ノードからドラッグ＝つなぐ　Ctrl+ドラッグ／右ドラッグ＝動かす　右クリック＝メニュー　Ctrl+ホイール＝拡大',
+    render: t => nodeHtml(t, s),
+    onChange: save,
+    search: ins => InsertSearch.open({ space: s, curKey: s + ':' + id, insert: ins }),
+    anchor: cur => `(${Math.max(0, ...anchorsIn([...b.model.n.map(a => a.text), cur])) + 1})`,
+    nodeMenu: a => [['📝 ノートにする', () => nodeToNote(note, a, b)]],
+    peek: (a, nel) => peekNode(a, nel, s),
+  });
+  curBoard = { el, api: b };
+  if (n) { const hit = b.model.n.find(a => anchorsIn([a.text]).includes(+n)); if (hit) { skipRestore(); setTimeout(() => b.focusNode(hit.id), 0); } }
+  renderTabs(); renderList(); if (!$('#q').value) centerOn();
+  if (!b.model.n.length && !b.model.s.length && focusNewBody) setTimeout(() => { if (el.isConnected) b.edit(0, { x: 40, y: 40 }); }, 30);   // 作ったばかり: すぐ書ける
+  else el.focus({ preventScroll: true });
+  focusNewBody = false;
+}
+// このノードをノートにする: ノードの文字が題の新しいノート（このブレストの分岐の ID）。ノードには ->ID を付ける
+async function nodeToNote(note, a, b) {
+  if (note.noid) return toast('IDなしのブレストです。先にIDを付けると、ノードをノートにできます');
+  const own = L.tokens(a.text).find(t => t.k === 'ref'); if (own && get(own.sp || note.s, own.id)) return openNote(own.sp || note.s, own.id);
+  const nid = free(note.s, L.child(note.id)), title = a.text.replace(/\s+/g, ' ').trim().slice(0, 80);
+  const n = await api.saveNote({ s: note.s, id: nid, created: L.now(), keywords: [], body: '', title });
+  notes.push(n); if (note.s === 'd') await refreshDiaries();
+  b.update(a.id, a.text.replace(/\s+$/, '') + ' ->' + nid);
+  toast(`ノート ${nid} を作りました`);
+}
+// ノードに合わせて Space: リンク先のノートを、移動せずにのぞく。Enter で開く・Esc で閉じる
+function peekNode(a, nel, s) {
+  const t = L.tokens(a.text).find(x => x.k === 'ref'), n = t && get(t.sp || s, t.id); if (n) peekNote(n, nel, t.n);
+}
+function peekNote(n, nel, an) {
+  document.querySelector('.bb-peek')?.remove(); if (!n || !nel) return;
+  const r = nel.getBoundingClientRect(), p = document.createElement('div');
+  p.className = 'bb-peek'; p.tabIndex = -1;
+  p.innerHTML = `<div class="pk-h"><b>${esc(titleOf(n))}</b><small>${esc(n.noid ? 'IDなし' : (n.s === 'p' ? '紙 ' : '') + n.id)}</small></div><pre data-user></pre><div class="pk-f">Enter 開く　Esc 閉じる</div>`;
+  p.querySelector('pre').textContent = Stamp.visible(n.body || '').slice(0, 1200);
+  p.style.left = Math.max(8, Math.min(innerWidth - 380, r.left)) + 'px'; p.style.top = Math.min(innerHeight - 260, r.bottom + 6) + 'px';
+  document.body.append(p); p.focus();
+  const close = () => { p.remove(); curBoard && curBoard.el.isConnected && curBoard.el.focus({ preventScroll: true }); };
+  p.onkeydown = e => { e.stopPropagation(); if (e.key === 'Enter') { e.preventDefault(); p.remove(); enterFrom(nel); openNote(n.s, n.id, an || null); } else if (e.key === 'Escape' || e.key === ' ') { e.preventDefault(); close(); } };
+  p.onblur = () => setTimeout(() => p.isConnected && !p.contains(document.activeElement) && p.remove(), 0);
+}
+async function createBrainstorm(rel) {   // rel: { note, act: 'sib'|'chi' }（並列・分岐の ID で作る）。無ければ IDなし
+  let n;
+  if (rel && !rel.note.noid) { const id = free(rel.note.s, rel.act === 'sib' ? L.sibling(rel.note.id) : L.child(rel.note.id)); n = await api.saveNote({ s: rel.note.s, id, created: L.now(), keywords: [], body: '', kind: 'brainstorm', data: { v: 2, t: [], l: [], s: [] } }); }
+  else n = await api.createNote({ kind: 'brainstorm', data: { v: 2, t: [], l: [], s: [] }, created: L.now(), parentStem: rel ? (rel.act === 'chi' ? rel.note.stem : rel.note.parentStem || '') : '' });
+  notes.push(n); await refreshDiaries(); focusNewBody = true; openNote(n.s, n.id);
+}
+// 空のノートをブレストにする（Ctrl+N・Ctrl+H・Ctrl+B などで作ったあとから）
+function toBrainstorm(note) {
+  if ((note.kind || 'text') !== 'text' || (note.body || '').trim()) return;
+  note.kind = 'brainstorm'; note.data = { v: 2, t: [], l: [], s: [], title: note.title || '' }; note.body = '';
+  saveNote(note); focusNewBody = true; openNote(note.s, note.id, null, true);
 }
 // ノートにIDを付ける・変える（ファイル名が変わり、日記のリンクなども直る）
 async function changeId(note, v) {
@@ -1689,6 +1807,8 @@ const paneClick = async e => {
   if (act === 'sib') create(s, free(s, L.sibling(id)));
   if (act === 'chi') create(s, free(s, L.child(id)));
   if (act === 'giveid') return giveIdDialog(note);
+  if (act === 'bfit') return curBoard && curBoard.api.fit();
+  if (act === 'tobs') return toBrainstorm(note);
   if (act === 'copyid') return copyNoteId(note);
   if (act === 'mgn') return toggleMgn();
   if (act === 'nmenu') return noteMenu(a, note);
@@ -1716,6 +1836,8 @@ function noteMenu(btn, note) {
   const r = btn.getBoundingClientRect(), { s, id } = note, text = (note.kind || 'text') === 'text';
   popMenu({ clientX: r.right - 190, clientY: r.bottom + 4 }, [
     ...(text ? [['▦ 表を入れる', () => insertTable()], ['🖍️ ボードを入れる（文字と線）', () => insertBoard()], ['📎 ファイルを添付', () => pick(true, f => attach(note, f), '*')]] : []),
+    ...(text && s === 'd' && !(note.body || '').trim() ? [['🧠 ブレストにする', () => toBrainstorm(note)]] : []),
+    ...(note.kind === 'brainstorm' && s === 'd' ? [[note.noid ? '🧠 並列のブレスト（IDなし）' : `🧠 並列のブレスト ${free(s, L.sibling(id))}`, () => createBrainstorm({ note, act: 'sib' })], [note.noid ? '🧠 分岐のブレスト（IDなし）' : `🧠 分岐のブレスト ${free(s, L.child(id))}`, () => createBrainstorm({ note, act: 'chi' })]] : []),
     ['🆔 IDを変更・解除…', () => idSettingsDialog(note)],
     ['🗑️ 削除', () => deleteNotes([{ s, id }]), true]
   ]);
@@ -1830,6 +1952,7 @@ $('#new').onclick = e => {
   const r = $('#new').getBoundingClientRect();
   popMenu({ clientX: r.left, clientY: r.bottom + 4 }, [
     ['📝 ノート', () => createNoid('text')],
+    ['🧠 ブレスト', () => createBrainstorm()],
     ['📷 スキャンを取り込む（紙）', () => $('#imp').click()]
   ]);
 };
@@ -2121,11 +2244,15 @@ function mountTopicMap(t, focus) {
   const el = $('#tmap'); if (!el) return;
   const text = L.topicText(t), m = TopicMap.reconcile(t.map, text);
   if (!t.map || !TopicMap.same(t.map, m)) { t.map = m; saveTopic(t); }
-  mountMap(el, { map: m, render: line => mapLineHtml(t, line),
-    onChange: nm => { t.map = nm; t.text = TopicMap.toText(nm); saveTopic(t); renderList(); } });
+  const vs = viewOf(cur), def = L.defOf(t);
+  const mb = mountMap(el, { map: m, render: line => mapLineHtml(t, line), view: vs && vs.bv,
+    onChange: nm => { t.map = nm; t.text = TopicMap.toText(nm); saveTopic(t); renderList(); },
+    search: ins => InsertSearch.open({ space: def, insert: x => ins(x == null ? x : x.replace(/^->/, '').replace(/->(\s*)$/, '$1')) }),   // 索引の行には、ID だけを書く
+    peek: (a, nel) => { const x = (L.topicLine(a.text).ids || [])[0]; if (x) { const { id, n } = L.splitAnchor(x.raw); peekNote(get(x.sp || def, id), nel, n); } } });
+  curBoard = { el, api: mb.engine };
   if (focus) {   // ノートから飛んできたら、そのノートの ID のノードを示す
-    const c = el.querySelector(`.tm-node .chip[data-s="${focus.s}"][data-id="${CSS.escape(focus.id)}"]`);
-    const n = c && c.closest('.tm-node'); if (n) { n.classList.add('tfocus'); skipRestore(); n.scrollIntoView({ block: 'center', inline: 'center' }); }
+    const c = el.querySelector(`.bb-node .chip[data-s="${focus.s}"][data-id="${CSS.escape(focus.id)}"]`);
+    const n = c && c.closest('.bb-node'); if (n) { skipRestore(); mb.focusNode(+n.dataset.n, 'tfocus'); }
   }
 }
 function openTopic(name, tmode = 'view', keep, focus) {   // focus: ノートから飛んできたとき、そのノート { s, id }（その行を示す）
@@ -3059,6 +3186,13 @@ $('#selbar').addEventListener('click', e => {
   if (id === 'sel-copy') copySelection();
   if (id === 'sel-exp') exportDialog([...picked]);
   if (id === 'sel-del') deleteNotes([...picked].map(k => ({ s: k[0], id: k.slice(2) })));
+});
+// 並列（↔️）・分岐（🌱）のボタンを右クリック: ふつうのノートか、ブレストのノートかを選んで作る
+document.addEventListener('contextmenu', e => {
+  const b = e.target.closest('#pane [data-act="sib"], #pane [data-act="chi"]'); if (!b || !cur || cur.k !== 'note') return;
+  const note = get(cur.s, cur.id); if (!note) return; e.preventDefault();
+  const act = b.dataset.act, name = act === 'sib' ? '並列' : '分岐';
+  popMenu(e, [[`📝 ${name}のノート`, () => b.click()], ...(note.s === 'd' ? [[`🧠 ${name}のブレスト`, () => createBrainstorm({ note, act })]] : [])]);
 });
 // ノートを右クリック: 開く・コピー・削除・複数選択（選択中は、選んだノートまとめて）
 document.addEventListener('contextmenu', e => {

@@ -1,26 +1,26 @@
 // ブレストボード: ノートの中に、紙のように文字と線を書ける場所を置く
-// 書き方（ノートの中身）:  ```board の次の行に JSON を1行。  {"h":高さ,"t":[[x,y,"文字"]],"s":[[x1,y1,x2,y2,…]]}
-// 操作: 空きをクリック→そのまま文字 / どこからでもドラッグ→ペン / 文字をクリック→直す / Ctrl+ドラッグ→文字の移動 / 右クリック→消す
+// 書き方（ノートの中身）:  ```board の次の行に JSON を1行。形式 v2: {"v":2,"h":高さ,"t":[[x,y,"文字"]],"l":[[i,j]],"s":[[x1,y1,x2,y2,…]]}（../board-core.js）
+//   v1（v と l なし）も、そのまま読める。直すと v2 で書く
+// 操作: 空きをクリック→そのまま文字 / 空きをドラッグ→ペン / 文字をクリック→直す / 文字から別の文字へドラッグ→線でつなぐ（もう一度で外す）
+//       文字から空きへドラッグ→そこに、つながった文字 / Ctrl+ドラッグ・右ドラッグ→文字の移動 / 右クリック→消す
 import { EditorView, Decoration, WidgetType } from '@codemirror/view';
 import { StateField } from '@codemirror/state';
 import { undo, redo, isolateHistory } from '@codemirror/commands';
 import { popMenu } from './shared.js';
 import L from '../lib.js';
 import { attachEditable, refKey, plainDoc } from './reference-picker.js';
+import C from '../board-core.js';
 
 const NS = 'http://www.w3.org/2000/svg';
 const MIN_H = 220, DEF_H = 320;
 
-export const boardTemplate = '```board\n{"h":' + DEF_H + ',"t":[],"s":[]}\n```\n';
+export const boardTemplate = '```board\n{"v":2,"h":' + DEF_H + ',"t":[],"l":[],"s":[]}\n```\n';
 
-const parse = src => {
-  let d; try { d = JSON.parse(src); } catch { d = null; }
-  if (!d || typeof d !== 'object') d = {};
-  const t = Array.isArray(d.t) ? d.t.filter(a => Array.isArray(a) && typeof a[2] === 'string').map(a => [+a[0] || 0, +a[1] || 0, a[2]]) : [];
-  const s = Array.isArray(d.s) ? d.s.filter(a => Array.isArray(a) && a.length >= 4).map(a => a.map(n => +n || 0)) : [];
-  return { h: Math.max(MIN_H, +d.h || DEF_H), t, s };
-};
-const dump = d => JSON.stringify({ h: Math.round(d.h), t: d.t, s: d.s });
+const parse = src => C.parseBoard(src);
+const dump = d => C.dumpBoard(d);
+// 文字 i を消す（線も。後ろの番号を詰める）
+const delText = (d, i) => { d.t.splice(i, 1); d.l = d.l.filter(([p, q]) => p !== i && q !== i).map(([p, q]) => [p > i ? p - 1 : p, q > i ? q - 1 : q]); };
+const toggleLink = (d, a, b) => { const k = d.l.findIndex(([p, q]) => (p === a && q === b) || (p === b && q === a)); if (k >= 0) d.l.splice(k, 1); else d.l.push([a, b]); };
 const fence = d => '```board\n' + dump(d) + '\n```';
 const smooth = f => {   // f は [x,y,x,y,…]
   const p = []; for (let i = 0; i + 1 < f.length; i += 2) p.push([f[i], f[i + 1]]);
@@ -61,7 +61,7 @@ class BoardWidget extends WidgetType {
 function mount(wrap, view) {
   const stage = document.createElement('div'); stage.className = 'bd-stage'; stage.tabIndex = -1;
   const svg = document.createElementNS(NS, 'svg'); svg.setAttribute('class', 'bd-svg');
-  const gS = document.createElementNS(NS, 'g'), gL = document.createElementNS(NS, 'g'); svg.append(gS, gL); stage.append(svg); wrap.append(stage);
+  const gK = document.createElementNS(NS, 'g'), gS = document.createElementNS(NS, 'g'), gL = document.createElementNS(NS, 'g'); svg.append(gK, gS, gL); stage.append(svg); wrap.append(stage);
   let editing = null, drag = null;
   const S = () => wrap._st;
   wrap.style.height = S().h + 'px';
@@ -82,7 +82,13 @@ function mount(wrap, view) {
     wrap.style.minHeight = need + 'px';
     if (wrap.offsetHeight < need) { wrap.style.height = need + 'px'; S().h = need; }
   };
+  const center = i => { const el = stage.querySelector(`.bd-t[data-i="${i}"]`), t = S().t[i]; return el ? [el.offsetLeft + el.offsetWidth / 2, el.offsetTop + el.offsetHeight / 2] : t ? [t[0] + 40, t[1] + 12] : [0, 0]; };
+  const drawLinks = () => {   // 文字同士の線（細い灰色）
+    gK.replaceChildren();
+    S().l.forEach(([a, b], k) => { const [x1, y1] = center(a), [x2, y2] = center(b); for (const c of ['bd-hit', 'bd-link']) { const ln = document.createElementNS(NS, 'line'); ln.setAttribute('class', c); ln.setAttribute('x1', x1); ln.setAttribute('y1', y1); ln.setAttribute('x2', x2); ln.setAttribute('y2', y2); ln.dataset.l = k; gK.append(ln); } });
+  };
   const drawStrokes = () => {
+    drawLinks();
     gS.replaceChildren();
     S().s.forEach((f, i) => { const p = document.createElementNS(NS, 'path'); p.setAttribute('d', smooth(f)); p.setAttribute('class', 'bd-stroke'); p.dataset.i = i; gS.append(p); });
   };
@@ -95,10 +101,11 @@ function mount(wrap, view) {
   // ---- 文字
   const commit = () => {
     if (!editing) return false;
-    const { i } = editing, el = stage.querySelector(`.bd-t[data-i="${i}"]`), t = S().t[i]; editing = null;
+    const { i, from } = editing, el = stage.querySelector(`.bd-t[data-i="${i}"]`), t = S().t[i]; editing = null;
     const text = ((el && el.textContent) || '').replace(/\s+$/, '');
-    if (!text) { S().t.splice(i, 1); render(); save(); return false; }
-    t[2] = text; render(); save(); return true;
+    if (!text) { delText(S(), i); render(); save(); return false; }
+    t[2] = text; if (from >= 0 && from < S().t.length && from !== i && !S().l.some(([p, q]) => (p === from && q === i) || (p === i && q === from))) S().l.push([from, i]);
+    render(); save(); return true;
   };
   const startEdit = i => {
     const el = stage.querySelector(`.bd-t[data-i="${i}"]`); if (!el) return;
@@ -113,7 +120,7 @@ function mount(wrap, view) {
       if ((ev.ctrlKey || ev.metaKey) && ev.code === 'KeyM') { ev.preventDefault(); nextAnchor(el); return; }   // ノート全体で、次の (n)
       const t = S().t[i];
       if (ev.key === 'Enter' && !ev.shiftKey) { ev.preventDefault(); const x = t[0], y = t[1] + el.offsetHeight + 2; if (commit()) newText(x + 4, y + 14); }   // 確定して、すぐ下に次の文字
-      else if (ev.key === 'Tab') { ev.preventDefault(); const x = Math.min(t[0] + el.offsetWidth + 36, wrap.clientWidth - 80), y = t[1]; if (commit()) newText(x + 4, y + 14); }   // 確定して、右に次の文字
+      else if (ev.key === 'Tab') { ev.preventDefault(); const x = Math.min(t[0] + el.offsetWidth + 36, wrap.clientWidth - 80), y = t[1]; if (commit()) newText(x + 4, y + 14, i); }   // 確定して、右に次の文字（線でつなぐ）
       else if (ev.key === 'Escape') { ev.preventDefault(); commit(); stage.focus(); }
     };
     el.onblur = () => { if (editing && editing.i === i) { commit(); } };
@@ -127,38 +134,51 @@ function mount(wrap, view) {
     el.textContent = v.slice(0, at) + text + v.slice(at);
     const tn = el.firstChild, r2 = document.createRange(); r2.setStart(tn, at + text.length); r2.collapse(true); sel.removeAllRanges(); sel.addRange(r2);
   };
-  const newText = (x, y) => {
+  const newText = (x, y, from = -1) => {
     S().t.push([Math.max(2, Math.round(x - 4)), Math.max(2, Math.round(y - 14)), '']);
-    render(); startEdit(S().t.length - 1); editing.isNew = true;
+    render(); startEdit(S().t.length - 1); editing.isNew = true; editing.from = from;
   };
 
   // ---- ペン・移動
   stage.addEventListener('pointerdown', e => {
+    if (e.button === 2) { const t = textAt(e); if (t) { const p = pos(e), i = +t.dataset.i; if (editing) commit(); stage.setPointerCapture(e.pointerId); drag = { mode: 'move', i, sx: p[0], sy: p[1], ox: S().t[i][0], oy: S().t[i][1], moved: false, right: true }; } return; }
     if (e.button !== 0) return;
     if (editing) { const t = textAt(e); if (t && +t.dataset.i === editing.i) return; commit(); }
     const t = textAt(e), p = pos(e); stage.setPointerCapture(e.pointerId); e.preventDefault(); stage.focus({ preventScroll: true });
     if (t && (e.ctrlKey || e.metaKey)) { const i = +t.dataset.i; drag = { mode: 'move', i, sx: p[0], sy: p[1], ox: S().t[i][0], oy: S().t[i][1], moved: false }; t.classList.add('move'); }
-    else drag = { mode: 'pen', textI: t ? +t.dataset.i : -1, pts: [p], sx: p[0], sy: p[1], moved: false };
+    else if (t) drag = { mode: 'link', i: +t.dataset.i, sx: p[0], sy: p[1], moved: false };
+    else drag = { mode: 'pen', textI: -1, pts: [p], sx: p[0], sy: p[1], moved: false };
   });
   stage.addEventListener('pointermove', e => {
     if (!drag) return; const p = pos(e);
     if (Math.hypot(p[0] - drag.sx, p[1] - drag.sy) > 4) drag.moved = true; if (!drag.moved) return;
-    if (drag.mode === 'pen') {
+    if (drag.mode === 'link') {
+      const [x1, y1] = center(drag.i); let ln = gL.querySelector('line'); if (!ln) { ln = document.createElementNS(NS, 'line'); ln.setAttribute('class', 'bd-temp'); gL.append(ln); }
+      ln.setAttribute('x1', x1); ln.setAttribute('y1', y1); ln.setAttribute('x2', p[0]); ln.setAttribute('y2', p[1]);
+    } else if (drag.mode === 'pen') {
       drag.pts.push(p); if (p[1] + 40 > wrap.offsetHeight) wrap.style.height = Math.round(p[1] + 40) + 'px'; let live = gL.querySelector('path'); if (!live) { live = document.createElementNS(NS, 'path'); live.setAttribute('class', 'bd-stroke'); gL.append(live); }
       live.setAttribute('d', smooth(drag.pts.flat()));
     } else {
       const t = S().t[drag.i]; t[0] = Math.max(0, Math.round(drag.ox + p[0] - drag.sx)); t[1] = Math.max(0, Math.round(drag.oy + p[1] - drag.sy));
-      const el = stage.querySelector(`.bd-t[data-i="${drag.i}"]`); if (el) { el.style.left = t[0] + 'px'; el.style.top = t[1] + 'px'; }
+      const el = stage.querySelector(`.bd-t[data-i="${drag.i}"]`); if (el) { el.style.left = t[0] + 'px'; el.style.top = t[1] + 'px'; } drawLinks();
     }
   });
   const finish = e => {
     if (!drag) return; const d = drag; drag = null; gL.replaceChildren(); stage.querySelectorAll('.bd-t.move').forEach(x => x.classList.remove('move'));
     const p = pos(e);
+    if (d.mode === 'link') {
+      if (!d.moved) return startEdit(d.i);
+      const t = textAt(e), j = t ? +t.dataset.i : -1;
+      if (j >= 0 && j !== d.i) { toggleLink(S(), d.i, j); render(); save(); }
+      else if (j < 0) newText(p[0], p[1], d.i);
+      return;
+    }
     if (d.mode === 'pen') {
       if (!d.moved) { if (d.textI >= 0) startEdit(d.textI); else newText(p[0], p[1]); return; }
       const f = thin(d.pts); if (f.length >= 4) { S().s.push(f); render(); save(); }
     } else if (d.moved) { render(); save(); }
-    else startEdit(d.i);
+    else if (!d.right) startEdit(d.i);
+    else menuAt(e);
   };
   stage.addEventListener('pointerup', finish);
   stage.addEventListener('pointercancel', () => { drag = null; gL.replaceChildren(); });
@@ -170,10 +190,13 @@ function mount(wrap, view) {
     else if ((e.ctrlKey || e.metaKey) && e.code === 'KeyY') { e.preventDefault(); redo(view); }
     else if (e.key === 'Escape') { e.preventDefault(); const to = Math.min(view.state.doc.length, wrap._ctx.to + 1); view.dispatch({ selection: { anchor: to } }); view.focus(); }
   });
-  stage.addEventListener('contextmenu', e => {
-    e.preventDefault(); e.stopPropagation(); if (editing) commit();
+  stage.addEventListener('contextmenu', e => { e.preventDefault(); e.stopPropagation(); if (!textAt(e)) menuAt(e); });
+  function menuAt(e) {
+    if (editing) commit();
     const t = textAt(e), p = pos(e), items = [];
-    if (t) { const i = +t.dataset.i; items.push(['🗑️ この文字を消す', () => { S().t.splice(i, 1); render(); save(); }, true]); }
+    const hitL = e.target && e.target.closest && e.target.closest('.bd-hit');
+    if (t) { const i = +t.dataset.i; items.push(['🗑️ この文字を消す', () => { delText(S(), i); render(); save(); }, true]); }
+    else if (hitL) { const k = +hitL.dataset.l; items.push(['🗑️ この線を消す', () => { S().l.splice(k, 1); render(); save(); }, true]); }
     else {
       let best = -1, bd = 12;
       S().s.forEach((f, k) => { for (let j = 2; j + 1 < f.length; j += 2) { const d = distSeg(f[j - 2], f[j - 1], f[j], f[j + 1], p[0], p[1]); if (d < bd) { bd = d; best = k; } } });
@@ -181,7 +204,7 @@ function mount(wrap, view) {
       items.push(['↶ 戻す', () => undo(view)], ['🗑️ ボードごと消す', () => { const { from, to } = wrap._ctx, doc = view.state.doc; view.dispatch({ changes: { from, to: Math.min(doc.length, to + 1), insert: '' } }); view.focus(); }, true]);
     }
     popMenu(e, items);
-  });
+  }
 
   // 高さ: 右下の角をひっぱったときだけ覚える（箱そのものを押したときだけ。中を押したときは対象外）
   let resizing = false;

@@ -368,7 +368,7 @@ function openVault(vault) {
   const label = (s, id) => (s === 'p' ? '紙' : '') + id;
 
   const RED = c => `<span style="color:#c0392b">${c}</span>`;   // 印は、赤で
-  const titleOfNote = n => n.title ? n.title : n.kind && n.kind !== 'text' ? ((n.data && n.data.title) || (n.kind === 'rp' ? '会話' : n.kind === 'memo-group' ? 'チャットメモのノート' : 'キャンバス')) : (Stamp.strip(n.body).split('\n').find(x => x.trim()) || '').replace(/^#+\s*/, '').slice(0, 30);
+  const titleOfNote = n => n.title ? n.title : n.kind && n.kind !== 'text' ? ((n.data && n.data.title) || (n.kind === 'rp' ? '会話' : n.kind === 'memo-group' ? 'チャットメモのノート' : n.kind === 'brainstorm' ? ((n.body || '').split('\n').find(x => x.trim()) || 'ブレスト').replace(/^\s*- /, '').slice(0, 30) : 'キャンバス')) : (Stamp.strip(n.body).split('\n').find(x => x.trim()) || '').replace(/^#+\s*/, '').slice(0, 30);
   // ノートの md（Gnosis 風）:  YAML ／ # 題 ／ ParentBranch: TopicBranch: Topic: ／ 本文 ／ ChildBranch:   空の行は出さない。前・次・一覧へのリンクは Index.md にだけ
   //   ParentBranch ＝ 親（番号の1つ上）　TopicBranch ＝ このノートが入口のトピックIndex　Topic ＝ このノートが載っているトピックIndex　ChildBranch ＝ 分岐（子）
   const ml = (href, text) => `[${esc(text)}](${href})`;
@@ -595,6 +595,7 @@ function openVault(vault) {
       if (t.text) t.text = L.remapTopicText(t.text, map, s, L.defOf(t));
     }
     for (const m of notes.values()) if (!m.kind || m.kind === 'text') m.body = L.remapRefs(m.body, m.s, s, map);
+    for (const m of notes.values()) if (m.kind === 'brainstorm' && m.data && Array.isArray(m.data.t)) { let hit = false; for (const a of m.data.t) if (typeof a[2] === 'string') { const v = L.remapRefs(a[2], m.s, s, map); if (v !== a[2]) { a[2] = v; hit = true; } } if (hit) m.body = L.deriveBody(m.kind, m.data); }   // ブレストのノードの文字の中の ID も
     for (const d of diaries.values()) d.body = L.remapRefs(d.body, 'd', s, map);
     for (const m of notes.values()) if (m.kind && m.kind !== 'text' && m.data) { let hit = false; for (const c of m.data.nodes || []) if (c.type === 'note' && c.s === s && map.has(c.nid)) { c.nid = map.get(c.nid); hit = true; } if (hit) m.body = L.deriveBody(m.kind, m.data); }
   }
