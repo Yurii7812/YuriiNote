@@ -514,7 +514,21 @@ function clearAllImported() {
   for (const it of targets) { Native.remove(it.name); for (const f of [it.d.image, it.d.file]) if (f) Native.remove(f); }
   load(); draw(); toast(`🗑️ 取り込み済みの ${targets.length} 件を、スマホから消しました`);
 }
-$('#b-clear').onclick = clearAllImported;
+// いま開いている画面のものを、全部ごみ箱へ（PC に送っていないものも。戻せる）
+const TAB_TYPES = { memo: ['memo', 'mark'], diary: ['diary'], notes: ['note'], edit: ['note'], paper: ['paper', 'pmemo'], name: ['paper', 'pmemo'], split: ['paper', 'pmemo'], rec: ['audio'], files: ['file'] };
+function clearThisTab() {
+  const ty = TAB_TYPES[tab] || [], targets = items.filter(it => ty.includes(it.d.type));
+  if (!targets.length) return toast('この画面に、消すものはありません');
+  const unsent = targets.filter(it => !isSent(it)).length;
+  if (!confirm(`この画面の ${targets.length} 件を、全部ごみ箱へ移しますか？${unsent ? `\n（まだ PC に送っていない ${unsent} 件も含みます）` : ''}\n（ごみ箱から戻せます）`)) return;
+  for (const it of targets) trashItem(it);
+  load(); draw(); toast(`🗑️ ${targets.length} 件を、ごみ箱へ移しました`);
+}
+// 上の 🗑️: 取り込み済みだけ消す／この画面を全部消す（PC に送っていなくても）
+$('#b-clear').onclick = () => actions('消す', [
+  ['取り込み済みのものを、全部消す（スマホから。PC には残ります）', () => clearAllImported()],
+  ['この画面のものを、全部ごみ箱へ（まだ PC に送っていないものも）', () => clearThisTab(), true]
+]);
 function clearImported(btn) {
   if (btn.dataset.sure !== '1') { btn.dataset.sure = '1'; btn.textContent = '本当に消す？ もう一度押す'; setTimeout(() => { if (btn.isConnected) { btn.dataset.sure = ''; btn.textContent = '🗑️ スマホから消す'; } }, 4000); return; }
   const ok = CLEAR[btn.dataset.clear] || (() => false);
@@ -868,7 +882,10 @@ function levels(c) {
   for (let i = 0; i < p.length; i += 4) { p[i] = lut[p[i]]; p[i + 1] = lut[p[i + 1]]; p[i + 2] = lut[p[i + 2]]; }
   x.putImageData(d, 0, 0);
 }
-function trashItem(it) { const t = Native.toTrash || Native.remove; t(it.name); for (const f of [it.d.image, it.d.file]) if (f) t(f); }
+function trashItem(it) {   // ごみ箱へ。移せなかったときは、そのまま消す（消えないままにはしない）
+  const t = n => { let ok = false; try { ok = !!(Native.toTrash && Native.toTrash(n)); } catch { } if (!ok) { try { Native.remove(n); } catch { } } };
+  t(it.name); for (const f of [it.d.image, it.d.file]) if (f) t(f);
+}
 
 // ---- 名前を付ける（PC の紙の取り込みと同じ: ID とキーワード。途中でやめても、付けなくてもよい）
 let nq = [], ni = 0, lastId = Native.pref('lastPaperId') || '';

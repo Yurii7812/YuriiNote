@@ -205,7 +205,7 @@ class MainActivity : Activity() {
                 .addOnFailureListener { e -> js("window.onScanFail&&window.onScanFail(" + JSONObject.quote(e.message ?: "") + ")") }
         }
         // ごみ箱: 受信箱のファイルを trash/ へ移す（戻せる）。名前の頭に、消した時刻を付ける
-        @JavascriptInterface fun toTrash(name: String): Boolean = safe(name) && File(inbox, name).let { it.isFile && it.renameTo(File(trash, "${System.currentTimeMillis()}-$name")) }
+        @JavascriptInterface fun toTrash(name: String): Boolean = safe(name) && File(inbox, name).let { f -> f.isFile && (File(trash, "${System.currentTimeMillis()}-$name").let { dst -> f.renameTo(dst) || (runCatching { f.copyTo(dst, true); f.delete() }.getOrDefault(false)) }) }   // 移せなければ、写して消す
         @JavascriptInterface fun trashList(): String {
             val a = JSONArray(); trash.listFiles()?.sortedByDescending { it.name }?.forEach { if (it.isFile) a.put(JSONObject().put("name", it.name).put("size", it.length())) }; return a.toString()
         }

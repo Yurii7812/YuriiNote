@@ -35,7 +35,7 @@ test('全消しボタン: 取り込み済みを、種類をまたいで全部消
   });
   try {
     assert.ok(p.w.document.querySelector('#b-clear'), '上のバーに、全消しボタンがある');
-    p.w.document.querySelector('#b-clear').click(); await tick();
+    p.w.document.querySelector('#b-clear').click(); p.w.document.querySelector('#act-b [data-ai="0"]').click(); await tick();
     assert.deepStrictEqual(Object.keys(p.files()), ['memo-3.json'], '取り込み済みの 2 件だけ消える');
     assert.match(p.toast(), /2 件を、スマホから消しました/);
     assert.deepStrictEqual(p.errors, []);
@@ -45,12 +45,12 @@ test('全消しボタン: 取り込み済みを、種類をまたいで全部消
 test('全消しボタン: 確認で「いいえ」なら消さない。取り込み済みが無ければ、そう伝える', async () => {
   const p = await page({ files: { 'memo-1.json': memo('2026-11-17 10:00:00', 'a') }, meta: { 'imported.json': { names: ['memo-1.json'] } }, confirmAnswer: false });
   try {
-    p.w.document.querySelector('#b-clear').click(); await tick();
+    p.w.document.querySelector('#b-clear').click(); p.w.document.querySelector('#act-b [data-ai="0"]').click(); await tick();
     assert.deepStrictEqual(Object.keys(p.files()), ['memo-1.json'], 'やめたら、消えない');
   } finally { p.close(); }
   const q = await page({ files: { 'memo-3.json': memo('2026-11-17 10:02:00', 'x') } });
   try {
-    q.w.document.querySelector('#b-clear').click(); await tick();
+    q.w.document.querySelector('#b-clear').click(); q.w.document.querySelector('#act-b [data-ai="0"]').click(); await tick();
     assert.match(q.toast(), /取り込み済みのものは、ありません/);
     assert.deepStrictEqual(Object.keys(q.files()), ['memo-3.json']);
   } finally { q.close(); }
@@ -109,6 +109,17 @@ test('ノートの吹き出し: 🗑️ を押すだけで、PC に送ってい�
     assert.strictEqual(p.w.document.querySelectorAll('.bub [data-bdel]').length, 2, '吹き出しごとに、消すボタンがある');
     for (let i = 0; i < 2; i++) { p.w.document.querySelector('.bub [data-bdel]').click(); await tick(); }
     assert.deepStrictEqual(Object.keys(p.files()), []);
+    assert.deepStrictEqual(p.errors, []);
+  } finally { p.close(); }
+});
+
+test('上の 🗑️ の「この画面を全部ごみ箱へ」: PC に送っていないものも消える。別の画面のものは消えない', async () => {
+  const nt = (n, b) => [`note-${n}.json`, JSON.stringify({ type: 'note', created: '2026-11-18 10:0' + n + ':00', body: b })];
+  const p = await page({ files: { ...Object.fromEntries([nt(1, '送っていない'), nt(2, '送った')]), 'memo-9.json': memo('2026-11-18 11:00:00', '別の画面') }, meta: { 'imported.json': { names: ['note-2.json'] } } });
+  try {
+    p.w.document.querySelector('.tabs [data-t="notes"]').click(); await tick();
+    p.w.document.querySelector('#b-clear').click(); p.w.document.querySelector('#act-b [data-ai="1"]').click(); await tick();
+    assert.deepStrictEqual(Object.keys(p.files()), ['memo-9.json'], 'ノートだけが消える（未送信も）');
     assert.deepStrictEqual(p.errors, []);
   } finally { p.close(); }
 });
