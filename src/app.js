@@ -507,8 +507,9 @@ function toggleFoldAll() {   // Ctrl+J: 最初だけ、開いているノート�
 const noteRow = (n, label = false, q = '') =>
   `<div class="item note${cur && cur.k === 'note' && cur.s === n.s && cur.id === n.id ? ' on' : ''}${isDecided(n.s, n.id) ? ' decided' : ''}" draggable="true" data-s="${n.s}" data-id="${esc(n.id)}">` +
   `${selMode ? `<input type="checkbox" class="ck" ${picked.has(n.s + ':' + n.id) ? 'checked' : ''}>` : ''}<div class="nrow">` +
-  `<div class="nt">${!n.noid && sortBy === 'fz' && fzKids(n) ? `<i class="fzf" data-fold="${n.s}:${esc(n.id)}" title="子孫を、たたむ・ひらく">${foldIds.has(n.s + ':' + n.id) ? '▸' : '▾'}</i>` : ''}${label && n.s === 'p' ? `<span class="sp ${n.s}">${SP[n.s]}</span>` : ''}${icon(n) ? icon(n) + ' ' : ''}${n.image ? '📷 ' : ''}${mk(titleOf(n), q)}</div>` +
-  `<div class="ns">${n.noid ? `IDなし · ${shortTime(n.created)}` : `${n.s === 'p' ? '紙 ' : ''}${mk(n.id, q)}`}${n.keywords.length ? ` · ${n.keywords.map(k => mk(k, q)).join('・')}` : ''}</div>${q && snippet(Stamp.strip(n.body), q) ? `<div class="sn">${snippet(Stamp.strip(n.body), q)}</div>` : ''}</div></div>`;
+  // 1 行目は「ID　題」（ずらさない。ID が深さを表す）。2 行目は、キーワードだけ（IDなしは、時刻も）
+  `<div class="nt">${n.noid ? '' : `<b class="nid${n.s === 'p' ? ' p' : ''}" title="${n.s === 'p' ? '紙 ' : ''}${esc(n.id)}">${mk(n.id, q)}</b>`}<span class="ntx">${!n.noid && sortBy === 'fz' && fzKids(n) ? `<i class="fzf" data-fold="${n.s}:${esc(n.id)}" title="子孫を、たたむ・ひらく">${foldIds.has(n.s + ':' + n.id) ? '▸' : '▾'}</i>` : ''}${label && n.s === 'p' ? `<span class="sp ${n.s}">${SP[n.s]}</span>` : ''}${icon(n) ? icon(n) + ' ' : ''}${n.image ? '📷 ' : ''}${mk(titleOf(n), q)}</span></div>` +
+  `<div class="ns">${[n.noid ? `IDなし · ${shortTime(n.created)}` : '', n.keywords.map(k => mk(k, q)).join('・')].filter(Boolean).join(' · ')}</div>${q && snippet(Stamp.strip(n.body), q) ? `<div class="sn">${snippet(Stamp.strip(n.body), q)}</div>` : ''}</div></div>`;
 // 索引 の行（その親のノートの手前に出す）
 const topicRow = (t, zero = false) => `<div class="item topicrow${cur && cur.k === 'topic' && cur.name === t.name ? ' on' : ''}${decided && decided.k === 'topic' && decided.name === t.name ? ' decided' : ''}" data-topic="${esc(t.name)}"><div class="nrow"><div class="nt">${esc(topicLabel(t))}</div><div class="ns">${zero ? `${SP[t.entry.s]} ${esc(t.entry.id)}` : '索引'}</div></div></div>`;
 
@@ -592,13 +593,13 @@ function sortNotes(list, tab) {
   const key = n => by === 'fz' ? null : by === 'updated' ? (n.updated || n.created || '') : (n.created || '');
   return list.slice().sort((a, b) => sg * (by === 'fz' ? L.cmpId(a.id, b.id) : key(a).localeCompare(key(b)) || L.cmpId(a.id, b.id)));
 }
-const SORT_ICON = { fz: '🔢', created: '🕒', updated: '✏️' }, SORT_NAME = { fz: '番号順', created: '作成順', updated: '更新順' };
+const SORT_NAME = { fz: '番号順', created: '作成順', updated: '更新順' };
 function drawSortBtns() {   // 検索欄の右: 並び順（押すと 番号→作成→更新）と、昇順・降順。日記・メモ帳・時系列記録の並びと、ふつうのノートの並びは、別々に覚える
   const k = $('#sort-key'), d = $('#sort-dir'); if (!k || !d) return;
   const dm = mode === 'diary', dir = dm ? diarySortDir : sortDir;
   k.hidden = dm;   // 日記・メモは、日付順だけなので、並びの種類のボタンは、出さない
-  k.textContent = dm ? '📅' : (SORT_ICON[sortBy] || '🔢'); k.title = dm ? '日記・メモ帳・時系列記録は、日付順です' : `並び順: ${SORT_NAME[sortBy] || ''}（押すと切り替え）`; k.classList.toggle('dim', dm);
-  d.textContent = dir === 'asc' ? '⬆️' : '⬇️'; d.title = (dm ? '日記・メモ帳・時系列記録の並び: ' : 'ノートの並び: ') + (dir === 'asc' ? '昇順（押すと降順）' : '降順（押すと昇順）');
+  k.textContent = dm ? '日付' : ({ fz: '番号', created: '作成', updated: '更新' }[sortBy] || '番号'); k.title = dm ? '日記・メモ帳・時系列記録は、日付順です' : `並び順: ${SORT_NAME[sortBy] || ''}（押すと切り替え）`; k.classList.toggle('dim', dm);
+  d.innerHTML = `<svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="${dir === 'asc' ? 'M12 19V5M6 11l6-6 6 6' : 'M12 5v14M6 13l6 6 6-6'}"/></svg>`; d.setAttribute('aria-label', dir === 'asc' ? '昇順' : '降順'); d.title = (dm ? '日記・メモ帳・時系列記録の並び: ' : 'ノートの並び: ') + (dir === 'asc' ? '昇順（押すと降順）' : '降順（押すと昇順）');
 }
 $('#sort-key').onclick = () => { if (mode === 'diary') return; const o = ['fz', 'created', 'updated']; sortBy = o[(o.indexOf(sortBy) + 1) % o.length]; savePrefs(); renderList(); };
 $('#sort-dir').onclick = () => { if (mode === 'diary') diarySortDir = diarySortDir === 'asc' ? 'desc' : 'asc'; else sortDir = sortDir === 'asc' ? 'desc' : 'asc'; savePrefs(); renderList(); };
@@ -688,6 +689,7 @@ function renderList() {
   }
   const keep = tab === 'i' && $('#pi') ? ['pi-kw', 'pi-rd', 'pi-ids'].map(i => [i, $('#' + i).value, document.activeElement && document.activeElement.id === i]) : [];
   $('#list').innerHTML = out.join('');
+  { let w = 2; for (const b of $('#list').querySelectorAll('.nt .nid, .item.region .nt > b')) w = Math.max(w, b.textContent.length); $('#list').style.setProperty('--idw', Math.round(Math.min(w, 12) * 7.8 + 2) + 'px'); }   // ID の欄の幅: 見えている中の一番長い ID に合わせる
   for (const [i, v, f] of keep) { const el = $('#' + i); if (el) { el.value = v; if (v) el.dataset.touched = i === 'pi-rd' ? '1' : ''; if (f) el.focus(); } }
   renderSelbar();
 }
@@ -794,7 +796,7 @@ async function recStart(how) {
 }
 async function recStop() {
   const r = recPc; if (!r) return; recPc = null; clearTimeout(r.timer);
-  const b = $('#rec-pc'); b.classList.remove('rec'); b.textContent = '🎙️';
+  const b = $('#rec-pc'); b.classList.remove('rec'); b.innerHTML = '<svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5 11a7 7 0 0 0 14 0M12 18v3"/></svg>';
   await new Promise(res => { r.rec.onstop = res; r.rec.stop(); });
   r.stream.getTracks().forEach(t => t.stop());
   const blob = new Blob(r.chunks, { type: 'audio/webm' }), sec = Math.round((Date.now() - r.start) / 1000);

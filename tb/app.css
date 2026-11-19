@@ -306,3 +306,10 @@ input.big { font-size: 17px; padding: 9px 13px; }
 .dm-b b { white-space: normal; }
 .dm-b small { white-space: normal; overflow: hidden; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
 #drawopt { width: min(560px, calc(100vw - 16px)); }
+/* ===== A「静かな紙」（YuriiNote 2026-11-19）: 引くは墨色・ID は等幅の灰の札・操作の説明は白紙のときだけ ===== */
+#bar { background: #fff; }
+button.primary { background: #1f1f1e; border-color: #1f1f1e; color: #fff; font-weight: 500; }
+button.primary:hover { background: #33332f; }
+.split button.primary.caret { border-left: 1px solid #3a3a38; }
+#nid.chip-fixed { font: 500 12px ui-monospace, "JetBrains Mono", "DejaVu Sans Mono", monospace; color: #6b6b66; background: #f1f0ed; border-radius: 5px; padding: 3px 7px; }
+#title { font-weight: 600; }

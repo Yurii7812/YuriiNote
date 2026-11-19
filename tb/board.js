@@ -108,6 +108,7 @@
   const textEl = (t) => h("div", { class: "note" + (TB.sel.includes(t.id) ? " sel" : ""), "data-text": t.id, style: `left:${t.x}px;top:${t.y}px;color:${TB.ink(t.color)}`, text: t.text });
 
   TB.renderBoard = () => {
+    { const hb = document.getElementById("hint"), b0 = TB.B(); if (hb) hb.hidden = b0.nodes.length > 0 || b0.items.length > 0; }   // 操作の説明は、白紙のときだけ（ほかは右の「操作とキー」）
     if (TB.editing) { pending = true; return; }
     pending = false;
     const b = TB.B();

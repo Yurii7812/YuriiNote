@@ -10,7 +10,7 @@
     if (document.activeElement !== $("#title")) $("#title").value = b.title;
     $("#layout-chip").textContent = tpl ? tpl.name : "自由";
     $("#layout-chip").title = (tpl ? tpl.group + ": " + tpl.desc : "") + "（作ったあとは変えられません）";
-    $("#nid").textContent = TB.host && TB.host.id ? "🧠 " + TB.host.id : "🧠";
+    $("#nid").textContent = TB.host && TB.host.id ? TB.host.id : "IDなし";
   };
   TB.renderAll = () => { TB.renderHeader(); TB.renderBoard(); TB.renderDrawer({ quiet: true }); };
 

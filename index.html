@@ -841,37 +841,100 @@ body.typing .bstage .bline .nm,body.typing .bstage .bline .bdraw{opacity:.2}
 @keyframes yn-zin{from{transform:scale(.86);opacity:.35}to{transform:none;opacity:1}}
 @keyframes yn-zout{from{transform:scale(1.12);opacity:.35}to{transform:none;opacity:1}}
 @media (prefers-reduced-motion:reduce){#pane.zin,#pane.zout{animation:none}}
+/* ===== A「静かな紙」（2026-11-19）: 絵文字をやめて線のアイコン・色は墨と灰・上の段は低く・一覧は「ID　題」 ===== */
+:root{--fg:#1f1f1e;--sub:#6b6b66;--line:#e7e6e2;--hl:#efeeeb;--side:#f6f5f3;--ink:#1f1f1e;--mono:ui-monospace,"JetBrains Mono","DejaVu Sans Mono",monospace}
+#rail{width:52px;gap:4px;padding:10px 0;background:var(--side);border-right:1px solid #ecebe8}
+#rail button{width:36px;height:36px;border-radius:8px;opacity:1;color:#77766f;background:none}
+#rail button .ico{width:20px;height:20px;stroke-width:1.6;vertical-align:0}
+#rail button:hover{background:var(--hl);color:var(--ink)}
+#rail button.on{background:#e6e5e1;color:var(--ink)}
+#rail #fold-list .ico{width:20px;height:20px}#rail #fold-list.on{color:var(--ink)}
+#rail #more{width:36px;height:36px;opacity:1}#rail #more .ico{width:19px;height:19px}
+main>aside{background:var(--side);border-right:1px solid #ecebe8}
+#tabs button{padding:0;border-radius:0}
+#tabs{gap:0}
+#tabs>button[data-tab]{height:28px;padding:0 10px;border-radius:7px;color:var(--sub);font-size:13px;font-weight:400;background:none}
+#tabs>button[data-tab]:hover{background:var(--hl);color:var(--ink)}
+#tabs>button[data-tab].on{background:#fff;color:var(--ink);font-weight:500;box-shadow:0 1px 2px rgba(0,0,0,.07)}
+/* 一覧: ずらさない。ID の欄（幅は、見えている中の一番長い ID に合わせる: --idw）＋題 */
+.item.note,.item.region{padding:5px 12px 5px 14px}
+.item.note .nt,.item.region .nt{display:flex;align-items:baseline;gap:10px;font-size:14.5px;line-height:1.45;color:var(--fg)}
+.nt .nid{flex:none;width:var(--idw,34px);font:500 12.5px/1.45 var(--mono);color:var(--sub);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin:0}
+.nt .nid.p{color:var(--paper)}
+.nt .ntx{flex:1 1 auto;min-width:0}
+.item.note .ns{padding-left:calc(var(--idw,34px) + 10px);font-size:12px;margin-top:0}
+.item.note .ns:empty{display:none}
+.item.note:not(:has(.nid)) .ns,.item.note:not(:has(.nid)) .sn{padding-left:0}
+.item.note .sn{padding-left:calc(var(--idw,34px) + 10px)}
+.item.note.on,.item.region.on{background:#e6e5e1;box-shadow:none}
+.item.note.on .nt,.item.region.on .nt{color:var(--ink);font-weight:600}
+.item.note.on .nid{color:var(--ink)}
+.item.note:hover{background:var(--hl)}
+.item.region{background:none}.item.region:hover{background:var(--hl)}.item.region .nt{color:var(--fg);font-weight:600}
+.item.region .nt b{flex:none;width:var(--idw,34px);font:600 12.5px/1.45 var(--mono);color:var(--sub);margin:0}
+.item.topicrow{background:none;padding-left:calc(var(--idw,34px) + 24px)}.item.topicrow:hover{background:var(--hl)}.item.topicrow .nt{color:#3f4a9e;font-size:14px}
+#list h4{font-size:11px;letter-spacing:.06em;color:var(--sub);font-weight:500;margin:12px 14px 4px}
+#idbar .idb-r{padding-left:8px}
+/* 上の段: 戻る・進む・タブ・録音・時刻・新規 を 1 行に */
+.top{padding:0 10px;gap:2px;height:44px;border-bottom:1px solid #ecebe8;align-items:center}
+.top button.ic{width:32px;height:32px;border-radius:7px;color:#5e5e5a}
+.top button.ic .ico{width:18px;height:18px;stroke-width:1.6}
+.top button.ic:hover:not(:disabled){background:var(--hl);color:var(--ink)}
+#tabbar{align-items:stretch;align-self:stretch;padding:0 4px 0 6px}
+.tab{border:0;border-radius:0;padding:0 10px 0 12px;font-size:13px;color:var(--sub);max-width:220px}
+.tab:hover{background:var(--hl)}
+.tab.on{background:none;color:var(--ink);font-weight:500;box-shadow:inset 0 -2px 0 var(--ink)}
+.tab small{font:11px var(--mono);color:#8a8984}
+.tab-new{align-self:center;margin:0}
+#new{display:inline-flex;align-items:center;gap:5px;height:30px;margin-left:6px;padding:0 10px;border:1px solid #dad9d5;border-radius:7px;background:#fff;color:var(--ink);font-size:13px}
+#new .ico{width:15px;height:15px;stroke-width:1.8;vertical-align:0}
+#new:hover{background:var(--hl)}
+#stamp-toggle.on{background:#e6e5e1;color:var(--ink)}
+#rec-pc.rec{color:#fff;background:#c0392b}
+aside>.tsort{top:12px;gap:0}aside>.tsort .ic{width:auto;min-width:28px;height:28px;padding:0 6px;background:none;color:var(--sub);font-size:12px;border-radius:7px}aside>.tsort .ic:hover{background:var(--hl);color:var(--ink)}aside>.tsort .ic .ico{width:15px;height:15px;stroke-width:1.8;vertical-align:-2px}
+aside.sort2 #tabs{padding-right:104px}
+aside.sort1 #dlist .dtop{padding-right:72px}
+#dlist .dkind{width:auto;padding:0 10px;font-weight:500}
+#dlist .dtop.first #d-today{background:var(--ink);border-color:var(--ink)}
+#where{padding:6px 20px 0;min-height:0;font-size:12px}
+#where:has(#crumbs:empty){display:none}
+#crumbs{margin-left:0}#crumbs .crumb{padding:1px 4px}#crumbs .crumb.now{color:var(--sub)}
+#crumbs .sep{color:#c9c8c3}
+/* ノートの上の小さな行（ID・種類・並列・分岐…） */
+.idline .idin{font:500 13px var(--mono);color:var(--sub);background:#f1f0ed;border-radius:5px;padding:2px 7px}
+.idline .nb{border-color:#e3e2de;color:#3a3a37;border-radius:7px}.idline .nb:hover{background:var(--hl)}
 </style>
 </head>
 <body>
 <main>
   <nav id="rail">
-    <button data-tab="s" title="検索（Ctrl+F）"><i>🔍</i></button>
-    <button data-mode="notes" title="ノート（Ctrl+O・上のタブで、デジタル・紙・未整理）"><i>📝</i></button>
-    <button id="memopad" title="メモ（今日のメモ帳をすぐ開く）"><i>🗒️</i></button>
-    <button data-mode="diary" title="最後に開いた時系列記録（日記は Ctrl+D）"><i>📔</i></button>
-    <button data-tab="i" title="グローバルインデックス（キーワードの一覧）"><i>🏷️</i></button>
-    <button data-tab="f" title="ファイル（画像・html・csv など）"><i>📎</i></button>
-    <button id="fold-list" title="左の一覧をたたむ (Ctrl+[)" aria-label="左の一覧"><svg class="ico" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M9 4v16"/></svg></button>
-    <button id="more" class="ic" title="メニュー">🧰</button>
+    <button data-tab="s" title="検索（Ctrl+F）" aria-label="検索"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg></button>
+    <button data-mode="notes" title="ノート（Ctrl+O・上のタブで、デジタル・紙・未整理）" aria-label="ノート"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 3h9l4 4v14H6z"/><path d="M15 3v4h4"/></svg></button>
+    <button id="memopad" title="メモ（今日のメモ帳をすぐ開く）" aria-label="メモ"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><rect x="5" y="4" width="14" height="16" rx="2"/><path d="M9 9h6M9 13h4"/></svg></button>
+    <button data-mode="diary" title="最後に開いた時系列記録（日記は Ctrl+D）" aria-label="時系列記録"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><rect x="4" y="5" width="16" height="15" rx="2"/><path d="M4 10h16M9 3v4M15 3v4"/></svg></button>
+    <button data-tab="i" title="グローバルインデックス（キーワードの一覧）" aria-label="グローバルインデックス"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M3 12V4h8l10 10-8 8z"/><circle cx="7.5" cy="8.5" r="1.2"/></svg></button>
+    <button data-tab="f" title="ファイル（画像・html・csv など）" aria-label="ファイル"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M20 11l-8.5 8.5a5 5 0 0 1-7-7L13 4a3.5 3.5 0 0 1 5 5l-8.5 8.5a2 2 0 0 1-3-3L14 7"/></svg></button>
+    <button id="fold-list" title="左の一覧をたたむ (Ctrl+[)" aria-label="左の一覧"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M9 4v16"/></svg></button>
+    <button id="more" class="ic" title="メニュー" aria-label="メニュー"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M14.7 6.3a4 4 0 0 0-5.4 5.4L3 18l3 3 6.3-6.3a4 4 0 0 0 5.4-5.4l-2.5 2.5-2.5-2.5z"/></svg></button>
   </nav>
   <aside>
-    <div id="tabs"><button data-tab="d" title="デジタル（右クリックで、トピックIndexを作る）"><span class="te">💻</span></button><button data-tab="p" title="紙（右クリックで、トピックIndexを作る）"><span class="te">📜</span></button><button data-tab="u" title="未整理（IDなし）"><span class="te">📥</span></button></div>
+    <div id="tabs"><button data-tab="d" title="デジタル（右クリックで、トピックIndexを作る）"><span class="tl2">デジタル</span></button><button data-tab="p" title="紙（右クリックで、トピックIndexを作る）"><span class="tl2">紙</span></button><button data-tab="u" title="未整理（IDなし）"><span class="tl2">未整理</span></button></div>
     <div id="searchbox"><input id="q" placeholder="検索" title="Ctrl+F（今のページの中は Ctrl+E）　Esc でやめる&#10;書き方: 空白=かつ　a OR b / a | b=または　-a=除く　&quot;a b&quot;=並びのまま　( )=まとめる&#10;id:1a　fz:1a（子孫も）　kw:GUI　title:題　body:本文　date:2026-11　date:2026-11-01..2026-11-13　is:paper/digital/noid　has:kw/link"><button id="ix-add" class="tbtn" hidden>＋</button></div>
-<span class="tsort"><button id="list-top" class="ic" title="一覧の一番上へ（Ctrl+Q）">⤒</button><button id="sort-key" class="ic"></button><button id="sort-dir" class="ic"></button></span>
+<span class="tsort"><button id="list-top" class="ic" title="一覧の一番上へ（Ctrl+Q）" aria-label="一覧の一番上へ"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 4h12M12 20V9M7 14l5-5 5 5"/></svg></button><button id="sort-key" class="ic"></button><button id="sort-dir" class="ic"></button></span>
     <div id="selbar"></div>
     <div id="list"></div>
   </aside>
   <div id="leftpanel" hidden></div>
   <section id="right">
     <div class="top">
+      <button id="nav-back" class="ic" title="戻る (Ctrl+,)" aria-label="戻る" disabled><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="m15 6-6 6 6 6"/></svg></button><button id="nav-fwd" class="ic" title="進む (Ctrl+.)" aria-label="進む" disabled><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="m9 6 6 6-6 6"/></svg></button>
       <div id="tabbar"></div>
       <button id="save-status" class="ic" aria-live="polite" title="保存済み" hidden>⚠️</button>
-      <button id="rec-pc" class="ic" title="録音して文字にする（押すと録音、もう一度押すと止める）。Ctrl+L: 今開いているノートの末尾へ ／ Ctrl+S: ノートには何もせず一覧へ。右クリック: 録音の一覧" aria-label="録音">🎙️</button>
-      <button id="stamp-toggle" class="ic" title="行ごとの時刻を表示・非表示（Ctrl+R）。右クリックで、見せ方を選ぶ" aria-label="時刻の表示" aria-pressed="true">⏱️</button><button id="new" class="ic" title="新規">➕</button>
+      <button id="rec-pc" class="ic" title="録音して文字にする（押すと録音、もう一度押すと止める）。Ctrl+L: 今開いているノートの末尾へ ／ Ctrl+S: ノートには何もせず一覧へ。右クリック: 録音の一覧" aria-label="録音"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5 11a7 7 0 0 0 14 0M12 18v3"/></svg></button>
+      <button id="stamp-toggle" class="ic" title="行ごとの時刻を表示・非表示（Ctrl+R）。右クリックで、見せ方を選ぶ" aria-label="時刻の表示" aria-pressed="true"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="13" r="8"/><path d="M12 9v4l2 2M9 2h6"/></svg></button><button id="new" title="新規" aria-label="新規"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>新規</button>
       <button id="imp" hidden></button><button id="vault" hidden></button>
     </div>
-    <div id="where"><button id="nav-back" class="ic" title="戻る (Ctrl+,)" aria-label="戻る" disabled><svg class="ico" viewBox="0 0 24 24"><path d="M15 5l-7 7 7 7"/></svg></button><button id="nav-fwd" class="ic" title="進む (Ctrl+.)" aria-label="進む" disabled><svg class="ico" viewBox="0 0 24 24"><path d="M9 5l7 7-7 7"/></svg></button><nav id="crumbs" aria-label="今いる場所"></nav></div>
+    <div id="where"><nav id="crumbs" aria-label="今いる場所"></nav></div>
     <div id="idbar" hidden></div>
     <div id="pane"></div>
   </section>
