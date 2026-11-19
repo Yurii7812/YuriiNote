@@ -56,7 +56,7 @@ const NODE_KEYS = ['box', 'color', 'bc', 'img', 'iw'], LINK_KEYS = ['kind', 'lab
 const pick = (o, keys) => { if (!o || typeof o !== 'object') return null; const r = {}; for (const k of keys) { if (k === 'iw') { if (Number.isFinite(+o[k]) && +o[k] > 0) r[k] = Math.round(+o[k]); } else if (typeof o[k] === 'string' && o[k] && !(k === 'kind' && o[k] === 'line')) r[k] = o[k]; } return Object.keys(r).length ? r : null; };
 const cleanFrames = f => Array.isArray(f) ? f.filter(x => x && typeof x === 'object').map(x => ({ id: String(x.id || ''), x: Math.round(+x.x || 0), y: Math.round(+x.y || 0), w: Math.round(+x.w || 0), h: Math.round(+x.h || 0), title: String(x.title || ''), color: String(x.color || ''), ...(Array.isArray(x.m) ? { m: x.m.map(v => typeof v === 'string' ? v : +v || 0).filter(Boolean), ...(x.shape === 'box' ? { shape: 'box' } : {}) } : {}) })) : [];
 const clean = m => m && Array.isArray(m.n) ? ((f) => ({
-  v: 1,
+  v: 1, ...(m.radial ? { radial: 1 } : {}),
   n: m.n.filter(a => Array.isArray(a) && a.length >= 4 && typeof a[3] === 'string').map(a => { const o = [+a[0] || 0, Math.round(+a[1] || 0), Math.round(+a[2] || 0), a[3]], ex = pick(a[4], NODE_KEYS); if (ex) o.push(ex); return o; }),
   l: Array.isArray(m.l) ? m.l.filter(a => Array.isArray(a) && a.length >= 2).map(a => { const o = [+a[0] || 0, +a[1] || 0], ex = pick(a[2], LINK_KEYS); if (ex) o.push(ex); return o; }) : [],
   ...(f.length ? { f } : {})
@@ -77,7 +77,7 @@ function reconcile(map, text) {
   });
   const ids = new Set(out.map(a => a[0]));
   const seen = new Set(), l = m.l.filter(([a, b]) => { const k = a < b ? a + ':' + b : b + ':' + a; if (a === b || !ids.has(a) || !ids.has(b) || seen.has(k)) return false; seen.add(k); return true; });
-  return { v: 1, n: out, l, ...(m.f && m.f.length ? { f: m.f } : {}) };
+  return { v: 1, ...(m.radial ? { radial: 1 } : {}), n: out, l, ...(m.f && m.f.length ? { f: m.f } : {}) };
 }
 
 

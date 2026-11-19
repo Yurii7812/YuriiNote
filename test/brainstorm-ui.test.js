@@ -418,3 +418,16 @@ test('Folgezettel の地図は放射状: 根が中心、深いほど外の輪、
     for (let i = 0; i < m.n.length; i++) for (let j = i + 1; j < m.n.length; j++) assert.ok(Math.hypot(m.n[i][1] - m.n[j][1], m.n[i][2] - m.n[j][2]) > 40, '重ならない: ' + m.n[i][3] + ' / ' + m.n[j][3]);
   } finally { a.close(); }
 });
+
+test('昔の置き方の地図は、開くと一度だけ放射状に作り直す。動かした位置は、そのあと保つ', async () => {
+  const a = await app(st => {
+    for (const [id, t] of [['1a', '二'], ['1a1', '三']]) st.saveNote({ s: 'd', id, created: '2026-11-12 09:00:00', title: t, body: t });
+    st.saveTopic({ name: '雑', entry: { s: 'd', id: '1' }, text: 'ふつう 1\n二 1a\n三 1a1\nメモ\n', num: '0', map: { v: 1, n: [[1, 0, 0, 'ふつう 1'], [2, 0, 46, '二 1a'], [3, 0, 92, '三 1a1'], [4, 0, 138, 'メモ']], l: [] } });
+  });
+  try {
+    const open = async () => { const row = [...a.w.document.querySelectorAll('#list [data-topic]')].find(e => e.dataset.topic === '雑'); row.click(); await tick(900); return a.store.state().topics.find(x => x.name === '雑'); };
+    let t = await open(); const P = id => t.map.n.find(x => x[3].endsWith(id));
+    assert.ok(t.map.radial, '放射の印'); assert.ok(Math.hypot(P(' 1a1')[1] - P(' 1')[1], P(' 1a1')[2] - P(' 1')[2]) > 300, '外の輪に出た');
+    assert.ok(P('メモ')[1] === 0 && P(' 1')[1] > 200, 'ノート以外の行は動かさず、ノートの塊はその右へ: ' + JSON.stringify(t.map.n));
+  } finally { a.close(); }
+});

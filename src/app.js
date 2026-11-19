@@ -2260,7 +2260,7 @@ function radialPos(ns, has) {
   else { const tot = roots.reduce((a, c) => a + leaf.get(c.id), 0); let a = -Math.PI / 2; for (const r of roots) { const sp = 2 * Math.PI * leaf.get(r.id) / tot; place(r, a, a + sp); a += sp; } }
   return out;
 }
-function fzSync(t, auto) {
+function fzSync(t, auto, force) {
   const r = String(t.entry.id), sp = t.entry.s, has = x => !!get(sp, x);
   const ns = notes.filter(n => n.s === sp && !n.noid && String(L.region(n.id)) === r && n.kind !== 'memo').sort((a, b) => L.cmpId(a.id, b.id));
   const lines = L.topicText(t).split('\n').filter(x => x.trim()), idOf = l => (L.topicLine(l).ids || []).map(i => i.raw);
@@ -2284,17 +2284,33 @@ function fzSync(t, auto) {
     else { const keep = m.n.filter(a => !freshLines.has(a[3])); if (keep.length) { dx = Math.max(...keep.map(a => a[1])) + TopicMap.COL_W - Math.min(...[...rp.values()].map(q => q.x)); dy = 0; } else { dx = 40 - Math.min(...[...rp.values()].map(q => q.x)); dy = 40 - Math.min(...[...rp.values()].map(q => q.y)); } }
     for (const n of fresh) { const a = at.get(haveLine.get(n.id)), q = rp.get(n.id); if (a && q) { a[1] = Math.round(q.x + dx); a[2] = Math.round(q.y + dy); } }
   }
+  let relaid = 0;
+  if (ns.length && (force || !m.radial)) {   // 昔の置き方の地図は、一度だけ、放射状に作り直す（ボタンなら、いつでも）。ノート以外の行は動かさない
+    const rp = radialPos(ns, has), mine = new Set(), bran = [];
+    for (const n of ns) { const l = haveLine.get(n.id), a = l && at.get(l); if (a) mine.add(a); }
+    for (const a of m.n) for (const raw of idOf(a[3])) { const mm = /^(.+)\((\d+)\)$/.exec(raw); if (mm && ns.some(n => n.id === mm[1])) { bran.push([a, mm[1]]); mine.add(a); } }
+    const others = m.n.filter(a => !mine.has(a)), vals = [...rp.values()];
+    const dx = (others.length ? Math.max(...others.map(a => a[1])) + TopicMap.COL_W : 40) - Math.min(...vals.map(q => q.x)), dy = 40 - Math.min(...vals.map(q => q.y));
+    for (const n of ns) { const a = at.get(haveLine.get(n.id)), q = rp.get(n.id); if (a && q) { a[1] = Math.round(q.x + dx); a[2] = Math.round(q.y + dy); relaid++; } }
+    const cx = vals.reduce((q, v) => q + v.x, 0) / vals.length + dx, cy = vals.reduce((q, v) => q + v.y, 0) / vals.length + dy, cnt = new Map();
+    for (const [a, pid] of bran) {
+      const pa = at.get(haveLine.get(pid)); if (!pa) continue; const k = cnt.get(pid) || 0; cnt.set(pid, k + 1);
+      let ang = Math.atan2(pa[2] - cy, pa[1] - cx); if (!isFinite(ang)) ang = 0; ang += (k % 2 ? 1 : -1) * Math.ceil(k / 2) * 0.4;
+      a[1] = Math.round(pa[1] + 210 * Math.cos(ang)); a[2] = Math.round(pa[2] + 210 * Math.sin(ang));
+    }
+    m.radial = 1;
+  }
   let links = 0;
   for (const n of ns) {
     const p = L.parentIn(n.id, has), a = at.get(haveLine.get(n.id)), b = p && at.get(haveLine.get(p)); if (!a || !b || a === b) continue;
     if (!m.l.some(([x, z]) => (x === a[0] && z === b[0]) || (x === b[0] && z === a[0]))) { m.l.push([b[0], a[0]]); links++; }
   }
-  if (!fresh.length && !links && !renamed) return 0;
-  t.text = text; t.map = m; return fresh.length + links + renamed;
+  if (!fresh.length && !links && !renamed && !relaid) return 0;
+  t.text = text; t.map = m; return fresh.length + links + renamed + relaid;
 }
 const isFzMap = t => t && t.entry && L.isRegionOnly(t.entry.id) && t.entry.id !== ZERO && String(t.num) === '0';
 async function fzFillMap(t) {
-  const n = fzSync(t, false); if (!n) return toast('もう全部、そろっています');
+  const n = fzSync(t, false, true); if (!n) return toast('もう全部、そろっています');
   const sv = await api.saveTopic(t); if (!sv) return alert('保存できませんでした');
   const st = await api.state(); if (st) applyState(st); renderList(); toast(`${n} 件（ノート・線・題）をそろえました`); openTopic(t.name, 'view', true);
 }
@@ -2605,7 +2621,7 @@ function openTopic(name, tmode = 'view', keep, focus) {   // focus: ノートか
     <div class="row thead">
       ${topicNo(t) ? `<button class="tno" data-act="tconf" title="番号を変える">${esc(topicNo(t))}</button>` : ''}<h2 class="tname" data-act="trename" title="押して、名前を変える">${isAuto(t.name) ? '<span class="sub">（名前を付ける）</span>' : esc(stripId(t.name))}</h2>
       <span class="grow"></span>
-      ${tmode === 'conf' ? '' : `<span class="tview"><button class="tbtn${tmode === 'view' ? ' on' : ''}" data-act="tmapv" title="地図（ブレスト型）で見る・直す">地図</button><button class="tbtn${tmode === 'list' ? ' on' : ''}" data-act="tlistv" title="今までのリストで見る">リスト</button></span>${t.entry && L.isRegionOnly(t.entry.id) && t.entry.id !== ZERO && tmode === 'view' ? `<button class="tbtn" data-act="tfz" title="区画 ${esc(t.entry.id)} のノートを、Folgezettel の親子のとおりに、地図へ足す（足すだけ。置いた位置・線・グループはそのまま）">🌳 Folgezettel から足す</button>` : ''}
+      ${tmode === 'conf' ? '' : `<span class="tview"><button class="tbtn${tmode === 'view' ? ' on' : ''}" data-act="tmapv" title="地図（ブレスト型）で見る・直す">地図</button><button class="tbtn${tmode === 'list' ? ' on' : ''}" data-act="tlistv" title="今までのリストで見る">リスト</button></span>${t.entry && L.isRegionOnly(t.entry.id) && t.entry.id !== ZERO && tmode === 'view' ? `<button class="tbtn" data-act="tfz" title="区画 ${esc(t.entry.id)} のノートを、Folgezettel の親子のとおりに、地図へ足し、放射状に並べ直す（ノート以外の行・線・グループはそのまま）">🌳 Folgezettel から足す・放射に並べ直す</button>` : ''}
       <button class="tbtn" data-act="tconf" title="名前・番号を変える">⚙️ 名前・番号</button>
       <button class="tbtn ${tmode === 'edit' ? 'p' : ''}" data-act="tedit">${tmode === 'edit' ? '✅ 完了' : '✏️ 編集'}</button>`}
     </div>
