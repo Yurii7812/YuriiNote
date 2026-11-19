@@ -127,7 +127,7 @@
     return { x: n.x, y: n.y, w: s.w, h: s.h };
   };
   // 重なりを調べるための箱（カードは下の名札の分も含める）
-  TB.boxOf = (n) => { const r = TB.rectOf(n); return n.t === "card" ? { x: r.x, y: r.y + 28, w: Math.max(r.w, 150), h: r.h + 56 } : r; };
+  TB.boxOf = (n) => { const r = TB.rectOf(n); return n.t === "card" ? (n.deck === "prompt" ? { x: r.x, y: r.y + 2, w: r.w, h: r.h + 8 } : { x: r.x, y: r.y + 28, w: Math.max(r.w, 150), h: r.h + 56 }) : r; };
   const inside = (p, r, m) => Math.abs(p.x - r.x) < r.w / 2 + m && Math.abs(p.y - r.y) < r.h / 2 + m;
   TB.overlaps = (a, b, m) => Math.abs(a.x - b.x) < (a.w + b.w) / 2 + m && Math.abs(a.y - b.y) < (a.h + b.h) / 2 + m;
   function edge(r, to, m) { // 四角 r の中心から to へ向かう線と、縁（＋余白 m）の交点

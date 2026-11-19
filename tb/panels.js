@@ -127,16 +127,17 @@
   // ================= 右の詳細 =================
   TB.renderDrawer = (opt) => {
     opt = opt || {};
-    const dr = $("#drawer"), ids = TB.sel.filter((id) => TB.node(id) || TB.B().frames.some((f) => f.id === id));
+    const dr = $("#drawer"), ids = TB.sel.filter((id) => TB.node(id) || TB.B().frames.some((f) => f.id === id) || TB.isLinkId(id));
     let parts;
-    if (ids.length > 1) parts = multi(ids);
+    if (ids.length && ids.every(TB.isLinkId) && !(ids.length === 1 && TB.selLink)) parts = linksPanel(ids);
+    else if (ids.length > 1) parts = multi(ids);
     else if (ids.length === 1 && TB.node(ids[0])) parts = TB.node(ids[0]).t === "card" ? cardDetail(TB.node(ids[0]), opt) : ideaDetail(TB.node(ids[0]));
     else if (ids.length === 1) parts = frameDetail(TB.B().frames.find((f) => f.id === ids[0]));
-    else parts = overview();
+    else parts = [];
     dr.replaceChildren(...parts.flat().filter(Boolean));
     // 右の欄は、何かを選んでいるときだけ（何も選んでいないときは、上の「まとめ」で開ける）
-    const show = !!(ids.length > 0 || TB.sel.some((id) => TB.B().items.some((i) => i.id === id)) || TB.drawerPinned);
-    if (dr.hidden === show) { dr.hidden = !show; const bt = $("#btn-sum"); if (bt) bt.classList.toggle("on", !!TB.drawerPinned && !ids.length); }
+    const show = !!(ids.length > 0 || TB.sel.some((id) => TB.B().items.some((i) => i.id === id)));
+    if (dr.hidden === show) { dr.hidden = !show; }
     if (opt.focusCard) { const i = $("#card-input"); if (i) i.focus(); }
   };
 
@@ -238,13 +239,33 @@
 
   // アイデアの枠と色（選んでいる全部に）
   const COLORS = [["", "墨"], ["#c0392b", "赤"], ["#d9822b", "橙"], ["#2f8a3e", "緑"], ["#2f6fd0", "青"], ["#7b4fc0", "紫"], ["#8b909c", "灰"]];
+  const same = (arr, f) => (arr.every((x) => (f(x) || "") === (f(arr[0]) || "")) ? f(arr[0]) || "" : null);
+  const colRow = (label, cur, on) => h("div", { class: "st-row" }, h("span", { class: "st-l", text: label }), COLORS.map(([v, t]) =>
+    h("button", { type: "button", class: "st-col" + (cur === v ? " on" : ""), title: t, "aria-label": t, style: `--c:${v || "#1f1f1e"}`, onclick: () => on(v) })));
+  // 文字の色と、枠の色は別（枠の色を決めなければ、文字の色に合わせる）
   function styleBox(ideas) {
-    const box = ideas.every((n) => n.box === ideas[0].box) ? ideas[0].box || "" : null, col = ideas.every((n) => (n.color || "") === (ideas[0].color || "")) ? ideas[0].color || "" : null;
+    const box = same(ideas, (n) => n.box);
     return h("div", { class: "d-style" },
       h("div", { class: "st-row" }, h("span", { class: "st-l", text: "枠" }), [["", "なし"], ["line", "線"], ["fill", "塗り"]].map(([v, t]) =>
         h("button", { type: "button", class: "st-box b-" + (v || "none") + (box === v ? " on" : ""), text: t, onclick: () => TB.styleSel("box", v) }))),
-      h("div", { class: "st-row" }, h("span", { class: "st-l", text: "色" }), COLORS.map(([v, t]) =>
-        h("button", { type: "button", class: "st-col" + (col === v ? " on" : ""), title: t, "aria-label": t, style: `--c:${v || "#1f1f1e"}`, onclick: () => TB.styleSel("color", v) }))));
+      colRow("文字", same(ideas, (n) => n.color), (v) => TB.styleSel("color", v)),
+      colRow("枠色", same(ideas, (n) => n.bc), (v) => TB.styleSel("bc", v)));
+  }
+  // 線（いくつでも）: 種類と色をまとめて変える
+  function linkStyle(ls) {
+    const kind = same(ls, (l) => TB.linkKind(l));
+    return h("div", { class: "d-style" },
+      h("div", { class: "st-row" }, h("span", { class: "st-l", text: "線" }), TB.LINK_KINDS.map(([k, name]) => h("button", { type: "button", class: "kind-btn" + (kind === k ? " on" : ""), title: name, onclick: () => TB.styleLinks("kind", k) },
+        h("svg", { width: 34, height: 14, viewBox: "0 0 34 14", class: "kind-ico k-" + k }, h("line", { x1: 3, y1: 7, x2: 31, y2: 7 }),
+          k === "arrow" || k === "both" ? h("polygon", { points: "31,7 24,3 24,11" }) : null, k === "both" ? h("polygon", { points: "3,7 10,3 10,11" }) : null)))),
+      colRow("色", same(ls, (l) => l.color), (v) => TB.styleLinks("color", v)));
+  }
+  function linksPanel(ids) {
+    const ls = ids.map((id) => TB.B().links.find((l) => l.id === id)).filter(Boolean);
+    return [h("h3", { text: `線 ${ls.length}本を選択中` }), linkStyle(ls),
+      h("div", { class: "d-btns" }, h("button", { type: "button", text: "向きを逆に", onclick: () => TB.styleLinks("flip") }),
+        h("button", { type: "button", class: "danger", text: "まとめて消す（Delete）", onclick: () => TB.deleteSelected() }), h("button", { type: "button", text: "選択を外す（Esc）", onclick: () => TB.select([]) })),
+      h("p", { class: "muted", text: "Ctrl+ドラッグで囲むと、囲んだ線もまとめて選べます。Ctrl+クリックで、線を足す・外す" })];
   }
   // 選んだもののまわりに、発想カードの型を並べる
   function promptRow() {
@@ -264,39 +285,23 @@
         h("button", { type: "button", text: "＋広げる（Tab）", onclick: () => TB.newIdea(n.id) }),
         h("button", { type: "button", text: "書き直す（Enter・もう一度クリック）", onclick: () => TB.editIdea(n.id) }),
         kids.length ? h("button", { type: "button", text: "子を並べ直す", onclick: () => TB.arrangeKids(n.id) }) : null),
-      promptRow(),
+      TB.plain ? null : promptRow(),
     ];
   }
   function frameDetail(f) {
-    if (!f) return overview();
+    if (!f) return [];
     return [h("h3", { text: "グループ" }), h("input", { value: f.title, ...lazy((v) => { f.title = v; TB.renderBoard(); TB.markSel(); }) }),
+      h("div", { class: "d-style" }, colRow("枠色", f.color && f.color !== TB.FRAME_COLORS[0] ? f.color : "", (v) => { TB.snap(); f.color = v || TB.FRAME_COLORS[0]; TB.save(); TB.renderBoard(); TB.markSel(); TB.renderDrawer({ quiet: true }); })),
       h("p", { class: "muted", text: "見出しをドラッグすると中身ごと動きます。右下の角で大きさを変えられます" })];
   }
   function multi(ids) {
     const ideas = ids.map(TB.node).filter((n) => n && n.t === "idea");
-    return [h("h3", { text: `${ids.length}個を選択中` }),
+    return [h("h3", { text: `${ids.filter((x) => !TB.isLinkId(x)).length}個を選択中` }),
       h("div", { class: "d-btns" }, h("button", { type: "button", class: "primary", text: "グループにする", title: "選んだものを枠で囲む", onclick: () => TB.groupSel() }),
         h("button", { type: "button", class: "danger", text: "まとめて消す（Delete）", onclick: () => TB.deleteSelected() }), h("button", { type: "button", text: "選択を外す（Esc）", onclick: () => TB.select([]) })),
       ideas.length ? styleBox(ideas) : null,
+      TB.selLinks().length ? [h("h4", { text: `つながった線 ${TB.selLinks().length}本` }), linkStyle(TB.selLinks().map((id) => TB.B().links.find((l) => l.id === id)).filter(Boolean))] : null,
       h("p", { class: "muted", text: "Ctrl+ドラッグで、まとめて動かせます。Ctrl+クリックで、選ぶものを足す・外す" })];
   }
 
-  // ---- 何も選んでいないとき: 概要 ----
-  function overview() {
-    const b = TB.B();
-    const ideas = b.nodes.filter((n) => n.t === "idea" && !n.center), cards = b.nodes.filter((n) => n.t === "card");
-    const tpl = TB.TEMPLATES.find((t) => t.id === b.template);
-    return [
-      h("div", { class: "muted", text: `${tpl ? tpl.group + " ・ " + tpl.name : ""}　カード ${cards.length}　アイデア ${ideas.length}` }),
-      cards.length ? h("div", { class: "ov-list" }, cards.map((n) => h("button", { type: "button", onclick: () => TB.select(n.id) }, h("b", { text: TB.slotName(n) }), h("span", { text: TB.item(n) ? TB.deckOf(n).short(TB.item(n), n.rev) : "未設定" })))) : null,
-      h("label", { text: "まとめ" }),
-      h("textarea", { class: "grow", placeholder: "全体としての結論・次にやること", value: b.summary, ...lazy((v) => (b.summary = v)) }),
-      b.draws.length ? h("div", { class: "muted", text: "最後に引いた: " + TB.drawText(b.draws[b.draws.length - 1]) }) : null,
-      h("details", { class: "help" }, h("summary", { text: "操作とキー" }),
-        h("p", { text: "空きをクリック＝文字 / ドラッグ＝ペン / 文字やカードをクリック＝選ぶ（右に詳細）/ 選んだ文字をもう一度クリック・Enter・F2＝書き直す / カードをダブルクリック＝つないで書く / 文字やカードから別のものへドラッグ＝つなぐ（空きに離すと新しい文字）/ Ctrl+クリック＝選ぶものを足す・外す / Ctrl+空きをドラッグ＝囲んで選ぶ / 右ドラッグ・Ctrl+ドラッグ＝動かす / 右クリック＝メニュー / ホイール＝拡大" }),
-        h("p", { text: "選んでいるとき: Tab＝そこから広げる / Enter＝隣に次 / 文字を打つ＝書き直す / Delete＝消す / 2 つ以上選ぶと「グループにする」" }),
-        h("p", { text: "書いている間: Enter＝次 / Tab＝そこから広げる / Shift+Tab＝元へ / Esc＝終わる" }),
-        h("p", { text: "書いている間: Ctrl+U ノートを探して ID を入れる / Ctrl+M 次の (n)" }),
-        h("p", { text: "Ctrl+D 引く / Ctrl+A 全部を選ぶ / Ctrl+Z・Y 元に戻す・やり直す / Ctrl+0 全体 / 矢印 近くへ移る / Delete 選んだものを消す / Esc 選択を外す" }))];
-  }
 })();

@@ -707,7 +707,6 @@ body{-webkit-user-select:none;user-select:none}
 .url-preview-link{display:flex;align-items:center;gap:9px;padding:7px;min-width:0;flex:1;cursor:pointer;color:inherit;text-decoration:none}.url-preview-link img{width:64px;height:55px;object-fit:cover;flex:none}.url-preview-link>span{min-width:0;display:flex;flex-direction:column;gap:2px}.url-preview-link b{font-size:.88em;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.url-preview-link small{font-size:.75em;color:var(--sub);overflow:hidden;display:-webkit-box;-webkit-box-orient:vertical;-webkit-line-clamp:2}.url-menu{flex:none;border:0;background:transparent;padding:2px 8px}
 .link-dialog>label{display:flex;flex-direction:column}.link-dialog input{min-width:0;max-width:100%}.link-search{margin-top:10px}.link-search>input{width:100%}.link-results{max-height:220px;overflow:auto;border:1px solid var(--line);margin:5px 0}.link-result{width:100%;display:flex;flex-direction:column;text-align:left;border:0;border-bottom:1px solid var(--line);border-radius:0;padding:5px 8px;white-space:normal}.link-result.on{background:var(--hl)}.link-result small{font-size:12px;color:var(--sub)}
 .link-targets{max-height:260px;overflow:auto}.link-target{display:flex;gap:4px;align-items:center;margin:3px 0}.link-target>button:first-child{min-width:0;flex:1;overflow:hidden;text-overflow:ellipsis;text-align:left}.link-target small{font-size:11px}.link-target>button{flex-shrink:0;padding:2px 6px}.link-backlink{display:block;text-align:left;margin:3px 0}#ln-range-text{width:100%;height:180px;font:inherit}.link-dialog #ln-error,#id-error,#sd-error,#child-error{color:var(--red)}
-.isr{display:flex;flex-direction:column;gap:8px;width:min(860px,92vw);height:min(560px,80vh)}.isr-h{display:flex;gap:8px;align-items:center;flex-wrap:wrap}.isr-h input{flex:1;min-width:180px;font:inherit;padding:6px 8px;border:1px solid var(--line);border-radius:8px;background:var(--bg);color:var(--fg)}.isr-k button{padding:2px 10px;border:0;border-radius:999px;background:none;color:var(--sub)}.isr-k button.on{background:var(--hl);color:var(--fg)}.isr-b{flex:1;min-height:0;display:flex;gap:8px}#isr-list{flex:0 0 42%;overflow:auto;border:1px solid var(--line);border-radius:8px}.isr-r{padding:5px 8px;border-bottom:1px solid var(--line);cursor:pointer}.isr-r.on{background:var(--hl)}.isr-r b{display:block;font-weight:500;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.isr-r small{color:var(--sub);font-size:11.5px;display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}#isr-pv{flex:1;min-width:0;overflow:auto;margin:0;padding:8px 10px;border:1px solid var(--line);border-radius:8px;white-space:pre-wrap;word-break:break-word;font:inherit;font-size:13.5px}.isr-f{font-size:11.5px;color:var(--sub)}
 .reference-picker{position:fixed;z-index:15000;width:min(450px,calc(100vw - 16px));max-height:235px;overflow:auto;background:var(--bg);border:1px solid var(--line);border-radius:6px;box-shadow:0 4px 14px #0002;font-size:14px}.reference-help{font-size:11px;color:var(--sub);padding:4px 8px}.reference-candidate{display:flex;gap:3px}.reference-candidate.on{background:var(--hl)}.reference-candidate button{border:0;background:transparent;text-align:left;padding:5px 7px;min-width:0}.reference-candidate button:first-child{flex:1}.reference-candidate small{display:block;font-size:11px;color:var(--sub);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.reference-candidate button:last-child{flex:none}.memo-reference-backlinks{font-size:12px;display:flex;flex-wrap:wrap;gap:6px;color:var(--sub)}
 .topic-settings section{margin:10px 0}.topic-settings label{display:block;font-weight:600}.topic-settings input{width:100%}.topic-settings>.row,.topic-bulk>.row{position:sticky;bottom:0;background:var(--bg);padding:8px 0}.topic-danger{border-top:1px solid var(--line);padding-top:8px;margin-top:12px}.topic-danger summary{color:var(--red);cursor:pointer}.topic-bulk fieldset{border:1px solid var(--line);border-radius:5px}.topic-bulk fieldset label{display:block}.topic-bulk #sd-q{width:100%;margin:8px 0}.topic-bulk #sd-u label{display:flex;gap:6px;align-items:center}.topic-bulk #sd-u small{margin-left:auto;color:var(--sub)}.topic-bulk #sd-primary{max-width:100%;margin-left:8px}#sd-preview{max-height:160px;overflow:auto;font-size:12px}
 @media(max-width:700px){.link-target{flex-wrap:wrap}.linked-head{gap:4px}.reference-picker{max-width:95vw}.topic-bulk .row{flex-wrap:wrap}}
@@ -788,7 +787,8 @@ body{-webkit-user-select:none;user-select:none}
 .bb-node.tfocus{box-shadow:0 0 0 2px #f2b84b}
 #pane:has(> .bstage),#pane:has(#tmap){padding:0;display:flex;flex-direction:column;overflow:hidden}
 #pane:has(#tmap)>.row{padding-left:24px;padding-right:24px}#pane:has(#tmap)>.row:first-child{margin-top:12px}
-#tmap{flex:1 1 auto;min-height:0;margin-top:4px;border-top:1px solid var(--line)}
+#tmap{flex:1 1 auto;min-height:0;margin-top:4px;border-top:1px solid var(--line);display:flex;flex-direction:column}
+#tmap #tbframe{flex:1 1 auto;min-height:0;height:100%}
 /* 盤面（ブレストのノート・索引の地図で共通）。白い盤面に箱なしの文字、細い灰色の線。動かす・拡大は world の transform */
 .bb{position:relative;overflow:hidden;outline:none;touch-action:none;cursor:text;background:var(--bg);user-select:none}
 .bb-world{position:absolute;left:0;top:0;transform-origin:0 0}
@@ -904,6 +904,78 @@ aside.sort1 #dlist .dtop{padding-right:72px}
 /* ノートの上の小さな行（ID・種類・並列・分岐…） */
 .idline .idin{font:500 13px var(--mono);color:var(--sub);background:#f1f0ed;border-radius:5px;padding:2px 7px}
 .idline .nb{border-color:#e3e2de;color:#3a3a37;border-radius:7px}.idline .nb:hover{background:var(--hl)}
+/* 日記・メモ帳の上の行と一覧（普通のノートの一覧と同じ形） */
+#dlist .dtop.first{gap:6px;padding:0 10px;align-items:center}
+#dlist .dkind{flex:0 1 auto;width:auto;max-width:9.5em;height:32px;line-height:32px;padding:0 12px;border-radius:8px;font-weight:600;font-size:14px;overflow:hidden;text-overflow:ellipsis}
+#dlist .dtop.first #d-today{height:32px;padding:0 12px;font-size:13px;border-radius:8px}
+#dlist .dcal{flex:none;width:32px;height:32px;padding:0;border:0;border-radius:8px;background:var(--hl);color:var(--sub);display:inline-flex;align-items:center;justify-content:center}
+#dlist .dcal:hover{background:#ebeae6;color:var(--ink)}
+#dlist .dcal .ico{width:17px;height:17px}
+#dlist .dpick{position:absolute;width:1px;height:1px;opacity:0;pointer-events:none;border:0;padding:0}
+#dlist .grow{flex:1}
+.item.region.dmonth{background:none;padding:10px 16px 3px;cursor:pointer}
+.item.region.dmonth .nt{font-size:13px;color:var(--sub);font-weight:600;display:flex;align-items:baseline;gap:6px}
+.item.region.dmonth b{margin:0;color:var(--sub)}
+.item.region.dmonth .sub{font-weight:400;font-size:12px;color:#aaa}
+.item.region.dmonth .dmf{width:12px;font-style:normal;font-size:11px;color:#aaa}
+.item.region.dmonth:hover{background:none}
+.item.drow .nid{width:4.8em}
+button.ic.dj .ico{width:17px;height:17px}
+button.ic.dj{color:var(--sub);border-color:transparent;background:none}button.ic.dj:hover{background:var(--hl);color:var(--ink)}button.ic.dj.on{color:var(--ink)}
+/* 時系列記録の選択ダイアログ: 静かな紙の見た目に */
+.modal .box:has(.rd){padding:14px 14px 12px;border-radius:14px;box-shadow:0 12px 40px rgba(0,0,0,.14)}
+.rd{gap:8px}
+.rd>input,.rd-add input{height:38px;border:1px solid var(--line);border-radius:9px;background:#fff;font-size:14.5px;outline:none}
+.rd>input:focus,.rd-add input:focus{border-color:#c9c8c3;box-shadow:0 0 0 3px rgba(31,31,30,.06)}
+#rd-list{margin:0 -4px}
+.rd-row{min-height:38px;padding:0 10px;border-radius:8px}
+.rd-row b{font-weight:500;color:var(--fg)}
+.rd-row.on,.rd-row:hover{background:var(--hl)}
+.rd-row.on b{color:var(--ink);font-weight:600}
+.rd-row .rd-ic{font-size:15px;opacity:.85}
+.rd-row small{font-size:12px}
+.rd-add{border-top:1px solid var(--line);padding-top:8px}
+.rd-add button{width:38px;height:38px;border-radius:9px;background:var(--ink);border-color:var(--ink);color:#fff;font-size:17px}
+/* 地図の種類を選ぶ */
+.tk-list{display:flex;flex-direction:column;gap:6px;margin:8px 0 12px}
+.tk-opt{display:grid;grid-template-columns:4.2em 1fr;gap:0 12px;align-items:baseline;text-align:left;padding:10px 14px;border:1px solid var(--line);border-radius:10px;background:#fff;cursor:pointer;font:inherit}
+.tk-opt:hover{background:var(--hl)}
+.tk-opt b{font:600 14px var(--mono);color:var(--ink)}
+.tk-opt span{font-weight:600}
+.tk-opt small{grid-column:2;color:var(--sub);font-size:12.5px;margin-top:2px}
+.thead .tno{flex:none;font:600 13px var(--mono);color:var(--sub);background:#f1f0ed;border:0;border-radius:6px;padding:3px 8px;cursor:pointer;margin-right:4px}
+.thead .tno:hover{background:var(--hl);color:var(--ink)}
+/* 検索して挿入する画面（Ctrl+U） */
+.modal .box:has(.isr){width:min(920px,94vw);max-width:none;padding:14px 16px 12px;border-radius:14px;box-shadow:0 12px 40px rgba(0,0,0,.16)}
+.isr{display:flex;flex-direction:column;gap:8px;height:min(600px,78vh);min-width:0}
+.isr-top input{width:100%;box-sizing:border-box;height:42px;padding:0 14px;border:1px solid var(--line);border-radius:10px;background:#fff;font:inherit;font-size:16px;outline:none}
+.isr-top input:focus{border-color:#c4c3be;box-shadow:0 0 0 3px rgba(31,31,30,.06)}
+.isr-k{display:flex;gap:2px;flex:none}
+.isr-k button{display:inline-flex;align-items:baseline;gap:5px;padding:4px 12px;border:0;border-radius:8px;background:none;color:var(--sub);font:inherit;font-size:13.5px;cursor:pointer}
+.isr-k button:hover{background:var(--hl)}
+.isr-k button.on{background:var(--hl);color:var(--ink);font-weight:600}
+.isr-k button i{font-style:normal;font-size:11.5px;color:#a0a09a;font-weight:400}
+.isr-b{flex:1;min-height:0;display:flex;gap:10px}
+#isr-list{flex:0 0 44%;min-width:0;overflow:auto;border:1px solid var(--line);border-radius:10px;background:#fff}
+#isr-list .none{padding:18px;color:var(--sub);text-align:center}
+.isr-r{padding:7px 12px;border-bottom:1px solid #f1f0ed;cursor:pointer}
+.isr-r:last-child{border-bottom:0}
+.isr-r:hover{background:#f7f6f3}
+.isr-r.on{background:var(--hl);box-shadow:inset 3px 0 var(--ink)}
+.isr-r b{display:block;font-weight:500;font-size:14.5px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.isr-r.on b{font-weight:600}
+.isr-r small{display:block;color:var(--sub);font-size:12px;margin-top:1px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+#isr-pv{flex:1;min-width:0;overflow:auto;padding:12px 16px;border:1px solid var(--line);border-radius:10px;background:#fcfbfa}
+#isr-pv .pv-head{font:500 12px var(--mono);color:var(--sub);margin-bottom:6px}
+#isr-pv .pv-title{font-size:17px;font-weight:700;margin-bottom:8px;line-height:1.4}
+#isr-pv .pv-body{font-size:14px;line-height:1.75;word-break:break-word}
+.isr mark{background:#ffe97a;color:inherit;border-radius:3px;padding:0 1px}
+.isr-f{display:flex;align-items:center;gap:8px;flex:none;font-size:12px;color:var(--sub)}
+.isr-f kbd{font:500 11px var(--mono);background:#f1f0ed;border:1px solid var(--line);border-radius:4px;padding:1px 5px;margin:0 2px}
+.isr-f button{height:32px;padding:0 14px;border-radius:8px;font-size:13px}
+.isr-f button.p{background:var(--ink);border-color:var(--ink);color:#fff}
+.isr-f button:disabled{opacity:.4}
+@media(max-width:760px){.isr-b{flex-direction:column}#isr-list{flex:0 0 45%}}
 </style>
 </head>
 <body>
@@ -921,7 +993,7 @@ aside.sort1 #dlist .dtop{padding-right:72px}
   <aside>
     <div id="tabs"><button data-tab="d" title="デジタル（右クリックで、トピックIndexを作る）"><span class="tl2">デジタル</span></button><button data-tab="p" title="紙（右クリックで、トピックIndexを作る）"><span class="tl2">紙</span></button><button data-tab="u" title="未整理（IDなし）"><span class="tl2">未整理</span></button></div>
     <div id="searchbox"><input id="q" placeholder="検索" title="Ctrl+F（今のページの中は Ctrl+E）　Esc でやめる&#10;書き方: 空白=かつ　a OR b / a | b=または　-a=除く　&quot;a b&quot;=並びのまま　( )=まとめる&#10;id:1a　fz:1a（子孫も）　kw:GUI　title:題　body:本文　date:2026-11　date:2026-11-01..2026-11-13　is:paper/digital/noid　has:kw/link"><button id="ix-add" class="tbtn" hidden>＋</button></div>
-<span class="tsort"><button id="list-top" class="ic" title="一覧の一番上へ（Ctrl+Q）" aria-label="一覧の一番上へ"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 4h12M12 20V9M7 14l5-5 5 5"/></svg></button><button id="sort-key" class="ic"></button><button id="sort-dir" class="ic"></button></span>
+<span class="tsort"><button id="sort-key" class="ic"></button><button id="sort-dir" class="ic"></button></span>
     <div id="selbar"></div>
     <div id="list"></div>
   </aside>

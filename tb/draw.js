@@ -26,7 +26,7 @@
   function placeCard(deck, parent) {
     const b = TB.B(), D = TB.DECKS[deck];
     let pos;
-    if (parent) pos = TB.placeNear(parent.id, { w: Math.max(D.w, 150), h: D.h + 56 }, 28);
+    if (parent) pos = deck === "prompt" ? TB.placeNear(parent.id, { w: D.w, h: D.h + 8 }, 2) : TB.placeNear(parent.id, { w: Math.max(D.w, 150), h: D.h + 56 }, 28);
     else {   // 選んでいるものが無い: 見ている真ん中。重なるなら右へずらす
       const r = $("#board").getBoundingClientRect(), c = TB.toWorld(r.left + r.width / 2, r.top + r.height / 2); pos = { x: Math.round(c.x), y: Math.round(c.y) };
       const boxes = b.nodes.map(TB.boxOf), me = () => ({ x: pos.x, y: pos.y + 28, w: Math.max(D.w, 150), h: D.h + 56 });
@@ -147,13 +147,23 @@
   TB.drawPromptSet = (setId) => {
     const set = window.Prompts.SETS.find((x) => x.id === setId), b = TB.B(), par = anchor();
     TB.snap();
-    const D = TB.DECKS.prompt, hasAny = b.nodes.length || b.items.length || b.frames.length, bb = hasAny ? TB.bounds() : null;
-    const placed = window.Prompts.ITEMS.filter((it) => it.set === setId).map((it, i) => {
-      let n;
-      if (par) n = placeCard("prompt", par);
-      else { n = TB.cardNode("prompt", { x: Math.round((bb ? bb.x1 + 140 + D.w / 2 : 0) + i * (D.w + 40)), y: Math.round(bb ? (bb.y0 + bb.y1) / 2 : 0) }); b.nodes.push(n); }   // 何も無い盤面: 横に並べる
-      n.item = it.id; n.hint = set.desc; return n;
+    const D = TB.DECKS.prompt, its = window.Prompts.ITEMS.filter((it) => it.set === setId);
+    // 小さな表（3 列）にまとめて置く。選んでいるものの下。ほかと重なるなら下へずらす。何も選んでいなければ、盤面の右
+    const cols = its.length <= 3 ? its.length : its.length === 4 ? 2 : 3, rows = Math.ceil(its.length / cols), gx = D.w + 14, gy = D.h + 16;
+    const hasAny = b.nodes.length || b.items.length || b.frames.length, bb = hasAny ? TB.bounds() : null;
+    const base = par ? { x: par.x, y: par.y + (TB.rectOf(par).h || 50) / 2 + 60 + D.h / 2 } : { x: bb ? bb.x1 + 80 + ((cols - 1) * gx + D.w) / 2 : 0, y: bb ? bb.y0 + D.h / 2 : 0 };
+    const boxes = b.nodes.map(TB.boxOf), at = (y0) => its.map((_, i) => ({ x: Math.round(base.x - ((cols - 1) * gx) / 2 + (i % cols) * gx), y: Math.round(y0 + Math.floor(i / cols) * gy) }));
+    let y0 = base.y; for (let t = 0; t < 30; t++, y0 += 40) if (!at(y0).some((p) => boxes.some((q) => TB.overlaps(q, { x: p.x, y: p.y, w: D.w, h: D.h }, 12)))) break;
+    if (y0 > base.y + 30 * 40 - 40) y0 = base.y;
+    const pos = at(y0);
+    const placed = its.map((it, i) => {
+      const n = TB.cardNode("prompt", { x: pos[i].x, y: pos[i].y }); b.nodes.push(n);
+      n.item = it.id; n.hint = set.desc;
+      return n;
     });
+    // 線: 1 段目は選んだものから、2 段目からは、すぐ上のカードから（長い回り道の線にならないように）
+    if (par) placed.forEach((n, i) => b.links.push({ id: TB.uid(), a: i < cols ? par.id : placed[i - cols].id, b: n.id, kind: "line", label: "" }));
+    void rows;
     b.draws.push({ at: Date.now(), deck: "prompt", method: "set", seed: setId, n: placed.length });
     deal(placed); remember("pset:" + setId);
   };

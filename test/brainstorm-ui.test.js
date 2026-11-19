@@ -102,7 +102,7 @@ test('複数選択: Ctrl+A で全部、Delete でまとめて消す（テーマ�
     assert.deepStrictEqual([...T.sel], ['a', 'b'], 'Ctrl+クリックで足す');
     ctrlClick(d.querySelector('.node[data-id="a"]')); assert.deepStrictEqual([...T.sel], ['b'], 'もう一度で外す');
     d.dispatchEvent(new fw.KeyboardEvent('keydown', { key: 'a', code: 'KeyA', ctrlKey: true, bubbles: true }));
-    assert.strictEqual(T.sel.length, 5, 'Ctrl+A で全部（文字・ペンの線も）');
+    assert.strictEqual(T.sel.length, 6, 'Ctrl+A で全部（文字・つなぐ線・ペンの線も）');
     d.body.dispatchEvent(new fw.KeyboardEvent('keydown', { key: 'Delete', bubbles: true })); await tick(600);
     assert.deepStrictEqual([...T.B().nodes].map(n => n.id), ['c'], 'テーマだけ残る');
     assert.strictEqual(T.B().items.length, 0);
@@ -189,7 +189,8 @@ test('ふつうの文字: クリックで選ぶ（右の欄は選んだときだ
     T.styleSel('box', 'line'); T.styleSel('color', '#c0392b'); await tick(100);
     assert.ok(d.querySelector('.node[data-id="a"]').classList.contains('box-line'), '枠'); assert.strictEqual(T.node('a').color, '#c0392b', '色');
     T.drawPromptSet('w5h1'); await tick(300);
-    assert.strictEqual(T.B().links.filter(l => l.a === 'a').length, 6, '選んだ文字のまわりに 5W1H をつないで置く');
+    assert.strictEqual(T.B().links.filter(l => T.B().nodes.find(n => n.id === l.b && n.deck === 'prompt')).length, 6, '選んだ文字の下に 5W1H をつないで置く（1 段目は選んだ文字から、2 段目は上のカードから）');
+    assert.strictEqual(T.B().links.filter(l => l.a === 'a').length, 3, '1 段目の 3 枚が、選んだ文字につながる');
     T.select(['a', 'b']); T.groupSel(); await tick(100);
     assert.strictEqual(T.B().frames.length, 1, 'グループ（枠）'); const f = T.B().frames[0]; assert.ok(f.x < 0 && f.x + f.w > 300, '選んだものを囲む');
     d.querySelector('.frame .frame-title').dispatchEvent(new fw.Event('blur')); await tick(50);
@@ -197,5 +198,41 @@ test('ふつうの文字: クリックで選ぶ（右の欄は選んだときだ
     assert.strictEqual(T.editing, 'a', '選んでいる文字をもう一度押すと書き直す');
     d.querySelector('.node[data-id="a"] .txt').dispatchEvent(new fw.Event('blur')); await tick(50);
     T.select([]); await tick(50); assert.ok(d.querySelector('#drawer').hidden, '選択を外すと、右の欄はしまう ' + JSON.stringify([T.sel, T.editing, T.drawerPinned, T.selLink]));
+  } finally { a.close(); }
+});
+
+test('線: 囲んでまとめて選べる・種類と色をまとめて変える。枠の色は文字の色とは別。グループの枠の色も変えられる', async () => {
+  const data = { v: 3, title: '盤', nodes: [{ id: 'c', t: 'idea', x: 0, y: 0, text: '盤', center: true }, { id: 'a', t: 'idea', x: 200, y: 0, text: 'A' }, { id: 'b', t: 'idea', x: 400, y: 0, text: 'B' }, { id: 'z', t: 'idea', x: 2000, y: 2000, text: '遠い' }],
+    links: [{ id: 'l1', a: 'c', b: 'a', kind: 'line', label: '' }, { id: 'l2', a: 'a', b: 'b', kind: 'line', label: '' }, { id: 'l3', a: 'b', b: 'z', kind: 'line', label: '' }], frames: [{ id: 'f', x: -50, y: -50, w: 300, h: 150, title: '枠', color: '#8b909c' }], items: [] };
+  const a = await app(st => st.saveNote({ s: 'd', id: '2', created: '2026-11-12 09:00:00', title: '盤', body: '', kind: 'brainstorm', data }));
+  try {
+    await a.open('d', '2'); const T = await a.tb();
+    // 線を 2 本選ぶ → 種類と色をまとめて変える
+    T.select(['l1', 'l2']); await tick(50);
+    assert.deepStrictEqual([...T.selLinks()], ['l1', 'l2']);
+    T.styleLinks('kind', 'dashed'); T.styleLinks('color', '#c0392b');
+    assert.strictEqual(JSON.stringify(T.B().links.map(l => [l.kind, l.color || ''])), JSON.stringify([['dashed', '#c0392b'], ['dashed', '#c0392b'], ['line', '']]), '選んだ線だけ変わる');
+    T.styleLinks('flip'); assert.strictEqual(T.B().links[0].a + T.B().links[0].b, 'ac', '向きを逆に');
+    // 文字の色と枠の色は別
+    T.select(['a']); T.styleSel('color', '#2f6fd0'); T.styleSel('box', 'line'); T.styleSel('bc', '#c0392b');
+    const n = T.node('a'); assert.strictEqual(n.color, '#2f6fd0'); assert.strictEqual(n.bc, '#c0392b'); assert.strictEqual(n.box, 'line');
+    // 全部を選ぶと、線も入る。消すと線も消える
+    T.selectAll(); assert.ok(T.selLinks().length === 3);
+    T.select(['l3']); T.deleteSelected(); assert.strictEqual(T.B().links.map(l => l.id).join(), 'l1,l2', '選んだ線だけ消える');
+  } finally { a.close(); }
+});
+
+test('Ctrl+U: ブレストで、ノートを探して、新しい文字として足せる（選んでいる文字につなぐ）', async () => {
+  const data = { v: 3, title: '盤', nodes: [{ id: 'c', t: 'idea', x: 0, y: 0, text: '盤', center: true }], links: [], frames: [], items: [] };
+  const a = await app(st => st.saveNote({ s: 'd', id: '2', created: '2026-11-12 09:00:00', title: '盤', body: '', kind: 'brainstorm', data }));
+  try {
+    await a.open('d', '2'); const T = await a.tb(), fw = a.$('#tbframe').contentWindow, d = fw.document;
+    T.select('c');
+    d.dispatchEvent(new fw.KeyboardEvent('keydown', { key: 'u', code: 'KeyU', ctrlKey: true, bubbles: true, cancelable: true })); await tick(200);
+    const q = a.$('#isr-q'); assert.ok(q, '検索の画面が開く');
+    q.value = 'ふつう'; q.dispatchEvent(new a.w.Event('input', { bubbles: true })); await tick(100);
+    q.dispatchEvent(new a.w.KeyboardEvent('keydown', { key: 'Enter', bubbles: true, cancelable: true })); await tick(600);
+    const nn = T.B().nodes.find(n => /^->1\b/.test(n.text)); assert.ok(nn, '->1 の文字が増える: ' + T.B().nodes.map(n => n.text).join('|'));
+    assert.ok(T.B().links.some(l => l.a === 'c' && l.b === nn.id), '選んでいた文字につながる');
   } finally { a.close(); }
 });

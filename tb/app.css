@@ -40,7 +40,7 @@ button.danger { color: var(--red); }
 svg.layer { position: absolute; left: 0; top: 0; overflow: visible; pointer-events: none; }
 .link { cursor: pointer; }
 .link-hit { fill: none; stroke: transparent; stroke-width: 16; pointer-events: stroke; }
-.link-line { fill: none; stroke: var(--edge); stroke-width: 1.6; stroke-linecap: round; }
+.link-line { fill: none; stroke: var(--lc, var(--edge)); stroke-width: 1.6; stroke-linecap: round; }
 .link:hover .link-line { stroke: #9aa0ad; }
 .link.on .link-line { stroke: var(--acc); stroke-width: 2; }
 .link-lbg { fill: #fff; }
@@ -78,9 +78,10 @@ svg.hex .mv { fill: var(--red); }
 .hc-kw { font-size: 11px; color: var(--sub); }
 /* 発想カード */
 .pcard { background: #fff; color: var(--fg); display: flex; flex-direction: column; }
-.pc-set { border-top: 6px solid var(--pc); font-size: 12px; color: var(--sub); text-align: center; padding: 6px 4px 0; }
-.pc-name { font-size: 19px; font-weight: 700; line-height: 1.3; text-align: center; padding: 12px 8px 6px; }
-.pc-q { font-size: 12px; color: var(--sub); padding: 0 10px; text-align: center; }
+.pc-set { border-top: 4px solid var(--pc); font-size: 11px; color: var(--sub); text-align: center; padding: 3px 4px 0; }
+.pc-name { font-size: 16px; font-weight: 700; line-height: 1.25; text-align: center; padding: 5px 8px 2px; }
+.pc-q { font-size: 11px; line-height: 1.35; color: var(--sub); padding: 0 8px 4px; text-align: center; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+.d-big.pcard { height: auto; min-height: 84px; }
 
 /* 文字のアイデア（箱なし） */
 .node.idea { transform: translate(-50%, -50%); width: max-content; max-width: 300px; min-width: 24px; padding: 3px 6px; border-radius: 6px; border: 1px solid transparent;
@@ -92,9 +93,9 @@ svg.hex .mv { fill: var(--red); }
 .node.idea.editing { background: #fff; border-color: var(--acc); user-select: text; }
 
 /* 枠（ひな形の区切り） */
-.frame { position: absolute; border: 1px solid var(--line2); background: #fafbfc; border-radius: 10px; pointer-events: none; }
+.frame { position: absolute; border: 1px solid var(--fc, var(--line2)); background: color-mix(in srgb, var(--fc, #fafbfc) 7%, #fafbfc); border-radius: 10px; pointer-events: none; }
 .frame.sel { border-color: var(--acc); }
-.frame-title { position: absolute; left: 8px; bottom: 100%; margin-bottom: 4px; font-size: 14px; font-weight: 700; color: var(--sub); pointer-events: auto; cursor: grab; padding: 0 6px; border-radius: 6px; white-space: nowrap; }
+.frame-title { position: absolute; left: 8px; bottom: 100%; margin-bottom: 4px; font-size: 14px; font-weight: 700; color: var(--fc, var(--sub)); pointer-events: auto; cursor: grab; padding: 0 6px; border-radius: 6px; white-space: nowrap; }
 .frame-title:hover { background: var(--hl); }
 .frame-title[contenteditable] { cursor: text; outline: 1px solid var(--acc); background: #fff; }
 .frame-resize { position: absolute; right: -4px; bottom: -4px; width: 14px; height: 14px; border-right: 2px solid var(--edge); border-bottom: 2px solid var(--edge); border-radius: 0 0 4px 0; pointer-events: auto; cursor: nwse-resize; }
@@ -269,10 +270,10 @@ input.big { font-size: 17px; padding: 9px 13px; }
 .plaque .reading { white-space: normal; width: 190px; margin: 4px auto 0; font-size: 12.5px; line-height: 1.45; color: var(--fg); background: #fffbe8; border-radius: 5px; padding: 3px 6px; text-align: left; }
 .plaque .reading.mine { background: var(--acc-bg); }
 /* 線の種類・矢印・線の上の文字 */
-.link-head { fill: var(--edge); }
+.link-head { fill: var(--lc, var(--edge)); }
 .link:hover .link-head { fill: #9aa0ad; } .link.on .link-head { fill: var(--acc); }
 .link.k-dashed .link-line { stroke-dasharray: 6 6; }
-.link.k-bold .link-line { stroke-width: 3.6; stroke: #8b909c; }
+.link.k-bold .link-line { stroke-width: 3.6; stroke: var(--lc, #8b909c); }
 .link.k-clash .link-line { stroke: #c0392b; stroke-dasharray: 3 5; stroke-width: 2; }
 .link.k-clash .link-head { fill: #c0392b; }
 .link-label { font-size: 15px; fill: var(--fg); }
@@ -318,10 +319,10 @@ button.primary:hover { background: #33332f; }
 #btn-sum.on { background: #e6e5e1; color: #1f1f1e; }
 /* アイデア（ふつうの文字）の枠と色 */
 .node.idea.colored { color: var(--ic); }
-.node.idea.box-line { border-color: var(--ic, #1f1f1e); background: #fff; padding: 5px 10px; border-radius: 8px; }
-.node.idea.box-fill { border-color: transparent; background: color-mix(in srgb, var(--ic, #8b909c) 14%, white); padding: 5px 10px; border-radius: 8px; }
+.node.idea.box-line { border-color: var(--bc, var(--ic, #1f1f1e)); background: #fff; padding: 5px 10px; border-radius: 8px; }
+.node.idea.box-fill { border-color: transparent; background: color-mix(in srgb, var(--bc, var(--ic, #8b909c)) 14%, white); padding: 5px 10px; border-radius: 8px; }
 .node.idea.sel { box-shadow: 0 0 0 2px #1f1f1e; background: #fff; border-radius: 6px; }
-.node.idea.box-fill.sel { background: color-mix(in srgb, var(--ic, #8b909c) 14%, white); }
+.node.idea.box-fill.sel { background: color-mix(in srgb, var(--bc, var(--ic, #8b909c)) 14%, white); }
 .d-style { display: flex; flex-direction: column; gap: 8px; padding: 10px 0; border-top: 1px solid var(--line); border-bottom: 1px solid var(--line); }
 .st-row { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
 .st-l { font-size: 12px; color: var(--sub); width: 2em; }
@@ -364,3 +365,18 @@ button.primary:hover { background: #33332f; }
 .q-bar .grow { flex: 1; }
 .node.idea[data-id] .txt { white-space: pre-wrap; }
 .st-col.on, .st-col:hover { background: var(--c); border-color: #fff; }
+
+/* 索引の地図: 引く道具・テーマ名などは出さない */
+body.plain #nid, body.plain #title, body.plain #layout-chip, body.plain .split, body.plain #btn-more, body.plain .gap { display: none; }
+body.plain { position: relative; }
+body.plain #bar { position: absolute; right: 12px; top: 10px; height: auto; padding: 0; border: 0; background: transparent; gap: 4px; }
+body.plain #bar .grow { display: none; }
+
+/* 索引の地図の行: キーワード＋ID のチップ（親の画面の mapLineHtml が作る） */
+.node.idea .tm-kw { font-size: 15px; color: var(--fg); font-weight: 500; margin-right: 6px; }
+.node.idea .tm-ids { display: inline-flex; flex-wrap: wrap; gap: 3px; vertical-align: baseline; }
+.node.idea .tm-ids .chip { font-size: 11.5px; padding: 0 6px; margin: 0; border: 0; border-radius: 5px; background: var(--hl); color: #4a4a47; cursor: pointer; }
+.node.idea .tm-ids .chip:hover { background: #e4e3df; color: #1f1f1e; }
+.node.idea .tm-ids .chip.dot { position: relative; margin-top: .5em; }
+.node.idea .tm-ids .chip.dot::before { content: '🔴'; position: absolute; left: 50%; top: -.55em; transform: translateX(-50%); font-size: .5em; line-height: 1; pointer-events: none; }
+.node.idea .tmk { font-size: 13px; margin-right: 4px; }

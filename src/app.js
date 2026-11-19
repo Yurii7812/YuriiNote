@@ -24,7 +24,6 @@ import { installMermaidObserver } from './mermaid.js';
 import UrlLinks from '../url-links.js';
 import Persistence from '../persistence.js';
 import { setLang } from './i18n.js';
-import { mountMap } from './mapboard.js';
 import BC from '../board-core.js';
 import TopicMap from '../topic-map.js';
 let pendingLang = null;
@@ -450,6 +449,8 @@ function setMainDot(k, s, id) {
 }
 const chips = (v, k) => [['d', v.d], ['p', v.p]].filter(([s]) => isVisS(s)).map(([s, l]) => l.map(x => chip(s, x, !!(k && (d => d && d.s === s && d.id === L.splitAnchor(x).id)(dotOf(k))))).join('')).join('');
 const stripId = name => name.replace(/^[0-9][0-9a-z]*-/, '') || name;
+// 「3-2」→ { id: '3', num: 2 }。「1-0」雑・「1-all」地図の地図・「1-1-2」続き・「1-1a」掘り下げ。形が違えば num は NaN、読めなければ null
+const parseTopicNo = str => { const m = /^([^-]+)(?:-(.+))?$/.exec(String(str || '').trim().toLowerCase()); if (!m) return null; const r = m[2]; return { id: m[1], num: !r ? 0 : /^\d+$/.test(r) && +r > 0 ? +r : L.TSUF.test(r) ? r : NaN }; };
 const topicNo = t => t.entry ? `${t.entry.id}-${t.num || 1}` : '';   // 1-1, 1-2, … グループIndexは 0-1, 0-2
 // 索引は、作るときは名前をつけない（無名）。中身が育ってから、名前をつける。無名の索引は、番号（1-1）だけで呼ぶ
 const AUTO = /^無名[0-9][0-9a-z]*-(?:all|\d)/, isAuto = name => AUTO.test(name), shown = name => isAuto(name) ? name.slice(2) : stripId(name);
@@ -676,11 +677,10 @@ function renderList() {
     const byFz = sortBy === 'fz' && tab !== 'u';
     if (byFz && (tab === 'd' || tab === 'p')) for (const t of topics.filter(x => (!x.entry || !get(x.entry.s, x.entry.id)) && !(x.entry && x.entry.s === 'd' && L.isRegionOnly(x.entry.id)) && (x.entry ? x.entry.s : 'd') === tab).sort((a, b) => a.name.localeCompare(b.name, 'ja'))) out.push(topicRow(t)); // 親のノートがまだないもの（取り込み前の紙の番号など）は、その側の先頭
     // デジタルは、区画（1, 2 …）の行を、そのノートの手前に出す（初めて出てくるところ。残りは最後）。区画の下に、その索引（1-1…）
-    // 区画の行の下に、その区画の索引（地図の地図 n-all → 雑の地図 n-0 → n-1 …）。n-all と n-0 は、まだ無くても行を出し、押すと作る
+    // 区画の行の下に、その区画の索引（地図の地図 n-all → 雑の地図 n-0 → n-1 …）。作ったものだけを出す（どれを作るかは、作るときに選ぶ）
     const shownRegion = new Set(), regionHead = r => {
       shownRegion.add(r); out.push(regionRow(r));
       const ts = uniqueTopics(topicsOf('d', r).filter(topicVisible));
-      if (byFz && r !== ZERO) for (const [num, what] of [['all', '地図の地図'], ['0', '雑の地図']]) if (!topicsOf('d', r).some(t => String(t.num) === num)) out.push(`<div class="item topicrow vtopic" data-vtopic="${esc(r)}|${num}" title="押すと、${esc(r)}-${num}（${what}）を作ります"><div class="nrow"><div class="nt">${esc(r)}-${num}</div><div class="ns">${what}（まだ）</div></div></div>`);
       for (const t of ts) out.push(topicRow(t));
     };
     if (byFz && tab === 'd') regionHead(ZERO);   // 0番（全体の目次）は、番号順の先頭。その下に 0 の索引（0-1 …）
@@ -712,8 +712,6 @@ function onOpenClick(e) {
   const dd = e.target.closest('[data-diary]'); if (dd && !e.target.closest('.cm-editor')) return openDiary(dd.dataset.diary, undefined, dd.dataset.kind || '日記');
   const sb = e.target.closest('[data-ixs]'); if (sb) { e.stopPropagation(); return setIxSide(sb.dataset.ixs); }
   const pen = e.target.closest('[data-ixedit]'); if (pen && mode === 'notes') { e.stopPropagation(); return ixEditDialog(pen.dataset.ixedit); }
-  const vt = e.target.closest('[data-vtopic]');
-  if (vt && mode === 'notes') { const [r, num] = vt.dataset.vtopic.split('|'); return makeTopicAt(r, num); }
   const rg = e.target.closest('[data-region]');
   if (rg && mode === 'notes') {   // 区画の行・区画のチップ: 名前と、トピックIndex（グローバルIndexに追加）
     return openRegion(rg.dataset.region);
@@ -956,7 +954,6 @@ function openNotesList() {
   renderList(); requestAnimationFrame(() => centerOn('#list .item.on', true));
 }
 const listToTop = () => { const l = $('#list'); if (l) l.scrollTop = 0; };
-$('#list-top').onclick = listToTop;
 document.addEventListener('auxclick', e => { if (e.button === 1 && !e.target.closest('#tabbar')) { bgOpen = true; try { onOpenClick(e); } finally { setTimeout(() => { bgOpen = false; renderTabs(); }, 0); } } });
 // 一覧から索引の欄へドラッグすると ID が入る
 $('#list').addEventListener('click', e => {
@@ -1044,11 +1041,33 @@ function kbNav(k) {
   const goTopic = t => t && kbMove({ dataset: { topic: t.name } });
   if (k === 'ArrowDown' || k === 'j') return go(rows[Math.min(rows.length - 1, here + 1)]);
   if (k === 'ArrowUp' || k === 'k') return go(rows[Math.max(0, here < 0 ? 0 : here - 1)]);
+  // ← は上位へ: ノート → 親のノート … → 区画の地図（トピックインデックス）→ 区画 → 0。→ はその逆（区画 → 地図 → 区画の最初のノート → 子）
+  const regionOf = () => cur && cur.k === 'region' ? String(cur.id) : cur && cur.k === 'topic' ? (topics.find(t => t.name === cur.name) || {}).entry?.id : null;
+  const tl = (side, r) => topicsOf(side, String(r)).filter(topicVisible);
+  if ((k === 'ArrowLeft' || k === 'h') && cur && (cur.k === 'region' || cur.k === 'topic')) {
+    const rg = regionOf(); if (rg == null) return;
+    if (cur.k === 'region') return rg === ZERO ? undefined : openRegion(ZERO);
+    return openRegion(String(L.region(rg) || rg));   // 地図 → 区画
+  }
+  if ((k === 'ArrowRight' || k === 'l') && cur && (cur.k === 'region' || cur.k === 'topic')) {
+    const rg = regionOf(); if (rg == null) return;
+    if (cur.k === 'region') { const t = tl('d', rg)[0]; if (t) return goTopic(t); }
+    if (rg === ZERO) return;
+    const mine = notes.filter(n => n.s === 'd' && !n.noid && String(L.region(n.id)) === String(rg)).map(n => n.id).sort(L.cmpId);
+    const has0 = x => !!get('d', x), root = mine.find(x => !L.parentIn(x, has0));
+    return goNote(root && get('d', root));
+  }
   const r = rows[here]; if (!r) return;
   const base = r.note || (r.topic && r.topic.entry && get(r.topic.entry.s, r.topic.entry.id));
+  if (!base && r.topic && (k === 'ArrowLeft' || k === 'h')) return openRegion(String(r.topic.entry.id));
   if (!base || base.noid) return;
   const has = x => !!get(base.s, x), all = notes.filter(n => n.s === base.s && !n.noid).map(n => n.id).sort(L.cmpId), byId = id => id && get(base.s, id);
-  if (k === 'ArrowLeft' || k === 'h') { if (r.topic) return goNote(byId(L.parentIn(base.id, has))); const t = topicOf(base.s, base.id); return t ? goTopic(t) : goNote(byId(L.parentIn(base.id, has))); }
+  if (k === 'ArrowLeft' || k === 'h') {
+    if (r.topic) return goNote(byId(L.parentIn(base.id, has)));   // （昔の、ノートに付いた索引）
+    const par = byId(L.parentIn(base.id, has)); if (par) return goNote(par);   // 親のノートへ
+    const rg = String(L.region(base.id)), t = tl(base.s, rg)[0]; if (t) return goTopic(t);   // 区画の最初のノート → 区画の地図
+    return openRegion(rg);   // 地図が無ければ、区画へ
+  }
   if (k === 'ArrowRight' || k === 'l') return r.topic ? goNote(base) : goNote(byId(all.find(x => L.parentIn(x, has) === base.id)));
   if (k === '[' || k === ']') { const sib = rows.filter(x => x.s === r.s && x.par === r.par && (x.note ? !x.note.noid : true)), at = sib.indexOf(r); return go(sib[at + (k === ']' ? 1 : -1)]); }
   if (k === 'u') { // 自分の番号の祖先をたどって、いちばん近い「親になっている索引」へ（自分が親なら自分の Index。索引 からは、さらに上位へ）
@@ -1080,7 +1099,7 @@ document.addEventListener('keydown', e => {
     decided = cur.k === 'note' ? { k: 'note', s: cur.s, id: cur.id } : { k: 'topic', name: cur.name }; renderList(); centerOn();
     if (cn && lastView && lastView.dom.isConnected) lastView.focus(); return;
   }
-  if (!cur || !['note', 'topic'].includes(cur.k)) return;   // カードなどを見ているときは、動かさない
+  if (!cur || !['note', 'topic', 'region'].includes(cur.k)) return;   // カードなどを見ているときは、動かさない
   e.preventDefault(); kbNav(k);
 });
 
@@ -1129,7 +1148,9 @@ function idPopup(n) {
 
 // 線のアイコン（絵文字ではなく、まわりの文字の色で描く）
 const svg = d => `<svg class="ico" viewBox="0 0 24 24" aria-hidden="true">${d}</svg>`;
-const ICO = { prev: svg('<path d="M15 5l-7 7 7 7"/>'), next: svg('<path d="M9 5l7 7-7 7"/>') };
+const ICO = { prev: svg('<path d="M15 5l-7 7 7 7"/>'), next: svg('<path d="M9 5l7 7-7 7"/>'),
+  table: svg('<rect x="4" y="5" width="16" height="14" rx="1.5"/><path d="M4 10h16M4 14.5h16M10 5v14"/>'), board: svg('<path d="M4 20l4-1 11-11-3-3L5 16l-1 4z"/>'),
+  attach: svg('<path d="M20 11.5l-8 8a5 5 0 01-7-7l8.5-8.5a3.3 3.3 0 014.7 4.7L10 17.3a1.7 1.7 0 01-2.4-2.4L15 7.5"/>'), trash: svg('<path d="M5 7h14M10 7V4h4v3M7 7l1 13h8l1-13"/>'), book: svg('<path d="M5 4h11a3 3 0 013 3v13H8a3 3 0 01-3-3V4zM8 4v16"/>') };
 
 // ===== 画面ごとの位置（スクロール・カーソル）=====
 // ページ（ノート・日記・索引…）ごとに、最後に見ていた位置を覚える。戻る・進む・タブの切り替えだけでなく、一覧やリンクから開いたときも、そこへ戻す
@@ -2038,18 +2059,8 @@ function topicAddDialog(note) {
     await api.saveTopic(sel); close(); renderMeta(note);
   };
   $('#ta-cancel').onclick = close;
-  if ($('#ta-new')) {   // 自分のトピックIndexは、名前を聞かずに、無名で作る（名前は、育ってから、題を押して付ける）
-    $('#ta-new').onclick = async () => {
-      const button = $('#ta-new'); button.disabled = true;
-      try {
-        await flush();
-        const rid = String(L.region(note.id) || note.id), nm = autoName(note.s, rid), t = { name: nm, entry: { s: note.s, id: rid }, keyword: '', text: '' };   // 索引の番号は区画の番号だけ（1-1）。ノートの ID（1a-1）にはしない
-        const saved = await api.saveTopic(t); if (!saved) throw new Error('保存できませんでした');
-        if (typeof saved === 'number') t.num = saved;   // 同じノートの2つ目以降は 1-2, 1-3 …
-        topics.push(t); rememberTopic(nm); close(); renderMeta(note);
-        newTab = true; openTopic(nm, 'edit');
-      } catch (e) { button.disabled = false; alert(e.message); }
-    };
+  if ($('#ta-new')) {   // 自分の区画の地図を作る（どれを作るかは選ぶ。番号は区画の番号だけ: 1a から作っても 1-1）
+    $('#ta-new').onclick = () => { close(); topicKindDialog(String(L.region(note.id) || note.id)); };
   }
 }
 // 索引を単独で作る。親は新しいノート（新しいID）か、既存のノート
@@ -2093,15 +2104,24 @@ async function makeTopicAt(r, num) {
   const sv = await api.saveTopic(t); if (!sv) return alert('保存できませんでした');
   const st = await api.state(); if (st) applyState(st); renderList(); openTopic(t.name, 'view');
 }
+// この区画で、どの地図を作るか選ぶ（雑の地図 n-0・地図の地図 n-all・話題の地図 n-次の番号）。最初から作っておくことはしない
+function topicKindDialog(r) {
+  const find = num => topicsOf('d', r).find(t => String(t.num) === String(num));
+  const next = maxNum(topicsOf('d', r)) + 1;
+  const opts = [[String(next), '話題の地図', '最初から独立した話題。雑の地図から育った話題もここ'], ['0', '雑の地図', 'まばらな語を、出てきた順に書いていく所'], ['all', '地図の地図', 'この区画の地図の題を結ぶ、全体の地図']];
+  $('#modal .box').innerHTML = `<div class="dlg-a"><h3>➕ ${esc(r)} の地図を作る</h3><div class="tk-list">${opts.map(([num, name, desc]) => { const have = find(num); return `<button class="tk-opt" data-num="${esc(num)}"><b>${esc(r)}-${esc(num)}</b><span>${esc(name)}</span><small>${have ? 'もうあります（開く）' : esc(desc)}</small></button>`; }).join('')}</div>
+    <div class="da-bar"><button id="tk-more" title="続き（1-1-2）・掘り下げ（1-1a）など、番号を打って作る">番号を打って作る…</button><span class="grow"></span><button id="tk-cancel">やめる</button></div></div>`;
+  $('#modal').style.display = 'flex';
+  const close = () => { $('#modal').style.display = 'none'; };
+  $('#modal .tk-list').onclick = e => { const b = e.target.closest('[data-num]'); if (!b) return; close(); const have = find(b.dataset.num); if (have) openTopic(have.name, 'view'); else makeTopicAt(r, b.dataset.num); };
+  $('#tk-cancel').onclick = close; $('#tk-more').onclick = () => { close(); topicNewDialog('', r, 'd'); };
+  $('#modal').onkeydown = e => { if (e.key === 'Escape') close(); };
+}
 async function regionAct(act) {
   const n = cur.id;
   if (act === 'rgset') return regionDialog(n);
   if (act === 'rgnote') return create('d', nextRegionKid(n));   // 新しい子ノート（区画の次の番号。ノートが開く）
-  if (act === 'rgmk') {   // 無名で作る（番号だけで呼ぶ）
-    const t = { name: autoName('d', n), entry: { s: 'd', id: n }, keyword: '', text: '' };
-    const sv = await api.saveTopic(t); if (!sv) return alert('保存できませんでした');
-    const st = await api.state(); if (st) applyState(st); openRegion(n, true);
-  }
+  if (act === 'rgmk') return topicKindDialog(n);   // どの地図を作るか選ぶ
 }
 function regionDialog(n) {
   const g = regions.find(x => x.n === n) || { name: '', keywords: [] }, kws = g.keywords || [];
@@ -2126,11 +2146,7 @@ function regionDialog(n) {
     const name = $('#rg-name').value.trim(), st0 = await api.saveRegion(n, name); if (st0) applyState(st0);
     keywordDialog(null, { keywords: [...kws], async save() { const st = await api.saveRegion(n, name, this.keywords); if (st) applyState(st); }, after() { renderList(); regionRefresh(n); regionDialog(n); } });
   };
-  $('#rg-mk').onclick = async () => {   // 新しい索引は、無名で作る（番号だけで呼ぶ）。区画の名前には触らない
-    const t = { name: autoName('d', n), entry: { s: 'd', id: n }, keyword: '', text: '' };
-    const sv = await api.saveTopic(t); if (!sv) return alert('保存できませんでした');
-    close(); const st = await api.state(); if (st) applyState(st); renderList(); regionRefresh(n);
-  };
+  $('#rg-mk').onclick = () => { close(); topicKindDialog(n); };   // どの地図を作るか選ぶ。区画の名前には触らない
   $('#modal').onkeydown = e => { if (e.key === 'Escape') close(); };
 }
 function topicNewDialog(kw = '', presetId = '', side = 'd') {
@@ -2270,20 +2286,46 @@ function mapLineHtml(t, line) {
   return `${mk ? `<span class="tmk">${mk}</span>` : ''}${name ? `<span class="tm-kw">${esc(name)}</span>` : ''}${ids ? `<span class="tm-ids">${ids}</span>` : ''}`;
 }
 // 地図を開く。地図がまだ無い索引（今までのリスト型）は、ここで地図に作り替えて保存する（索引の文字は変えない）
+// 索引の地図: ブレストと同じ盤面（tb）。引く道具（タロットなど）は出さない。ノード = 索引の 1 行（「キーワード ID ID …」）。
+// 線・線のひとこと・色・グループの枠は、地図（t.map）に持つ。索引の文字は、ノードの並びから作る
 function mountTopicMap(t, focus) {
   const el = $('#tmap'); if (!el) return;
   const text = L.topicText(t), m = TopicMap.reconcile(t.map, text);
   if (!t.map || !TopicMap.same(t.map, m)) { t.map = m; saveTopic(t); }
   const vs = viewOf(cur), def = L.defOf(t);
-  const mb = mountMap(el, { map: m, render: line => mapLineHtml(t, line), view: vs && vs.bv,
-    onChange: nm => { t.map = nm; t.text = TopicMap.toText(nm); saveTopic(t); renderList(); },
-    search: ins => InsertSearch.open({ space: def, insert: x => ins(x == null ? x : x.replace(/^->/, '').replace(/->(\s*)$/, '$1')) }),   // 索引の行には、ID だけを書く
-    peek: (a, nel) => { const x = (L.topicLine(a.text).ids || [])[0]; if (x) { const { id, n } = L.splitAnchor(x.raw); peekNote(get(x.sp || def, id), nel, n); } } });
-  curBoard = { el, api: mb.engine };
-  if (focus) {   // ノートから飛んできたら、そのノートの ID のノードを示す
-    const c = el.querySelector(`.bb-node .chip[data-s="${focus.s}"][data-id="${CSS.escape(focus.id)}"]`);
-    const n = c && c.closest('.bb-node'); if (n) { skipRestore(); mb.focusNode(+n.dataset.n, 'tfocus'); }
-  }
+  tbWin(() => {}); el.append(tbFrame);
+  const here = r => { const f = tbFrame.getBoundingClientRect(); return { getBoundingClientRect: () => ({ left: f.left + r.left, top: f.top + r.top, right: f.left + r.right, bottom: f.top + r.bottom, width: r.width, height: r.height }) }; };
+  const host = {
+    id: topicNo(t),
+    change() {
+      const w = tbFrame.contentWindow; if (!w || w.TB.host !== host) return;
+      const nm = TopicMap.fromBoard(w.TB.board(), t.map); t.map = nm; t.text = TopicMap.toText(nm); saveTopic(t); renderList();
+    },
+    title() { },
+    menu() { },
+    key(e) { document.body.dispatchEvent(new KeyboardEvent('keydown', { key: e.key, code: e.code, ctrlKey: e.ctrlKey, shiftKey: e.shiftKey, altKey: e.altKey, metaKey: e.metaKey, bubbles: true, cancelable: true })); },
+    chip(c) { enterFrom(here(c.getBoundingClientRect())); onOpenClick({ target: c, stopPropagation() { } }); },
+    chipMenu(c, e) {   // 番号の右クリック: 赤い点（この行のメイン）を付ける・外す
+      const f = tbFrame.getBoundingClientRect(), s = c.dataset.s, id = c.dataset.id; if (!s || !id) return;
+      popMenu({ clientX: f.left + e.clientX, clientY: f.top + e.clientY, preventDefault() { }, stopPropagation() { } }, [[c.classList.contains('dot') ? '⚪ 赤点を外す' : '🔴 赤点を付ける（この行のメイン）', () => { toggleDot(t, s, id); rowDots = null; openTopic(t.name, 'view', true); }]]);
+    },
+    renderText: line => mapLineHtml(t, line),
+    nodeMenu: () => [],
+    search: ins => InsertSearch.open({ space: def, insert: (x, it) => ins(x == null ? x : (it && it.type === 'note' && it.label && !(it.x && it.x.kind === 'diary') ? `${String(it.label).replace(/\s+/g, ' ').trim()} ${x.replace(/^->/, '').replace(/->(\s*)$/, '$1')}` : x.replace(/^->/, '').replace(/->(\s*)$/, '$1'))) }),   // 索引の行には、ID だけ（ノートなら、題をキーワードにして）
+    peek(line, r) { const x = (L.topicLine(line).ids || [])[0]; if (!x) return false; const { id, n } = L.splitAnchor(x.raw), nn = get(x.sp || def, id); if (!nn) return false; peekNote(nn, here(r), n); return true; },
+  };
+  tbWin(w => {
+    if (!tbFrame.isConnected || !$('#tmap')) return;
+    w.TB.mount(TopicMap.toBoard(t.map), host, { view: vs && vs.tbv, plain: true });
+    if (!(vs && vs.tbv)) { setTimeout(() => w.TB.fit(), 120); setTimeout(() => w.TB.fit(), 500); }   // 枠の大きさが決まってから、全体が入るように
+    curBoard = { el: tbFrame, vkey: 'tbv', api: { get view() { const v = w.TB.view; return { s: v.s, tx: v.tx, ty: v.ty }; }, fit: () => w.TB.fit() } };
+    if (focus) {   // ノートから飛んできたら、そのノートの ID のノードを示す
+      const hit = w.TB.B().nodes.find(a => a.t === 'idea' && (L.topicLine(a.text).ids || []).some(x => (x.sp || def) === focus.s && L.splitAnchor(x.raw).id === focus.id));
+      if (hit) { skipRestore(); w.TB.select(hit.id); w.TB.reveal(hit); }
+    }
+    const take = () => { if (tbFrame.isConnected && !$('#q').matches(':focus')) { tbFrame.focus(); w.focus(); } };
+    take(); setTimeout(take, 80);
+  });
 }
 function openTopic(name, tmode = 'view', keep, focus) {   // focus: ノートから飛んできたとき、そのノート { s, id }（その行を示す）
   const t = topics.find(x => x.name === name); if (!t) return;
@@ -2306,8 +2348,8 @@ function openTopic(name, tmode = 'view', keep, focus) {   // focus: ノートか
       <div class="ed" id="ed-t"></div>`;
   else if (tmode === 'conf') body = `<div class="tconf">
       <div class="tc-row"><span class="tc-l">📝 名前</span><input id="t-name" value="${esc(t.name)}"></div>
-      <div class="tc-row"><span class="tc-l">🌳 親</span><select id="t-s"><option value="d"${e && e.s === 'd' ? ' selected' : ''}>デジタル</option><option value="p"${e && e.s === 'p' ? ' selected' : ''}>紙</option></select>
-        <input id="t-id" value="${e ? esc(e.id) : ''}" style="width:110px" placeholder="番号"><span class="sub">この索引の親になるノートの番号</span></div>
+      <div class="tc-row"><span class="tc-l">🔢 番号</span><select id="t-s"><option value="d"${e && e.s === 'd' ? ' selected' : ''}>デジタル</option><option value="p"${e && e.s === 'p' ? ' selected' : ''}>紙</option></select>
+        <input id="t-no" value="${esc(topicNo(t))}" style="width:120px" placeholder="例: 1-3" autocomplete="off"><span class="sub">区画の番号-何番目（1-3・1-0 雑の地図・1-all 地図の地図・1-1-2 続き・1-1a 掘り下げ）</span></div>
       <div class="tc-bar"><button class="tbtn p" data-act="tsave">✅ 決定</button><button class="tbtn" data-act="tcancel">やめる</button>
         <span class="grow"></span><button class="tbtn danger" data-act="tdel">🗑️ この索引を削除</button></div></div>`;
   else {
@@ -2329,10 +2371,10 @@ function openTopic(name, tmode = 'view', keep, focus) {   // focus: ノートか
   // 索引の画面は、右パネルなし。全部、上に: 題 → 🌳 親・↑ 上位トピック → 索引の中身
   $('#pane').innerHTML = `
     <div class="row thead">
-      <span class="ti-ic">📑</span><h2 class="tname" data-act="trename" title="押して、名前を変える">${esc(topicLabel(t))}${isAuto(t.name) ? ' <small class="sub">（名前を付ける）</small>' : ''}</h2>
+      ${topicNo(t) ? `<button class="tno" data-act="tconf" title="番号を変える">${esc(topicNo(t))}</button>` : ''}<h2 class="tname" data-act="trename" title="押して、名前を変える">${isAuto(t.name) ? '<span class="sub">（名前を付ける）</span>' : esc(stripId(t.name))}</h2>
       <span class="grow"></span>
       ${tmode === 'conf' ? '' : `<span class="tview"><button class="tbtn${tmode === 'view' ? ' on' : ''}" data-act="tmapv" title="地図（ブレスト型）で見る・直す">地図</button><button class="tbtn${tmode === 'list' ? ' on' : ''}" data-act="tlistv" title="今までのリストで見る">リスト</button></span>
-      <button class="tbtn" data-act="tconf" title="名前・親・点のキーワードを変える">⚙️ 名前・親</button>
+      <button class="tbtn" data-act="tconf" title="名前・番号を変える">⚙️ 名前・番号</button>
       <button class="tbtn ${tmode === 'edit' ? 'p' : ''}" data-act="tedit">${tmode === 'edit' ? '✅ 完了' : '✏️ 編集'}</button>`}
     </div>
     <div class="row tmeta">
@@ -2347,7 +2389,7 @@ function openTopic(name, tmode = 'view', keep, focus) {   // focus: ノートか
     const def = L.defOf(t), v = editor($('#ed-t'), L.topicText(t), 'topic', def, x => { t.text = x; saveTopic(t); }, `PKM 1a 3(p)`, () => L.topicText(t));
     v.focus();
   }
-  if (tmode === 'conf') $('#t-id').focus();
+  if (tmode === 'conf') $('#t-no').focus();
   if (tmode === 'view') mountTopicMap(t, focus);
   renderTabs(); renderList(); if (!$('#q').value) centerOn();   // 開いた索引 の行が、一覧の真ん中に（青い枠）
 }
@@ -2529,17 +2571,18 @@ async function topicAct(act) {
   if (act === 'tcancel') return openTopic(t.name, 'view', true);
   if (act === 'tdel') return deleteTopicNamed(t.name);
   if (act === 'tsave') {
-    const s = $('#t-s').value, id = $('#t-id').value.trim().toLowerCase();
-    const name = $('#t-name').value.trim() || (isAuto(t.name) ? t.name : autoName(s, id));   // 空なら、無名
+    const s = $('#t-s').value, no = parseTopicNo($('#t-no').value);
+    if (!no || !L.isRegionOnly(no.id)) return alert('番号は「区画の番号-何番目」の形です（例: 1-3）。ノートの ID（1a-1 など）にはできません');
+    if (Number.isNaN(no.num) || !no.num) return alert('「-」の後ろは、1・2 …、0（雑の地図）、all（地図の地図）、1-2（続き）、1a（掘り下げ）の形です');
+    const name = $('#t-name').value.trim() || (isAuto(t.name) ? `無名${no.id}-${no.num}` + (s === 'p' ? 'p' : '') : t.name);
     if (name !== t.name && topics.find(x => x.name === name)) return alert('その名前は既にあります');
-    if (!get(s, id) && !(s === 'd' && L.isRegionOnly(id))) return alert(`${SP[s]} ${id} というノートはありません`);   // 区画の番号（ノートなし）は、親にできる
-    const kw = t.keyword || '';   // 点のキーワードは、この画面では変えない（赤い点は、右クリックや ID の前の * で付ける）
+    if (topics.some(x => x !== t && x.entry && x.entry.s === s && x.entry.id === no.id && String(x.num) === String(no.num))) return alert(`${no.id}-${no.num} の索引は、もうあります`);
     await flush();
-    t.keyword = kw;
-    await ensureKeyword(s, id, kw);
-    const old = t.name; t.name = name; t.entry = { s, id };
+    const old = t.name, oldNo = topicNo(t); t.name = name; t.entry = { s, id: no.id }; t.num = no.num; t.renum = true;
     { const sv = await api.saveTopic(t, old); if (sv && sv !== true) t.num = sv; }
+    delete t.renum;
     for (const x of tabs) if (x.k === 'topic' && x.name === old) x.name = name;
+    if (topicNo(t) !== oldNo) toast(`番号を ${oldNo} から ${topicNo(t)} に変えました`);
     openTopic(name, 'view', true);
   }
 }
@@ -2555,26 +2598,31 @@ const upsertDiary = (r, since = saves.revision) => {
 if (curKind !== 'メモ帳') lastRec = curKind;
 const setKind = k => { curKind = k; if (k !== 'メモ帳') lastRec = k; try { localStorage.setItem('pkm-kind', k); } catch { } };
 const kindIcon = n => n === '日記' ? '📔' : n === 'メモ帳' ? '🗒️' : '📓';
+const diaryOpen = new Set();   // ひらいている月（日記の一覧）。いちばん新しい月は、いつもひらく
+const dayLine = d => { const t = (d.title || '').trim(); if (t) return t; const l = Stamp.strip(d.body || '').split('\n').map(x => x.replace(/^#+\s*/, '').replace(/\[([^\]]*)\]\([^)]*\)/g, '$1').trim()).find(x => x && !/^:\S+$/.test(x)); return l || ''; };
 function diaryList() {
   if (!records.some(r => r.name === curKind)) setKind('日記');
   const kind = curKind, mine = diaries.filter(d => (d.kind || '日記') === kind);
-  const dayRow = d => `<div class="day${cur && cur.k === 'diary' && cur.date === d.date && (cur.kind || '日記') === kind ? ' on' : ''}" data-diary="${d.date}" data-kind="${esc(kind)}"><span>${d.date.slice(8)}（${L.weekday(d.date)}）</span><small>${esc(d.title)}${d.pages.length ? ' 📷' : ''}</small></div>`;
-  const tree = L.diaryTree(mine.map(d => d.date));
-  if (diarySortDir === 'asc') { tree.reverse(); for (const g of tree) { if (g.months) { g.months.reverse(); for (const m of g.months) m.days.reverse(); } else g.days.reverse(); } }   // 昇順: 古い日から
-  const grp = (label, inner, open) => `<details${open ? ' open' : ''}><summary>${label}</summary>${inner}</details>`;
-  const days = ds => ds.map(x => dayRow(getDiary(x, kind))).join('');
-  let first = true;
-  const html = tree.map(g => {
-    const open = first; first = false;
-    return grp(g.label, g.months ? g.months.map((m, i) => grp(m.label, days(m.days), open && i === 0)).join('') : days(g.days), open);
+  // 普通のノートの一覧と同じ形: 1 行 =「番号（日付）　題」。月の見出しは区画の行と同じ形
+  const dayRow = d => { const on = cur && cur.k === 'diary' && cur.date === d.date && (cur.kind || '日記') === kind; return `<div class="item note drow${on ? ' on' : ''}" data-diary="${d.date}" data-kind="${esc(kind)}"><div class="nrow"><div class="nt"><b class="nid">${d.date.slice(8)}（${L.weekday(d.date)}）</b><span class="ntx">${d.pages && d.pages.length ? '📷 ' : ''}${esc(dayLine(d)) || '<span class="sub">（まだ何も書いていません）</span>'}</span></div></div></div>`; };
+  const months = new Map();
+  for (const d of mine.slice().sort((a, b) => b.date.localeCompare(a.date))) { const m = d.date.slice(0, 7); (months.get(m) || months.set(m, []).get(m)).push(d); }
+  const order = [...months.keys()]; if (diarySortDir === 'asc') order.reverse();
+  const newest = [...months.keys()][0];
+  const html = order.map(m => {
+    const open = m === newest || diaryOpen.has(m) || (cur && cur.k === 'diary' && (cur.kind || '日記') === kind && cur.date.slice(0, 7) === m), ds = months.get(m).slice(); if (diarySortDir === 'asc') ds.reverse();
+    return `<div class="item region dmonth" data-dmonth="${m}"><div class="nrow"><div class="nt"><i class="dmf">${open ? '▾' : '▸'}</i><b>${m.slice(0, 4)}年${+m.slice(5)}月</b><span class="sub">${ds.length}</span></div></div></div>${open ? ds.map(dayRow).join('') : ''}`;
   }).join('');
   const kbtn = kind === 'メモ帳' ? `<span class="dkind static">メモ帳</span>` : `<button class="dkind" data-kindopen title="時系列記録を選ぶ・探す・直す">${esc(kind)} ▾</button>`;
-  return `<div id="dlist"><div class="dtop first">${kbtn}<button class="p" id="d-today" title="今日の${esc(kind)}を開く（無ければ作る）">今日</button><input type="date" id="d-pick" value="${L.todayStr()}" title="日付を選ぶと、その日の${esc(kind)}を開きます（無ければ作る）"></div>${html || `<div class="none">${esc(kind)}はまだありません</div>`}</div>`;
+  const cal = `<button class="dcal" id="d-cal" title="日付を選ぶ（その日の${esc(kind)}を開く。無ければ作る）" aria-label="日付を選ぶ"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><rect x="4" y="5" width="16" height="15" rx="2"/><path d="M4 10h16M9 3v4M15 3v4"/></svg></button><input type="date" id="d-pick" class="dpick" value="${L.todayStr()}" tabindex="-1" aria-hidden="true">`;
+  return `<div id="dlist"><div class="dtop first">${kbtn}<span class="grow"></span><button class="p" id="d-today" title="今日の${esc(kind)}を開く（無ければ作る）">今日</button>${cal}</div>${html || `<div class="none">${esc(kind)}はまだありません</div>`}</div>`
 }
 document.addEventListener('click', e => { if (e.target.closest('[data-kindopen]')) recordsDialog(); });
 $('#list').addEventListener('change', e => { if (e.target.id === 'd-pick' && L.isDate(e.target.value)) openDiary(e.target.value); });
 $('#list').addEventListener('click', e => {
-  if (e.target.id === 'd-today') openDiary(L.todayStr());
+  if (e.target.closest('#d-today')) return openDiary(L.todayStr());
+  if (e.target.closest('#d-cal')) { const i = $('#d-pick'); if (i) { try { i.showPicker(); } catch { i.focus(); } } return; }
+  const dm = e.target.closest('[data-dmonth]'); if (dm) { const m = dm.dataset.dmonth; diaryOpen.has(m) ? diaryOpen.delete(m) : diaryOpen.add(m); renderList(); }
 });
 // 上位の選び方: 印を押して、入れる・外す（いくつでも）
 // 記録の種類（日記・夢・ビジネス…）を管理する: 足す・上位・名前を変える・まとめる・消す
@@ -2585,7 +2633,7 @@ function recordsDialog() {
   const FIXED = ['日記', 'メモ帳'];
   const apply = async (op, ...a) => { await flush(); const r = await api.recordOp(op, ...a); if (r === false) { alert('できませんでした（名前が使えない・すでにある・輪になる、など）'); return false; } const st = await api.state(); applyState(st); records = st.records; return true; };
   const plain = d => Stamp.strip(d.body || '').replace(/^##.*$/gm, '').replace(/\[[^\]]*\]\([^)]*\)/g, '').replace(/^\s*:\S+\s*$/gm, '').trim();
-  dialog(`<div class="rd"><input id="rd-q" placeholder="🔎" autocomplete="off" aria-label="時系列記録を探す"><div id="rd-list"></div><div class="rd-add"><input id="rd-new" placeholder="＋ 新しい種類（例: 夢）" autocomplete="off"><button class="p" id="rd-addb" title="足す" aria-label="足す">＋</button></div></div>`, close => {
+  dialog(`<div class="rd"><input id="rd-q" placeholder="時系列記録を探す（種類・日付・題・本文）" autocomplete="off" aria-label="時系列記録を探す"><div id="rd-list"></div><div class="rd-add"><input id="rd-new" placeholder="新しい種類を足す（例: 夢）" autocomplete="off"><button class="p" id="rd-addb" title="足す" aria-label="足す">＋</button></div></div>`, close => {
     const box = $('#rd-list');
     const rank = n => FIXED.indexOf(n) < 0 ? 9 : FIXED.indexOf(n);
     const build = () => {
@@ -2680,10 +2728,10 @@ async function openDiary(date, keep, kind, toEnd) {
       <span class="dt">${date}（${L.weekday(date)}）</span>
       <span class="grow"></span>
       <button data-act="dprev" class="ic dj" title="前の${esc(kind)}" aria-label="前">${ICO.prev}</button><button data-act="dnext" class="ic dj" title="次の${esc(kind)}" aria-label="次">${ICO.next}</button>
-      <button data-act="table" class="ic dj" title="表を入れる" aria-label="表">📊</button><button data-act="board" class="ic dj" title="ボードを入れる（Ctrl+G）文字と線を、紙のように書ける" aria-label="ボード">🖍️</button>
-      <button data-act="attach" class="ic dj" title="ファイルを添付（ドラッグや貼り付けでも）" aria-label="添付">📎</button>
-      ${kind === 'メモ帳' ? `<button data-act="pmemo" class="ic dj${pmemoShown ? ' on' : ''}" title="紙のメモ帳（スマホで撮った写真）と、切り替える" aria-label="紙のメモ帳">📓</button>` : ''}
-      <button data-act="ddel" class="ic dj" title="この日の記録を削除" aria-label="削除">🗑️</button>
+      <button data-act="table" class="ic dj" title="表を入れる" aria-label="表">${ICO.table}</button><button data-act="board" class="ic dj" title="ボードを入れる（Ctrl+G）文字と線を、紙のように書ける" aria-label="ボード">${ICO.board}</button>
+      <button data-act="attach" class="ic dj" title="ファイルを添付（ドラッグや貼り付けでも）" aria-label="添付">${ICO.attach}</button>
+      ${kind === 'メモ帳' ? `<button data-act="pmemo" class="ic dj${pmemoShown ? ' on' : ''}" title="紙のメモ帳（スマホで撮った写真）と、切り替える" aria-label="紙のメモ帳">${ICO.book}</button>` : ''}
+      <button data-act="ddel" class="ic dj" title="この日の記録を削除" aria-label="削除">${ICO.trash}</button>
     </div>
     <textarea class="ntitle" id="d-title" rows="1" placeholder="タイトル" spellcheck="false">${esc(d.title || '')}</textarea>
     ${kind !== '日記' && kind !== 'メモ帳' ? `<div class="row sub" title="上位の時系列記録（選ぶと変えられる）"><span class="dh-upl" aria-hidden="true">↑</span>${(d.parents && d.parents.length ? d.parents : ['日記']).map(r => `<span class="rchip on" data-dparpick>${esc(r)}</span>`).join('')}<button class="dh-pen" data-dparpick title="上位を選ぶ" aria-label="上位を選ぶ">✏️</button></div>` : ''}

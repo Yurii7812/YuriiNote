@@ -27,7 +27,7 @@ async function app() {
   return { w, $, $$, store, dir, close: () => w.close() };
 }
 
-test('0 は「全体の目次」。区画の行の下に、その区画の索引（n-all・n-0 は、まだ無くても行が出る）。昔の 1a2-1 は 1-2 に付け直す', async () => {
+test('0 は「全体の目次」。区画の行の下に、作った索引だけ（n-all・n-0 は最初から出さない。作るとき選ぶ）。昔の 1a2-1 は 1-2 に付け直す', async () => {
   const a = await app();
   try {
     a.$('#rail button[data-mode="notes"]').click(); await tick(200);
@@ -35,14 +35,19 @@ test('0 は「全体の目次」。区画の行の下に、その区画の索引
     const rows = a.$$('#list > .item').map(e => e.className.includes('region') ? 'R:' + e.textContent.trim().replace(/\s+/g, ' ') : e.className.includes('vtopic') ? 'V:' + e.querySelector('.nt').textContent : e.className.includes('topicrow') ? 'T:' + e.querySelector('.nt').textContent : 'N:' + e.querySelector('.nid').textContent);
     assert.strictEqual(rows[0], 'R:0 全体の目次', '0 の区画');
     const i1 = rows.findIndex(r => r.startsWith('R:1'));
-    assert.deepStrictEqual(rows.slice(i1 + 1, i1 + 5), ['V:1-all', 'V:1-0', 'T:1-1 全体', 'T:1-2 昔の索引'], '区画の行の下に、all → 0 → 1 → 2');
+    assert.deepStrictEqual(rows.slice(i1 + 1, i1 + 3), ['T:1-1 全体', 'T:1-2 昔の索引'], '区画の行の下には、作ったものだけ（1-all・1-0 は出さない）');
+    assert.ok(!a.$('#list .vtopic'), '「まだ」の行は無い');
     const old = a.store.state().topics.find(t => t.name === '昔の索引');
     assert.deepStrictEqual([old.entry.id, old.num], ['1', 2], '昔の ID の番号の索引は、区画の番号に（中身・名前はそのまま）');
     assert.strictEqual(old.text.trim(), '語 1a');
-    a.$('#list .vtopic[data-vtopic="1|all"]').click(); await tick(500);
-    assert.ok(a.store.state().topics.some(t => t.entry.id === '1' && String(t.num) === 'all'), '押すと 1-all を作る');
+    a.$('#list .item.region[data-region="1"]').click(); await tick(300);
+    a.$('#pane [data-act="rgmk"]').click(); await tick(300);
+    assert.deepStrictEqual(a.$$('#modal .tk-opt').map(b => b.dataset.num), ['3', '0', 'all'], 'どの地図を作るか選ぶ（話題・雑・地図の地図）');
+    a.$('#modal .tk-opt[data-num="all"]').click(); await tick(500);
+    assert.ok(a.store.state().topics.some(t => t.entry.id === '1' && String(t.num) === 'all'), '選ぶと 1-all を作る');
     a.$('#list .item.region[data-region="0"]').click(); await tick(300);
-    a.$('#pane [data-act="rgmk"]').click(); await tick(500);
+    a.$('#pane [data-act="rgmk"]').click(); await tick(300);
+    a.$('#modal .tk-opt').click(); await tick(500);
     assert.ok(a.store.state().topics.some(t => t.entry.id === '0'), '0 の索引も作れる');
   } finally { a.close(); }
 });

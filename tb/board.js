@@ -87,14 +87,14 @@
     if (n.t === "card") {
       const D = TB.deckOf(n), it = TB.item(n);
       const el = h("div", { class: `node card deck-${n.deck}${it ? "" : " empty"}${sel}`, "data-id": n.id, style: `left:${n.x - D.w / 2}px;top:${n.y - D.h / 2}px;width:${D.w}px;height:${D.h}px` },
-        cardInner(n), h("div", { class: "plaque" }, h("b", { text: TB.slotName(n) }), it ? h("span", { text: D.short(it, n.rev) }) : null,
+        cardInner(n), n.deck === "prompt" && it && !(n.pos && n.pos.trim()) && !(n.mine && n.mine.trim()) ? null : h("div", { class: "plaque" }, h("b", { text: TB.slotName(n) }), it ? h("span", { text: D.short(it, n.rev) }) : null,
           n.pos && n.pos.trim() ? h("div", { class: "reading", text: n.pos.trim() }) : null,
           n.mine && n.mine.trim() ? h("div", { class: "reading mine", text: n.mine.trim() }) : null));
       const k = dealing.get(n.id);
       if (k) { el.classList.add("deal"); el.style.setProperty("--dx", k.dx + "px"); el.style.setProperty("--dy", k.dy + "px"); el.style.setProperty("--dly", k.i * 140 + "ms"); }
       return el;
     }
-    const box = n.box === "line" || n.box === "fill" ? " box-" + n.box : "", col = n.color ? `;--ic:${n.color}` : "";
+    const box = n.box === "line" || n.box === "fill" ? " box-" + n.box : "", col = (n.color ? `;--ic:${n.color}` : "") + (n.bc ? `;--bc:${n.bc}` : "");
     return h("div", { class: `node idea${n.center ? " center" : ""}${box}${n.color ? " colored" : ""}${sel}`, "data-id": n.id, style: `left:${n.x}px;top:${n.y}px${col}` },
       ideaTxt(n));
   }
@@ -104,7 +104,7 @@
     if (TB.host && TB.host.renderText) el.innerHTML = TB.host.renderText(n.text); else el.textContent = n.text;
     return el;
   }
-  const frameEl = (f) => h("div", { class: "frame" + (TB.sel.includes(f.id) ? " sel" : ""), "data-frame": f.id, style: `left:${f.x}px;top:${f.y}px;width:${f.w}px;height:${f.h}px` },
+  const frameEl = (f) => h("div", { class: "frame" + (TB.sel.includes(f.id) ? " sel" : ""), "data-frame": f.id, style: `left:${f.x}px;top:${f.y}px;width:${f.w}px;height:${f.h}px` + (f.color && f.color !== TB.FRAME_COLORS[0] ? `;--fc:${f.color}` : "") },
     h("div", { class: "frame-title", text: f.title || "グループ" }), h("div", { class: "frame-resize", title: "大きさを変える" }));
   const textEl = (t) => h("div", { class: "note" + (TB.sel.includes(t.id) ? " sel" : ""), "data-text": t.id, style: `left:${t.x}px;top:${t.y}px;color:${TB.ink(t.color)}`, text: t.text });
 
@@ -129,7 +129,7 @@
   function drawLinks(svg, b) {
     for (const { l, g } of TB.routeLinks(b)) {
       const k = TB.linkKind(l);
-      const gr = h("g", { class: `link k-${k}` + (TB.selLink === l.id ? " on" : ""), "data-link": l.id },
+      const gr = h("g", { class: `link k-${k}` + (TB.selLink === l.id || TB.sel.includes(l.id) ? " on" : ""), "data-link": l.id, style: l.color ? `--lc:${l.color}` : null },
         h("path", { class: "link-hit", d: g.d }), h("path", { class: "link-line", d: g.d }));
       const head = (p, ang) => { const a = 11, w = 0.42; return h("polygon", { class: "link-head", points: [[p.x, p.y], [p.x - a * Math.cos(ang - w), p.y - a * Math.sin(ang - w)], [p.x - a * Math.cos(ang + w), p.y - a * Math.sin(ang + w)]].map((q) => q.map((v) => v.toFixed(1)).join(",")).join(" ") }); };
       if (k === "arrow" || k === "both") gr.append(head(g.p1, g.ang1));
@@ -147,7 +147,10 @@
     for (const id of TB.sel) { const el = world.querySelector(`[data-id="${CSS.escape(id)}"],[data-frame="${CSS.escape(id)}"],[data-text="${CSS.escape(id)}"],[data-sid="${CSS.escape(id)}"]`); if (el) el.classList.add("sel"); }
     world.querySelectorAll(".link.on").forEach((x) => x.classList.remove("on"));
     if (TB.selLink) { const g = world.querySelector(`.link[data-link="${CSS.escape(TB.selLink)}"]`); if (g) g.classList.add("on"); }
+    for (const id of TB.sel) { const g = world.querySelector(`.link[data-link="${CSS.escape(id)}"]`); if (g) g.classList.add("on"); }   // 範囲で選んだ線
   };
+  TB.isLinkId = (id) => TB.B().links.some((l) => l.id === id);
+  TB.selLinks = () => TB.sel.filter(TB.isLinkId);
   TB.select = (ids, opt) => {
     TB.sel = ids ? [].concat(ids) : []; TB.selLink = null; $("#pop").hidden = true;
     TB.markSel(); TB.renderDrawer(opt);
@@ -187,6 +190,7 @@
     if (e.button !== 0) return;
     e.preventDefault();
     if (document.activeElement && document.activeElement !== document.body && !board.contains(document.activeElement)) document.activeElement.blur();
+    if (e.ctrlKey && t.type === "link") { return drag(e, { up: (ev, m) => { if (!m) TB.toggleSel(t.id); } }); }
     if (e.ctrlKey && ["node", "text", "frame", "stroke"].includes(t.type)) { startMove(e, t); return; }
     if (e.ctrlKey) { lasso(e); return; }
     if (t.type === "node") return nodeDown(e, t.id);
@@ -203,6 +207,7 @@
 
   // ---- 右ボタン: 短く押すとメニュー。カード・文字・枠・ペンの線の上でドラッグすると動かす（選んでいれば、まとめて）。空きでドラッグすると画面を動かす ----
   function rightDown(e, t) {
+    { const c = e.target.closest(".chip"); if (c && TB.host && TB.host.chipMenu) { TB.host.chipMenu(c, e); return; } }
     const movable = ["node", "text", "frame", "stroke"].includes(t.type);
     let pan = null, op = null;
     drag(e, {
@@ -264,7 +269,7 @@
   }
   // ---- 選ぶ（Ctrl+クリックで足す・外す／Ctrl+空きをドラッグで囲む） ----
   TB.toggleSel = (id) => { TB.select(TB.sel.includes(id) ? TB.sel.filter((x) => x !== id) : [...TB.sel, id], { quiet: true }); };
-  TB.selectAll = () => { const b = TB.B(); TB.select([...b.nodes.map((n) => n.id), ...b.frames.map((f) => f.id), ...b.items.map((i) => i.id)], { quiet: true }); };
+  TB.selectAll = () => { const b = TB.B(); TB.select([...b.nodes.map((n) => n.id), ...b.links.map((l) => l.id), ...b.frames.map((f) => f.id), ...b.items.map((i) => i.id)], { quiet: true }); };
   function lasso(e) {
     const box = $("#lasso"), r0 = board.getBoundingClientRect(), keep = TB.sel.slice();
     const rectOf = (ev) => ({ x0: Math.min(e.clientX, ev.clientX), y0: Math.min(e.clientY, ev.clientY), x1: Math.max(e.clientX, ev.clientX), y1: Math.max(e.clientY, ev.clientY) });
@@ -273,6 +278,12 @@
       const hitR = (x0, y0, x1, y1) => x0 < z.x && x1 > a.x && y0 < z.y && y1 > a.y;
       for (const n of b.nodes) { const r = TB.rectOf(n); if (hitR(r.x - r.w / 2, r.y - r.h / 2, r.x + r.w / 2, r.y + r.h / 2)) out.push(n.id); }
       for (const f of b.frames) if (f.x >= a.x && f.y >= a.y && f.x + f.w <= z.x && f.y + f.h <= z.y) out.push(f.id);
+      const nodeIn = new Set(out);
+      for (const l of b.links) {   // 線: 両端のノードが囲みの中、または線の途中が囲みに入る
+        if (nodeIn.has(l.a) && nodeIn.has(l.b)) { out.push(l.id); continue; }
+        const A = TB.node(l.a), B = TB.node(l.b); if (!A || !B) continue;
+        for (let i = 1; i < 12; i++) { const px = A.x + (B.x - A.x) * i / 12, py = A.y + (B.y - A.y) * i / 12; if (px > a.x && px < z.x && py > a.y && py < z.y) { out.push(l.id); break; } }
+      }
       for (const it of b.items) {
         if (it.type === "text") { const el = world.querySelector(`[data-text="${CSS.escape(it.id)}"]`), w = el ? el.offsetWidth : 40, hh = el ? el.offsetHeight : 29; if (hitR(it.x, it.y, it.x + w, it.y + hh)) out.push(it.id); }
         else { for (let i = 0; i + 1 < it.pts.length; i += 2) if (it.pts[i] > a.x && it.pts[i] < z.x && it.pts[i + 1] > a.y && it.pts[i + 1] < z.y) { out.push(it.id); break; } }
@@ -348,6 +359,19 @@
     TB.renderBoard(); TB.reveal(n);
     TB.editIdea(n.id, true);
     return n;
+  };
+  // 検索して挿入する画面（親の画面）から選んだものを、新しい文字として足す（選んでいるものがあれば、それにつなぐ）
+  TB.searchAdd = () => {
+    if (!TB.host || !TB.host.search) return;
+    const par = TB.node(TB.sel[TB.sel.length - 1]), parent = par && par.t === "idea" ? par.id : null;
+    TB.host.search((t) => {
+      const text = String(t == null ? "" : t).replace(/\s+$/, ""); if (!text) return;
+      TB.snap();
+      const b = TB.B(), pos = parent ? TB.placeNear(parent) : (() => { const r = board.getBoundingClientRect(), c = TB.toWorld(r.left + r.width / 2, r.top + r.height / 2); return { x: Math.round(c.x), y: Math.round(c.y) }; })();
+      const n = TB.ideaNode({ x: pos.x, y: pos.y, text });
+      b.nodes.push(n); if (parent) b.links.push({ id: TB.uid(), a: parent, b: n.id, kind: "line", label: "" });
+      TB.save(); TB.renderBoard(); TB.select(n.id); TB.reveal(n);
+    });
   };
   const parentOf = (id) => { const l = TB.B().links.find((x) => x.b === id); return l && l.a; };
   TB.editIdea = (id, isNew) => {
@@ -454,6 +478,13 @@
     b.frames.push(f); TB.save(); TB.renderBoard(); TB.select(f.id); editFrameTitle(f.id);
   };
   // アイデアの見た目: 枠（なし・線・塗り）と色
+  // 選んでいる線の種類・色・向きを、まとめて変える
+  TB.styleLinks = (k, v) => {
+    const ls = TB.selLinks().map((id) => TB.B().links.find((l) => l.id === id)).filter(Boolean); if (!ls.length) return;
+    TB.snap();
+    for (const l of ls) { if (k === "flip") [l.a, l.b] = [l.b, l.a]; else if (v) l[k] = v; else delete l[k]; }
+    TB.save(); TB.renderBoard(); TB.markSel(); TB.renderDrawer({ quiet: true });
+  };
   TB.styleSel = (k, v) => {
     const ideas = TB.sel.map(TB.node).filter((n) => n && n.t === "idea"); if (!ideas.length) return;
     TB.snap(); for (const n of ideas) { if (v) n[k] = v; else delete n[k]; } TB.save(); TB.renderBoard(); TB.markSel(); TB.renderDrawer({ quiet: true });

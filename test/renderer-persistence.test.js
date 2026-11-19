@@ -67,7 +67,9 @@ test('renderer: rapid switching, mounted editor refresh, save failure/retry and 
     assert.ok(!$('#ta-create'), '名前の入力欄は無い（自分のトピックIndexは、無名で作る）');
     assert.equal($('#ta-q').parentElement, $('#ta-new').parentElement); assert.ok(!$('.da-sep'));
     c.click('#ta-new'); await tick(); await tick();
-    assert.ok(f.store.state().topics.some(t => /^無名1-\d+/.test(t.name) && t.entry.id === '1'), '押すと、名前を聞かず、無名で作る');
+    assert.ok($('#modal .tk-opt'), '押すと、どの地図を作るか選ぶ');
+    c.click('#modal .tk-opt'); await tick(); await tick(); await tick();
+    assert.ok(f.store.state().topics.some(t => /^無名1-\d+/.test(t.name) && t.entry.id === '1'), '選ぶと、名前を聞かず、無名で作る');
     await c.callbacks.onFlush(); assert.deepEqual(c.errors, []);
   } finally { c.close(); f.cleanup(); }
 });

@@ -17,7 +17,7 @@
         return { cards: I.ITEMS.filter((h) => (num && h.num === num) || norm(h.name).includes(n) || norm(h.kw).includes(n)).slice(0, 14) }; },
     },
     prompt: {
-      id: "prompt", name: "発想カード", icon: "💡", w: 160, h: 214, canRev: false,
+      id: "prompt", name: "発想カード", icon: "💡", w: 150, h: 96, canRev: false,
       get: (id) => P.BY_ID[id], all: () => P.ITEMS,
       label: (it) => it.name, short: (it) => it.name,
       search: (q) => { const n = norm(q); return { cards: n ? P.ITEMS.filter((x) => norm(x.name).includes(n) || norm(x.setName).includes(n)).slice(0, 14) : [] }; },

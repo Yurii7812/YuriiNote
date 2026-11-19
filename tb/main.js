@@ -31,13 +31,13 @@
   on("#btn-undo", () => TB.undo());
   on("#btn-redo", () => TB.redo());
   on("#btn-fit", () => TB.fit());
-  on("#btn-sum", () => { TB.drawerPinned = !TB.drawerPinned; if (TB.drawerPinned && TB.sel.length) TB.select([]); else TB.renderDrawer({ quiet: true }); });
   on("#btn-more", (e) => { if (TB.host && TB.host.menu) TB.host.menu(e.currentTarget.getBoundingClientRect()); });
 
   // 選んでいるものを消す（スプレッドの枠のカードは中身だけ外す。文字・ペンの線・枠も）
   TB.deleteSelected = () => {
     const b = TB.B(); if (!TB.sel.length) return;
     TB.snap();
+    { const ls = new Set(TB.selLinks()); if (ls.size) { b.links = b.links.filter((l) => !ls.has(l.id)); TB.sel = TB.sel.filter((x) => !ls.has(x)); } }
     for (const id of TB.sel) {
       const n = TB.node(id);
       if (n && n.t === "card" && n.slot) { n.item = null; n.rev = false; delete n.moving; continue; }
@@ -59,7 +59,8 @@
       const k = e.key.toLowerCase(), run = (f) => { e.preventDefault(); e.stopPropagation(); f(); };
       if (k === "z" && !typing) return run(e.shiftKey ? TB.redo : TB.undo);
       if (k === "y" && !typing) return run(TB.redo);
-      if (k === "d") return run(() => TB.doDraw());
+      if (k === "d") return run(() => { if (!TB.plain) TB.doDraw(); });
+      if (k === "u" && !typing && !TB.editing) return run(() => TB.searchAdd());   // Ctrl+U: ノートなどを探して、新しい文字として足す
       if (k === "0") return run(TB.fit);
       if (k === "a" && !typing) return run(TB.selectAll);
       if (["c", "v", "x"].includes(k) && typing) return;   // 書いている途中の写す・貼る
@@ -136,7 +137,7 @@
   // ---- 親の画面から開く ----
   TB.mount = (data, host, opt) => {
     opt = opt || {};
-    TB.host = host;
+    TB.host = host; TB.plain = !!opt.plain; document.body.classList.toggle("plain", TB.plain);   // plain: 索引の地図（引く道具は出さない）
     const b = data && Array.isArray(data.nodes) ? JSON.parse(JSON.stringify(data)) : data && (data.t || data.s) ? TB.fromV2(data) : TB.newBoard({ title: (data && data.title) || "" });
     TB.loadBoard(b);
     TB.clearHist(); TB.sel = []; TB.selLink = null; TB.closeFloats();

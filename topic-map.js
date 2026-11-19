@@ -51,11 +51,16 @@ function convert(text) {
   return { v: 1, n, l };
 }
 
-const clean = m => m && Array.isArray(m.n) ? {
+// 見た目の持ち物（ノード: 枠・文字の色・枠の色 / 線: 種類・ひとこと・色 / グループの枠）。なければ付けない
+const NODE_KEYS = ['box', 'color', 'bc'], LINK_KEYS = ['kind', 'label', 'color'];
+const pick = (o, keys) => { if (!o || typeof o !== 'object') return null; const r = {}; for (const k of keys) if (typeof o[k] === 'string' && o[k] && !(k === 'kind' && o[k] === 'line')) r[k] = o[k]; return Object.keys(r).length ? r : null; };
+const cleanFrames = f => Array.isArray(f) ? f.filter(x => x && typeof x === 'object').map(x => ({ id: String(x.id || ''), x: Math.round(+x.x || 0), y: Math.round(+x.y || 0), w: Math.round(+x.w || 0), h: Math.round(+x.h || 0), title: String(x.title || ''), color: String(x.color || '') })) : [];
+const clean = m => m && Array.isArray(m.n) ? ((f) => ({
   v: 1,
-  n: m.n.filter(a => Array.isArray(a) && a.length >= 4 && typeof a[3] === 'string').map(a => [+a[0] || 0, Math.round(+a[1] || 0), Math.round(+a[2] || 0), a[3]]),
-  l: Array.isArray(m.l) ? m.l.filter(a => Array.isArray(a) && a.length >= 2).map(a => [+a[0] || 0, +a[1] || 0]) : []
-} : null;
+  n: m.n.filter(a => Array.isArray(a) && a.length >= 4 && typeof a[3] === 'string').map(a => { const o = [+a[0] || 0, Math.round(+a[1] || 0), Math.round(+a[2] || 0), a[3]], ex = pick(a[4], NODE_KEYS); if (ex) o.push(ex); return o; }),
+  l: Array.isArray(m.l) ? m.l.filter(a => Array.isArray(a) && a.length >= 2).map(a => { const o = [+a[0] || 0, +a[1] || 0], ex = pick(a[2], LINK_KEYS); if (ex) o.push(ex); return o; }) : [],
+  ...(f.length ? { f } : {})
+}))(cleanFrames(m.f)) : null;
 
 // 索引の文字に合わせて、地図を直す（行の順・中身は文字のとおり。位置と線は、できるだけ残す）
 function reconcile(map, text) {
@@ -66,16 +71,46 @@ function reconcile(map, text) {
   const hit = ls.map(line => take(x => x[3] === line));   // まず、まったく同じ行。次に、同じ名前の行
   ls.forEach((line, i) => { if (!hit[i]) hit[i] = take(x => keyOf(x[3]) === keyOf(line)); });
   ls.forEach((line, i) => {
-    const a = hit[i] ? [hit[i][0], hit[i][1], hit[i][2], line]
+    const a = hit[i] ? [hit[i][0], hit[i][1], hit[i][2], line, ...(hit[i][4] ? [hit[i][4]] : [])]
       : [next++, prev ? prev[1] : X0, prev ? prev[2] + ROW_H : Y0 + out.length * ROW_H, line];   // 新しい行: 直前の行の下に
     out.push(a); prev = a;
   });
   const ids = new Set(out.map(a => a[0]));
   const seen = new Set(), l = m.l.filter(([a, b]) => { const k = a < b ? a + ':' + b : b + ':' + a; if (a === b || !ids.has(a) || !ids.has(b) || seen.has(k)) return false; seen.add(k); return true; });
-  return { v: 1, n: out, l };
+  return { v: 1, n: out, l, ...(m.f && m.f.length ? { f: m.f } : {}) };
+}
+
+
+// ---- ブレストの盤面（tb）との行き来。地図の 1 つのノード = 盤面の 1 つの文字（id は "n" + 番号）。ひとことの線・色・枠（グループ）も持つ ----
+function toBoard(map) {
+  const m = clean(map) || { n: [], l: [] };
+  return {
+    v: 3, title: '', template: 'free', layout: null, summary: '', draws: [], items: [],
+    nodes: m.n.map(a => ({ id: 'n' + a[0], t: 'idea', x: a[1], y: a[2], text: a[3], ...(a[4] || {}) })),
+    links: m.l.map((a, i) => ({ id: 'l' + a[0] + '_' + a[1] + '_' + i, a: 'n' + a[0], b: 'n' + a[1], kind: (a[2] && a[2].kind) || 'line', label: (a[2] && a[2].label) || '', ...(a[2] && a[2].color ? { color: a[2].color } : {}) })),
+    frames: (m.f || []).map(f => ({ ...f, color: f.color || '#8b909c' })),
+  };
+}
+// 盤面から地図へ。行の並び（索引の文字になる）は、前の地図の並びを保ち、新しいノードは最後に足す。空の文字のノードは落とす
+function fromBoard(board, prev) {
+  const old = clean(prev) || { n: [], l: [] }, num = new Map(), used = new Set();
+  let next = Math.max(0, ...old.n.map(a => a[0])) + 1;
+  const nodes = (board && board.nodes || []).filter(n => n && n.t === 'idea' && String(n.text || '').trim());
+  for (const nd of nodes) { const m = /^n(\d+)$/.exec(nd.id); if (m && !used.has(+m[1])) { num.set(nd.id, +m[1]); used.add(+m[1]); } }
+  for (const nd of nodes) if (!num.has(nd.id)) { while (used.has(next)) next++; num.set(nd.id, next); used.add(next++); }
+  const rank = new Map(old.n.map((a, i) => [a[0], i]));
+  const sorted = nodes.slice().sort((a, b) => (rank.has(num.get(a.id)) ? rank.get(num.get(a.id)) : 1e9) - (rank.has(num.get(b.id)) ? rank.get(num.get(b.id)) : 1e9));
+  const n = sorted.map(nd => { const o = [num.get(nd.id), nd.x, nd.y, String(nd.text).replace(/\s*\n\s*/g, ' ').trim()], ex = pick(nd, NODE_KEYS); if (ex) o.push(ex); return o; });
+  const seen = new Set(), l = [];
+  for (const k of board && board.links || []) {
+    const a = num.get(k.a), b = num.get(k.b); if (!a || !b || a === b) continue;
+    const key = a < b ? a + ':' + b : b + ':' + a; if (seen.has(key)) continue; seen.add(key);
+    const o = [a, b], ex = pick(k, LINK_KEYS); if (ex) o.push(ex); l.push(o);
+  }
+  return clean({ v: 1, n, l, f: board && board.frames });
 }
 
 const toText = map => (clean(map) || { n: [] }).n.map(a => a[3]).join('\n');
 const same = (a, b) => JSON.stringify(clean(a)) === JSON.stringify(clean(b));
 
-module.exports = { convert, reconcile, toText, keyOf, clean, same, COL_W, ROW_H };
+module.exports = { convert, reconcile, toText, keyOf, clean, same, COL_W, ROW_H, NODE_KEYS, LINK_KEYS, toBoard, fromBoard };
