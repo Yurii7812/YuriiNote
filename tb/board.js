@@ -104,7 +104,7 @@
     if (TB.host && TB.host.renderText) el.innerHTML = TB.host.renderText(n.text); else el.textContent = n.text;
     return el;
   }
-  const frameEl = (f) => h("div", { class: "frame" + (TB.sel.includes(f.id) ? " sel" : ""), "data-frame": f.id, style: `left:${f.x}px;top:${f.y}px;width:${f.w}px;height:${f.h}px` + (f.color && f.color !== TB.FRAME_COLORS[0] ? `;--fc:${f.color}` : "") },
+  const frameEl = (f) => h("div", { class: "frame" + (f.shape === "round" ? " round" : "") + (TB.sel.includes(f.id) ? " sel" : ""), "data-frame": f.id, style: `left:${f.x}px;top:${f.y}px;width:${f.w}px;height:${f.h}px` + (f.color && f.color !== TB.FRAME_COLORS[0] ? `;--fc:${f.color}` : "") },
     h("div", { class: "frame-title", text: f.title || "グループ" }), h("div", { class: "frame-resize", title: "大きさを変える" }));
   const textEl = (t) => h("div", { class: "note" + (TB.sel.includes(t.id) ? " sel" : ""), "data-text": t.id, style: `left:${t.x}px;top:${t.y}px;color:${TB.ink(t.color)}`, text: t.text });
 
@@ -464,7 +464,9 @@
   }
   TB.editFrameTitle = editFrameTitle;
   // 選んでいるものを、グループ（枠）で囲む
-  TB.groupSel = () => {
+  TB.ungroup = (ids) => { const b = TB.B(), set = new Set(ids || TB.sel); if (!b.frames.some((f) => set.has(f.id))) return false; TB.snap(); b.frames = b.frames.filter((f) => !set.has(f.id)); TB.sel = TB.sel.filter((i) => !set.has(i)); TB.save(); TB.renderBoard(); TB.renderDrawer({ quiet: true }); return true; };
+  TB.reshapeFrame = (id, shape) => { const f = TB.B().frames.find((q) => q.id === id); if (!f || (f.shape || "rect") === shape) return; TB.snap(); const cx = f.x + f.w / 2, cy = f.y + f.h / 2, k = shape === "round" ? Math.SQRT2 : 1 / Math.SQRT2; f.w = Math.round(f.w * k); f.h = Math.round(f.h * k); f.x = Math.round(cx - f.w / 2); f.y = Math.round(cy - f.h / 2); if (shape === "round") f.shape = "round"; else delete f.shape; TB.save(); TB.renderBoard(); TB.markSel(); TB.renderDrawer({ quiet: true }); };
+  TB.groupSel = (shape) => {
     const b = TB.B(); let x0 = 1e9, y0 = 1e9, x1 = -1e9, y1 = -1e9;
     const add = (a, c, d, e) => { x0 = Math.min(x0, a); y0 = Math.min(y0, c); x1 = Math.max(x1, d); y1 = Math.max(y1, e); };
     for (const id of TB.sel) {
@@ -475,6 +477,7 @@
     if (x0 > x1) return;
     TB.snap();
     const f = { id: TB.uid(), x: Math.round(x0 - 28), y: Math.round(y0 - 24), w: Math.round(x1 - x0 + 56), h: Math.round(y1 - y0 + 48), title: "グループ", color: TB.FRAME_COLORS[0] };
+    if (shape === "round") { const cx = f.x + f.w / 2, cy = f.y + f.h / 2; f.w = Math.round(f.w * Math.SQRT2); f.h = Math.round(f.h * Math.SQRT2); f.x = Math.round(cx - f.w / 2); f.y = Math.round(cy - f.h / 2); f.shape = "round"; }
     b.frames.push(f); TB.save(); TB.renderBoard(); TB.select(f.id); editFrameTitle(f.id);
   };
   // アイデアの見た目: 枠（なし・線・塗り）と色

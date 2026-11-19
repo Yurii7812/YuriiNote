@@ -236,3 +236,22 @@ test('Ctrl+U: ブレストで、ノートを探して、新しい文字として
     assert.ok(T.B().links.some(l => l.a === 'c' && l.b === nn.id), '選んでいた文字につながる');
   } finally { a.close(); }
 });
+
+test('グループ: 円形にもできる・四角に戻せる・g で付け外し。縦に並べたカードにも、矢印は名札の下に出ない。右パネルを出せる', async () => {
+  const data = { v: 3, title: '盤', nodes: [{ id: 'a', t: 'idea', x: 0, y: 0, text: '上' }, { id: 'b', t: 'idea', x: 0, y: 200, text: '下' }], links: [{ id: 'l1', a: 'a', b: 'b', label: '', kind: 'arrow' }], frames: [], items: [] };
+  const a = await app(st => st.saveNote({ s: 'd', id: '2', created: '2026-11-12 09:00:00', title: '盤', body: '', kind: 'brainstorm', data }));
+  try {
+    await a.open('d', '2'); const T = await a.tb(), fw = a.$('#tbframe').contentWindow, d = fw.document;
+    T.select(['a', 'b']); T.groupSel('round');
+    let f = T.B().frames[0]; assert.strictEqual(f.shape, 'round'); assert.ok(d.querySelector('.frame.round'));
+    T.reshapeFrame(f.id, 'rect'); assert.ok(!T.B().frames[0].shape);
+    T.editing = null; fw.document.activeElement && fw.document.activeElement.blur(); T.select([f.id]); d.dispatchEvent(new fw.KeyboardEvent('keydown', { key: 'g', bubbles: true, cancelable: true }));
+    assert.strictEqual(T.B().frames.length, 0, 'g で外れる');
+    T.select(['a']); d.dispatchEvent(new fw.KeyboardEvent('keydown', { key: 'G', shiftKey: true, bubbles: true, cancelable: true }));
+    assert.strictEqual(T.B().frames[0].shape, 'round', 'Shift+G は円形');
+    assert.ok(a.$('#bstage > aside#margin'), '右のパネルの場所がある');
+    assert.ok(a.$('#bstage').classList.contains('nomgn'), '標準は隠す');
+    a.w.document.dispatchEvent(new a.w.KeyboardEvent('keydown', { key: '\\', ctrlKey: true, bubbles: true, cancelable: true }));
+    assert.ok(!a.$('#bstage').classList.contains('nomgn'), 'Ctrl+\\ で出る');
+  } finally { a.close(); }
+});

@@ -54,7 +54,7 @@ function convert(text) {
 // 見た目の持ち物（ノード: 枠・文字の色・枠の色 / 線: 種類・ひとこと・色 / グループの枠）。なければ付けない
 const NODE_KEYS = ['box', 'color', 'bc'], LINK_KEYS = ['kind', 'label', 'color'];
 const pick = (o, keys) => { if (!o || typeof o !== 'object') return null; const r = {}; for (const k of keys) if (typeof o[k] === 'string' && o[k] && !(k === 'kind' && o[k] === 'line')) r[k] = o[k]; return Object.keys(r).length ? r : null; };
-const cleanFrames = f => Array.isArray(f) ? f.filter(x => x && typeof x === 'object').map(x => ({ id: String(x.id || ''), x: Math.round(+x.x || 0), y: Math.round(+x.y || 0), w: Math.round(+x.w || 0), h: Math.round(+x.h || 0), title: String(x.title || ''), color: String(x.color || '') })) : [];
+const cleanFrames = f => Array.isArray(f) ? f.filter(x => x && typeof x === 'object').map(x => ({ id: String(x.id || ''), x: Math.round(+x.x || 0), y: Math.round(+x.y || 0), w: Math.round(+x.w || 0), h: Math.round(+x.h || 0), title: String(x.title || ''), color: String(x.color || ''), ...(x.shape === 'round' ? { shape: 'round' } : {}) })) : [];
 const clean = m => m && Array.isArray(m.n) ? ((f) => ({
   v: 1,
   n: m.n.filter(a => Array.isArray(a) && a.length >= 4 && typeof a[3] === 'string').map(a => { const o = [+a[0] || 0, Math.round(+a[1] || 0), Math.round(+a[2] || 0), a[3]], ex = pick(a[4], NODE_KEYS); if (ex) o.push(ex); return o; }),

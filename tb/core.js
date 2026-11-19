@@ -138,7 +138,7 @@
   TB.bez = (g, t) => ({ x: (1 - t) ** 2 * g.p0.x + 2 * (1 - t) * t * g.c.x + t * t * g.p1.x, y: (1 - t) ** 2 * g.p0.y + 2 * (1 - t) * t * g.c.y + t * t * g.p1.y });
   // すべての線の形を決める。途中のカードやアイデアを避け、同じ2つの間の線は並べてずらす
   TB.routeLinks = (b) => {
-    const R = Object.fromEntries(b.nodes.map((n) => [n.id, TB.rectOf(n)]));
+    const R = Object.fromEntries(b.nodes.map((n) => [n.id, TB.boxOf(n)]));
     const groups = {};
     for (const l of b.links) { const k = [l.a, l.b].sort().join("|"); (groups[k] ||= []).push(l); }
     const out = [], labels = [];

@@ -73,7 +73,7 @@
       if (!n.slot) items.push(["この枠ごと消す", del, "danger"]);
     }
     if (TB.host && TB.host.nodeMenu) { const extra = TB.host.nodeMenu(n); if (extra.length) items.push("-", ...extra); }
-    if (TB.sel.length > 1 && TB.sel.includes(id)) items.push("-", [`選んだ ${TB.sel.length} 個をグループにする`, () => TB.groupSel()], [`選んだ ${TB.sel.length} 個を消す（Delete）`, () => TB.deleteSelected(), "danger"]);
+    if (TB.sel.length > 1 && TB.sel.includes(id)) items.push("-", [`選んだ ${TB.sel.length} 個をグループにする`, () => TB.groupSel()], [`選んだ ${TB.sel.length} 個を円形のグループにする`, () => TB.groupSel("round")], [`選んだ ${TB.sel.length} 個を消す（Delete）`, () => TB.deleteSelected(), "danger"]);
     const cut = b.links.filter((l) => l.a === id || l.b === id);
     if (cut.length) items.push("-", [`つながりを全部消す（${cut.length}本）`, () => { TB.snap(); b.links = b.links.filter((l) => !cut.includes(l)); TB.save(); TB.renderAll(); }]);
     TB.menu(items, x, y);
@@ -86,8 +86,9 @@
   };
   TB.frameMenu = (id, x, y) => {
     const b = TB.B();
-    TB.menu([["名前を変える", () => TB.editFrameTitle(id)],
-      "-", ["枠だけ消す（中身は残す）", () => { TB.snap(); b.frames = b.frames.filter((q) => q.id !== id); TB.save(); TB.renderBoard(); }, "danger"]], x, y);
+    const f = b.frames.find((q) => q.id === id), round = f && f.shape === "round";
+    TB.menu([["名前を変える", () => TB.editFrameTitle(id)], [round ? "四角にする" : "円形にする", () => TB.reshapeFrame(id, round ? "rect" : "round")],
+      "-", ["グループを外す（中身は残す）", () => TB.ungroup([id]), "danger"]], x, y);
   };
   TB.removeLink = (id) => { TB.snap(); TB.B().links = TB.B().links.filter((l) => l.id !== id); if (TB.selLink === id) TB.selLink = null; $("#pop").hidden = true; TB.save(); TB.renderBoard(); };
 
@@ -292,12 +293,13 @@
     if (!f) return [];
     return [h("h3", { text: "グループ" }), h("input", { value: f.title, ...lazy((v) => { f.title = v; TB.renderBoard(); TB.markSel(); }) }),
       h("div", { class: "d-style" }, colRow("枠色", f.color && f.color !== TB.FRAME_COLORS[0] ? f.color : "", (v) => { TB.snap(); f.color = v || TB.FRAME_COLORS[0]; TB.save(); TB.renderBoard(); TB.markSel(); TB.renderDrawer({ quiet: true }); })),
+      h("div", { class: "d-btns" }, h("button", { type: "button", class: !f.shape ? "primary" : "", text: "四角", onclick: () => TB.reshapeFrame(f.id, "rect") }), h("button", { type: "button", class: f.shape === "round" ? "primary" : "", text: "円形", onclick: () => TB.reshapeFrame(f.id, "round") }), h("button", { type: "button", class: "danger", text: "グループを外す", onclick: () => TB.ungroup([f.id]) })),
       h("p", { class: "muted", text: "見出しをドラッグすると中身ごと動きます。右下の角で大きさを変えられます" })];
   }
   function multi(ids) {
     const ideas = ids.map(TB.node).filter((n) => n && n.t === "idea");
     return [h("h3", { text: `${ids.filter((x) => !TB.isLinkId(x)).length}個を選択中` }),
-      h("div", { class: "d-btns" }, h("button", { type: "button", class: "primary", text: "グループにする", title: "選んだものを枠で囲む", onclick: () => TB.groupSel() }),
+      h("div", { class: "d-btns" }, h("button", { type: "button", class: "primary", text: "グループにする", title: "選んだものを四角い枠で囲む", onclick: () => TB.groupSel() }), h("button", { type: "button", class: "primary", text: "円形で囲む", title: "選んだものを丸い枠で囲む", onclick: () => TB.groupSel("round") }),
         h("button", { type: "button", class: "danger", text: "まとめて消す（Delete）", onclick: () => TB.deleteSelected() }), h("button", { type: "button", text: "選択を外す（Esc）", onclick: () => TB.select([]) })),
       ideas.length ? styleBox(ideas) : null,
       TB.selLinks().length ? [h("h4", { text: `つながった線 ${TB.selLinks().length}本` }), linkStyle(TB.selLinks().map((id) => TB.B().links.find((l) => l.id === id)).filter(Boolean))] : null,

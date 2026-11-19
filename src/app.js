@@ -1325,7 +1325,7 @@ function syncLeftPanel() {
   const m = $('#pane #margin');
   if (panelLeft && m) { lp.replaceChildren(m); const st = $('#pane .stage'); if (st) st.classList.add('mgnleft'); }
   else if (!panelLeft || !(cur && cur.k === 'note')) lp.replaceChildren();
-  lp.hidden = !panelLeft || !lp.firstChild || mgnHidden;
+  lp.hidden = !panelLeft || !lp.firstChild || mgnOff();
 }
 function togglePanelLeft() { panelLeft = !panelLeft; try { localStorage.setItem('ysimple-panel-left', panelLeft ? '1' : '0'); } catch { } if (cur && cur.k === 'note') openNote(cur.s, cur.id, null, true); else syncLeftPanel(); }
 function renderTabs() {
@@ -1453,8 +1453,8 @@ function openBrainstorm(note, n, keep) {
   const { s, id } = note, noid = !!note.noid;
   if (!inPreview) decided = { k: 'note', s, id };
   if (!$('#q').value) tab = noid ? 'u' : s;
-  $('#pane').innerHTML = '<div class="bstage" id="bstage"></div>';   // 左の一覧は、ほかのノートと同じ（たたむ・出すは ⬚ のボタンか Ctrl+[）
-  tbWin(() => {}); $('#bstage').append(tbFrame);
+  $('#pane').innerHTML = '<div class="bstage" id="bstage"><div class="bbmain" id="bbmain"></div><aside class="mgn" id="margin"></aside></div>'; bbApply(); renderMeta(note);   // 左の一覧は、ほかのノートと同じ（たたむ・出すは ⬚ のボタンか Ctrl+[）
+  tbWin(() => {}); $('#bbmain').append(tbFrame);
   const vs = viewOf(cur), fresh = focusNewBody; focusNewBody = false;
   const host = {
     id: noid ? 'IDなし' : (s === 'p' ? '紙 ' : '') + id,
@@ -1867,9 +1867,12 @@ $('#pane').addEventListener('click', paneClick);
 $('#leftpanel').addEventListener('click', paneClick);   // 右のパネルを左に置いたときも、同じボタンが効く
 // 右の欄（キーワード・索引・バックリンク）を隠す・出す。覚えておく
 let mgnHidden = (() => { try { return localStorage.getItem('pkm-mgn-hidden') === '1'; } catch { return false; } })();
+let bbHidden = (() => { try { return localStorage.getItem('pkm-bb-mgn-hidden') !== '0'; } catch { return true; } })();   // ブレストの右パネル（標準は隠す）
+const bbApply = () => { const b = document.querySelector('#bstage'); if (b) b.classList.toggle('nomgn', bbHidden); };
+const mgnOff = () => document.querySelector('#bstage') ? bbHidden : mgnHidden;
 const applyMgn = () => { const st = document.querySelector('#pane .stage'); if (st) { st.classList.toggle('nomgn', mgnHidden); st.style.setProperty('--ph', $('#pane').clientHeight + 'px'); } };
 window.addEventListener('resize', applyMgn);
-function toggleMgn() { mgnHidden = !mgnHidden; try { localStorage.setItem('pkm-mgn-hidden', mgnHidden ? '1' : '0'); } catch { } applyMgn(); syncLeftPanel(); }
+function toggleMgn() { if (document.querySelector('#bstage')) { bbHidden = !bbHidden; try { localStorage.setItem('pkm-bb-mgn-hidden', bbHidden ? '1' : '0'); } catch { } bbApply(); syncLeftPanel(); return; } mgnHidden = !mgnHidden; try { localStorage.setItem('pkm-mgn-hidden', mgnHidden ? '1' : '0'); } catch { } applyMgn(); syncLeftPanel(); }
 document.addEventListener('keydown', e => { if ((e.ctrlKey || e.metaKey) && e.key === '\\' && !e.shiftKey) { e.preventDefault(); toggleMgn(); } });
 // ノートのメニュー（⋯）: 並列・分岐・表・添付・ID・削除
 function noteMenu(btn, note) {
@@ -1878,6 +1881,7 @@ function noteMenu(btn, note) {
     ...(text ? [['▦ 表を入れる', () => insertTable()], ['🖍️ ボードを入れる（文字と線）', () => insertBoard()], ['📎 ファイルを添付', () => pick(true, f => attach(note, f), '*')]] : []),
     ...(text && s === 'd' && !(note.body || '').trim() ? [['🧠 ブレストにする', () => toBrainstorm(note)]] : []),
     ...(note.kind === 'brainstorm' && s === 'd' ? [[note.noid ? '🧠 並列のブレスト（IDなし）' : `🧠 並列のブレスト ${free(s, L.sibling(id))}`, () => createBrainstorm({ note, act: 'sib' })], [note.noid ? '🧠 分岐のブレスト（IDなし）' : `🧠 分岐のブレスト ${free(s, L.child(id))}`, () => createBrainstorm({ note, act: 'chi' })]] : []),
+    ...(note.kind === 'brainstorm' ? [[bbHidden ? '📋 右のパネルを出す（子ノート・バックリンク）' : '📋 右のパネルを隠す', () => toggleMgn()]] : []),
     ['🆔 IDを変更・解除…', () => idSettingsDialog(note)],
     ['🗑️ 削除', () => deleteNotes([{ s, id }]), true]
   ]);
@@ -3174,7 +3178,7 @@ const KEYS = [
   ['ブレスト（tarot-brainstorm と同じ盤面）', [['Enter', '書いて、次（同じ元から）'], ['Tab', '書いて、そこから広げる'], ['Ctrl+クリック', '選ぶ（足す・外す）'], ['Ctrl+空きをドラッグ', '囲んで選ぶ'], ['Ctrl+A', '全部を選ぶ'], ['Delete', '選んだものを消す'], ['右ドラッグ・Ctrl+ドラッグ', '動かす（選んだものはまとめて。空きなら画面）'], ['線をクリック', '線の上に書く・線の種類（矢印・点線など）'], ['矢印', '近くのものへ移る'], ['Ctrl+D', '引く'], ['Ctrl+0', '全体を見る'], ['ホイール', '拡大・縮小'], ['Space', 'アイデアに合わせて、ID のノートをのぞく'], ['Ctrl+U', '書いている途中で、ノートを探して ID を入れる']]],
   ['索引の地図', [['Enter', '書いて、すぐ下に次'], ['Tab', '書いて、右に広げる（線でつなぐ）'], ['Ctrl+0', '全体を見る'], ['Ctrl+ホイール', '拡大・縮小'], ['Space', 'ノードに合わせて、のぞく（Enter で開く）'], ['Ctrl+U', 'ノードの文字欄で、探して入れる']]],
   ['ノートを作る', [['Ctrl+N', 'IDなしの新しいノート'], ['Ctrl+H', '並列のノート'], ['Ctrl+B', '分岐（子）のノート']]],
-  ['探す・移る', [['Ctrl+F', '左の検索'], ['Ctrl+E', '今のページの中の検索・置換'], ['Ctrl+U', '検索して挿入（ノート・小ノート・リンク・索引）'], ['Ctrl+O', 'ノート一覧へ（今のノートが真ん中）'], ['Ctrl+Q', '左の一覧の一番上へ'], ['Ctrl+J', '左の一覧の折りたたみを、全部たたむ・ひらく'], ['Ctrl+,  /  Ctrl+.', '戻る・進む'], ['Ctrl+\\', '右パネルの、出し入れ'], ['Ctrl+[', '左の一覧を、たたむ・出す'], ['Ctrl+]', '集中表示（左の一覧と右パネルを、一緒にたたむ・出す）']]],
+  ['探す・移る', [['Ctrl+F', '左の検索'], ['Ctrl+E', '今のページの中の検索・置換'], ['Ctrl+U', '検索して挿入（ノート・リンク・索引）'], ['Ctrl+O', 'ノート一覧へ（今のノートが真ん中）'], ['Ctrl+Q', '左の一覧の一番上へ'], ['Ctrl+J', '左の一覧の折りたたみを、全部たたむ・ひらく'], ['Ctrl+,  /  Ctrl+.', '戻る・進む'], ['Ctrl+\\', '右パネルの、出し入れ'], ['Ctrl+[', '左の一覧を、たたむ・出す'], ['Ctrl+]', '集中表示（左の一覧と右パネルを、一緒にたたむ・出す）']]],
   ['タブ', [['Ctrl+T', '新しいタブ'], ['Ctrl+W', '閉じる']]],
   ['録音', [['Ctrl+L', '録音して、今のノートの末尾へ'], ['Ctrl+S', '録音して、ノートには何もしない'], ['（録音中）', 'どちらのキーでも止まる']]],
   ['紙の取り込み画面', [['Ctrl+H', '次'], ['Ctrl+B', '子'], ['Ctrl+U', '親の次'], ['Ctrl+K', '前と同じキーワード'], ['Ctrl+S', '飛ばす'], ['Ctrl+D', '日記の日付'], ['Ctrl+E', '拡大']]]
