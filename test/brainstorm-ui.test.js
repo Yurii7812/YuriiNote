@@ -404,3 +404,17 @@ test('区画の n-0 の地図は、開くだけで更新: 足りないノート�
     assert.ok(t.map.l.some(([x, z]) => x === idx('二 1a') && z === idx('三 1a1')), '既にあった行どうしも、線でつながる: ' + JSON.stringify(t.map.l));
   } finally { a.close(); }
 });
+
+test('Folgezettel の地図は放射状: 根が中心、深いほど外の輪、重ならない', async () => {
+  const a = await app(st => {
+    for (const [id, t] of [['1a', '二'], ['1a1', '三'], ['1a2', '四'], ['1b', '五'], ['1b1', '六'], ['1c', '七']]) st.saveNote({ s: 'd', id, created: '2026-11-12 09:00:00', title: t, body: t });
+    st.saveTopic({ name: '雑', entry: { s: 'd', id: '1' }, text: '', num: '0' });
+  });
+  try {
+    const row = [...a.w.document.querySelectorAll('#list [data-topic]')].find(e => e.dataset.topic === '雑'); row.click(); await tick(900);
+    const m = a.store.state().topics.find(x => x.name === '雑').map, P = id => m.n.find(x => x[3].endsWith(' ' + id)), root = P('1');
+    const dist = id => Math.hypot(P(id)[1] - root[1], P(id)[2] - root[2]);
+    assert.ok(dist('1a') > 100 && dist('1a1') > dist('1a') + 100, '深いほど外の輪: ' + dist('1a') + ' ' + dist('1a1'));
+    for (let i = 0; i < m.n.length; i++) for (let j = i + 1; j < m.n.length; j++) assert.ok(Math.hypot(m.n[i][1] - m.n[j][1], m.n[i][2] - m.n[j][2]) > 40, '重ならない: ' + m.n[i][3] + ' / ' + m.n[j][3]);
+  } finally { a.close(); }
+});

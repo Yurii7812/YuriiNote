@@ -1538,7 +1538,11 @@ async function registerAnchor(note, n, label) {
   lines.push(bLine); t.text = lines.join('\n') + '\n';
   const m = TopicMap.reconcile(t.map, t.text), A = m.n.find(x => x[3] === noteLine), B = m.n.find(x => x[3] === bLine);
   if (A && B) {
-    const kids = m.l.filter(([a]) => a === A[0]).length; B[1] = A[1] + TopicMap.COL_W; B[2] = A[2] + kids * TopicMap.ROW_H;
+    // (n) の枝は、地図の中心から見て、ノートの外側に、扇のように
+    const kids = m.l.filter(([a]) => a === A[0]).length, others = m.n.filter(x => x !== A && x !== B), cx = others.length ? others.reduce((q, x) => q + x[1], 0) / others.length : A[1] - 1, cy = others.length ? others.reduce((q, x) => q + x[2], 0) / others.length : A[2];
+    let ang = Math.atan2(A[2] - cy, A[1] - cx); if (!isFinite(ang) || (A[1] === cx && A[2] === cy)) ang = 0;
+    ang += (kids % 2 ? 1 : -1) * Math.ceil(kids / 2) * 0.4; if (!kids) ang += 0;
+    B[1] = Math.round(A[1] + 210 * Math.cos(ang)); B[2] = Math.round(A[2] + 210 * Math.sin(ang));
     if (!m.l.some(([a, b]) => (a === A[0] && b === B[0]) || (a === B[0] && b === A[0]))) m.l.push([A[0], B[0]]);
   }
   t.map = m;
@@ -2239,6 +2243,23 @@ function openZero(keep) {
 }
 // Folgezettel から地図へ: 区画 r のノート（題 ID）を、親子の線つきで足す。すでに地図にある ID は足さない。木の形に並べる
 // 地図を開いたときも、ボタンも、同じ: 足りないノートを足し、足りない親子の線をつなぎ、題が変わったノートの行を直す。t.text / t.map を直し、直した数を返す
+// 放射状の置き方: 根（親のないノート）を中心に、深さごとの輪。子は親の向きの近くに、葉の数に応じた角度で。座標は、ノードの左上
+function radialPos(ns, has) {
+  const W = 150, H = TopicMap.ROW_H, byId = new Map(ns.map(n => [n.id, n])), kids = new Map(ns.map(n => [n.id, []])), roots = [];
+  for (const n of ns) { const p = L.parentIn(n.id, has); if (p && byId.has(p)) kids.get(p).push(n); else roots.push(n); }
+  const leaf = new Map(), cnt = n => { const k = kids.get(n.id); const v = k.length ? k.reduce((a, c) => a + cnt(c), 0) : 1; leaf.set(n.id, v); return v; };
+  roots.forEach(cnt);
+  const depth = new Map(), per = []; const dive = (n, d) => { depth.set(n.id, d); per[d] = (per[d] || 0) + 1; kids.get(n.id).forEach(c => dive(c, d + 1)); };
+  const multi = roots.length > 1; roots.forEach(r => dive(r, multi ? 1 : 0));
+  const R = []; for (let d = 0; d < per.length; d++) R[d] = d === 0 ? 0 : Math.max((R[d - 1] || 0) + 230, ((per[d] || 0) * (H + 26)) / (2 * Math.PI));
+  const out = new Map(), place = (n, a0, a1) => {
+    const am = (a0 + a1) / 2, r = R[depth.get(n.id)] || 0; out.set(n.id, { x: r * Math.cos(am) - W / 2, y: r * Math.sin(am) - H / 2 });
+    let a = a0; const tot = leaf.get(n.id); for (const c of kids.get(n.id)) { const sp = (a1 - a0) * leaf.get(c.id) / tot; place(c, a, a + sp); a += sp; }
+  };
+  if (!multi) place(roots[0], -Math.PI * 0.9, Math.PI * 1.1);
+  else { const tot = roots.reduce((a, c) => a + leaf.get(c.id), 0); let a = -Math.PI / 2; for (const r of roots) { const sp = 2 * Math.PI * leaf.get(r.id) / tot; place(r, a, a + sp); a += sp; } }
+  return out;
+}
 function fzSync(t, auto) {
   const r = String(t.entry.id), sp = t.entry.s, has = x => !!get(sp, x);
   const ns = notes.filter(n => n.s === sp && !n.noid && String(L.region(n.id)) === r && n.kind !== 'memo').sort((a, b) => L.cmpId(a.id, b.id));
@@ -2256,8 +2277,13 @@ function fzSync(t, auto) {
   const text = lines.join('\n') + (lines.length ? '\n' : '');
   const m = TopicMap.reconcile(t.map, text), at = new Map(m.n.map(a => [a[3], a])), depth = n => { let d = 0, p = L.parentIn(n.id, has); while (p) { d++; p = L.parentIn(p, has); } return d; };
   const freshLines = new Set(fresh.map(n => haveLine.get(n.id)));
-  let y = Math.max(0, ...m.n.filter(a => !freshLines.has(a[3])).map(a => a[2])) + (m.n.length > fresh.length ? TopicMap.ROW_H * 2 : 40);
-  for (const n of fresh) { const a = at.get(haveLine.get(n.id)); if (a) { a[1] = 40 + depth(n) * TopicMap.COL_W; a[2] = y; y += TopicMap.ROW_H; } }
+  if (fresh.length) {   // 放射状に置く（中心に根のノート、深さごとの輪）。すでにある行の位置は動かさない。新しい行は、すでにある行に合わせてずらして置く
+    const rp = radialPos(ns, has), old = ns.find(n => !fresh.includes(n) && at.get(haveLine.get(n.id)));
+    let dx = 0, dy = 0;
+    if (old) { const a = at.get(haveLine.get(old.id)), q = rp.get(old.id); dx = a[1] - q.x; dy = a[2] - q.y; }
+    else { const keep = m.n.filter(a => !freshLines.has(a[3])); if (keep.length) { dx = Math.max(...keep.map(a => a[1])) + TopicMap.COL_W - Math.min(...[...rp.values()].map(q => q.x)); dy = 0; } else { dx = 40 - Math.min(...[...rp.values()].map(q => q.x)); dy = 40 - Math.min(...[...rp.values()].map(q => q.y)); } }
+    for (const n of fresh) { const a = at.get(haveLine.get(n.id)), q = rp.get(n.id); if (a && q) { a[1] = Math.round(q.x + dx); a[2] = Math.round(q.y + dy); } }
+  }
   let links = 0;
   for (const n of ns) {
     const p = L.parentIn(n.id, has), a = at.get(haveLine.get(n.id)), b = p && at.get(haveLine.get(p)); if (!a || !b || a === b) continue;
