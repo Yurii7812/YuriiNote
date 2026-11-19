@@ -387,9 +387,3 @@ body.plain #bar .grow { display: none; }
 .node.idea .tm-ids .chip.dot { position: relative; margin-top: .5em; }
 .node.idea .tm-ids .chip.dot::before { content: '🔴'; position: absolute; left: 50%; top: -.55em; transform: translateX(-50%); font-size: .5em; line-height: 1; pointer-events: none; }
 .node.idea .tmk { font-size: 13px; margin-right: 4px; }
-/* 索引の地図: 紙と同じ。線とIDは赤、文字は青（色を選んだものはそのまま） */
-body.plain { --edge: #c0392b; }
-body.plain .link-line { stroke: var(--lc, #c0392b); }
-body.plain .node.idea .tm-kw, body.plain .node.idea .txt { color: var(--ic, #2f5fb8); }
-body.plain .node.idea .tm-ids .chip { background: #fbeceb; color: #c0392b; }
-body.plain .node.idea .tm-ids .chip:hover { background: #f6d9d6; color: #9e2b20; }
