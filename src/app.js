@@ -2244,7 +2244,9 @@ function openZero(keep) {
 // Folgezettel から地図へ: 区画 r のノート（題 ID）を、親子の線つきで足す。すでに地図にある ID は足さない。木の形に並べる
 // 地図を開いたときも、ボタンも、同じ: 足りないノートを足し、足りない親子の線をつなぎ、題が変わったノートの行を直す。t.text / t.map を直し、直した数を返す
 // 放射状の置き方（topic-map.js の radial）。座標は、ノードの左上
-function radialPos(ns, has) { return TopicMap.radial(ns.map(n => ({ id: n.id, parent: L.parentIn(n.id, has) }))); }
+// 箱の大きさは、題の長さから見積もる（盤面のノードは、幅が最大 300px まで。それ以上は折り返す）
+const boxOfTitle = n => { const len = [...titleOf(n)].length, w = Math.min(300, len * 15 + 24 + String(n.id).length * 8 + 16), lines = Math.max(1, Math.ceil((len * 15 + 24) / 276)); return { w: Math.round(w), h: lines * 21 + 14 }; };
+function radialPos(ns, has) { return TopicMap.radial(ns.map(n => ({ id: n.id, parent: L.parentIn(n.id, has), ...boxOfTitle(n) }))); }
 function fzSync(t, auto, force) {
   const r = String(t.entry.id), sp = t.entry.s, has = x => x === r || !!get(sp, x);   // 区画の番号そのもの（1）も、親として数える
   const ns = notes.filter(n => n.s === sp && !n.noid && String(L.region(n.id)) === r && n.kind !== 'memo').sort((a, b) => L.cmpId(a.id, b.id));

@@ -111,28 +111,41 @@ function fromBoard(board, prev) {
 }
 
 // 放射状の置き方: 親のないノート（根）を中心に、深さごとの輪。子は、親の向きの近くに、葉の数に応じた角度で置く
-// 輪の半径は、どのノードも、となりと重ならないだけ（箱 W×H）広げる。items: [{ id, parent }]。座標は、箱の左上
-function radial(items, W = 170, H = ROW_H) {
+// items: [{ id, parent, w, h }]（w, h = 箱の大きさ。なければ 170×46）。座標は、ノードの中心（盤面の x, y と同じ）。輪の半径は、箱がとなりと重ならないだけ広げ、最後に、重なりが残れば、押しのける
+function radial(items, M = 16) {
+  const dims = n => [n.w || 170, n.h || ROW_H];
   const byId = new Map(items.map(n => [n.id, n])), kids = new Map(items.map(n => [n.id, []])), roots = [];
   for (const n of items) if (n.parent && byId.has(n.parent)) kids.get(n.parent).push(n); else roots.push(n);
+  // 根から子が 1 つずつ続くだけの部分（区画の行 → 1a だけ、など）は、中心にしない。その先の、枝分かれするノートを中心にして、手前は左に並べる
+  const chain = []; if (roots.length === 1) { let r0 = roots[0]; while (kids.get(r0.id).length === 1) { chain.push(r0); r0 = kids.get(r0.id)[0]; } roots[0] = r0; }
   const leaf = new Map(), cnt = n => { const k = kids.get(n.id), v = k.length ? k.reduce((a, c) => a + cnt(c), 0) : 1; leaf.set(n.id, v); return v; };
   roots.forEach(cnt);
   const multi = roots.length > 1, total = roots.reduce((a, c) => a + leaf.get(c.id), 0);
-  // 角度の割り当て
   const ang = new Map(), depth = new Map(), span = new Map();
   const place = (n, a0, a1, d) => { ang.set(n.id, (a0 + a1) / 2); span.set(n.id, a1 - a0); depth.set(n.id, d); let a = a0; for (const c of kids.get(n.id)) { const sp = (a1 - a0) * leaf.get(c.id) / leaf.get(n.id); place(c, a, a + sp, d + 1); a += sp; } };
-  if (!multi) place(roots[0], -Math.PI * 0.9, Math.PI * 1.1, 0);
+  if (!multi) place(roots[0], chain.length ? -Math.PI * 0.8 : -Math.PI * 0.9, chain.length ? Math.PI * 0.8 : Math.PI * 1.1, 0);
   else { let a = -Math.PI / 2; for (const r of roots) { const sp = 2 * Math.PI * leaf.get(r.id) / total; place(r, a, a + sp, 1); a += sp; } }
-  // 輪の半径: 前の輪から離れ、かつ、その輪のどのノードの角度の幅にも、箱が入る
-  const maxD = Math.max(...depth.values()), R = [0], diag = Math.hypot(W, H) * 0.62;
+  const maxD = Math.max(...depth.values()), R = [0], ext = d => { let m = 0; for (const [id, dd] of depth) if (dd === d) m = Math.max(m, Math.hypot(...dims(byId.get(id)))); return m; };
   for (let d = 1; d <= maxD; d++) {
-    let need = (R[d - 1] || 0) + W + 30;
-    for (const [id, dd] of depth) if (dd === d) need = Math.max(need, diag / Math.max(span.get(id), 0.02) * 0.9);
+    let need = (R[d - 1] || 0) + (ext(d - 1) + ext(d)) / 2 * 0.5 + 30;
+    for (const [id, dd] of depth) if (dd === d) need = Math.max(need, Math.hypot(...dims(byId.get(id))) * 0.25 / Math.max(span.get(id), 0.02));
     R[d] = need;
   }
-  const out = new Map();
-  for (const [id, a] of ang) { const r = R[depth.get(id)] || 0; out.set(id, { x: r * Math.cos(a) - W / 2, y: r * Math.sin(a) - H / 2 }); }
-  return out;
+  const pos = new Map(); for (const [id, a] of ang) { const r = R[depth.get(id)] || 0; pos.set(id, { x: r * Math.cos(a), y: r * Math.sin(a) }); }
+  // 重なりが残ったら、少しずつ押しのける（中心の 1 つは動かさない）
+  const ids = [...pos.keys()], fixed = !multi ? roots[0].id : null;
+  for (let it = 0; it < 160; it++) {
+    let moved = false;
+    for (let i = 0; i < ids.length; i++) for (let j = i + 1; j < ids.length; j++) {
+      const A = pos.get(ids[i]), B = pos.get(ids[j]), [wa, ha] = dims(byId.get(ids[i])), [wb, hb] = dims(byId.get(ids[j]));
+      const ox = (wa + wb) / 2 + M - Math.abs(B.x - A.x), oy = (ha + hb) / 2 + M - Math.abs(B.y - A.y); if (ox <= 0 || oy <= 0) continue;
+      moved = true; const fa = ids[i] === fixed ? 0 : ids[j] === fixed ? 1 : .5, fb = 1 - fa;
+      if (oy <= ox) { const d = (B.y >= A.y ? 1 : -1) * oy; A.y -= d * fa; B.y += d * fb; } else { const d = (B.x >= A.x ? 1 : -1) * ox; A.x -= d * fa; B.x += d * fb; }
+    }
+    if (!moved) break;
+  }
+  chain.forEach((n, i) => { const [w] = dims(n); pos.set(n.id, { x: -(chain.length - i) * (w + 90), y: 0 }); });   // 手前の行は、中心の左に一列
+  return pos;
 }
 
 const toText = map => (clean(map) || { n: [] }).n.map(a => a[3]).join('\n');
