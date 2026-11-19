@@ -388,3 +388,19 @@ test('索引の「🌳 Folgezettel から足す」: 区画のノートが、親�
     assert.strictEqual(a.store.state().topics.find(x => x.name === '雑').map.n.length, n, '2 回目は、増えない');
   } finally { a.close(); }
 });
+
+test('区画の n-0 の地図は、開くだけで更新: 足りないノート・既にある行どうしの親子の線・変わった題', async () => {
+  const a = await app(st => {
+    st.saveNote({ s: 'd', id: '1a', created: '2026-11-12 09:00:00', title: '二', body: 'b' });
+    st.saveNote({ s: 'd', id: '1a1', created: '2026-11-12 09:01:00', title: '三', body: 'c' });
+    st.saveNote({ s: 'd', id: '1b', created: '2026-11-12 09:02:00', title: '四', body: 'd' });
+    st.saveTopic({ name: '雑', entry: { s: 'd', id: '1' }, text: '古い題 1a\n三 1a1\n', num: '0' });
+  });
+  try {
+    const row = [...a.w.document.querySelectorAll('#list [data-topic]')].find(e => e.dataset.topic === '雑'); row.click(); await tick(900);
+    const t = a.store.state().topics.find(x => x.name === '雑');
+    assert.ok(/^二 1a$/m.test(t.text), '題が直る: ' + t.text); assert.ok(/四 1b/.test(t.text), '足りないノートが入る');
+    const idx = s => t.map.n.find(x => x[3] === s)[0];
+    assert.ok(t.map.l.some(([x, z]) => x === idx('二 1a') && z === idx('三 1a1')), '既にあった行どうしも、線でつながる: ' + JSON.stringify(t.map.l));
+  } finally { a.close(); }
+});

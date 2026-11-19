@@ -2238,20 +2238,39 @@ function openZero(keep) {
   renderTabs(); renderList();
 }
 // Folgezettel から地図へ: 区画 r のノート（題 ID）を、親子の線つきで足す。すでに地図にある ID は足さない。木の形に並べる
-async function fzFillMap(t) {
+// 地図を開いたときも、ボタンも、同じ: 足りないノートを足し、足りない親子の線をつなぎ、題が変わったノートの行を直す。t.text / t.map を直し、直した数を返す
+function fzSync(t, auto) {
   const r = String(t.entry.id), sp = t.entry.s, has = x => !!get(sp, x);
   const ns = notes.filter(n => n.s === sp && !n.noid && String(L.region(n.id)) === r && n.kind !== 'memo').sort((a, b) => L.cmpId(a.id, b.id));
   const lines = L.topicText(t).split('\n').filter(x => x.trim()), idOf = l => (L.topicLine(l).ids || []).map(i => i.raw);
   const haveLine = new Map(); for (const l of lines) for (const raw of idOf(l)) if (!/\(/.test(raw) && !haveLine.has(raw)) haveLine.set(raw, l);
-  const fresh = ns.filter(n => !haveLine.has(n.id)); if (!fresh.length) return toast('足すノートはありません（全部、もう地図にあります）');
+  let renamed = 0;   // 「題 ID」だけの行は、ノートの今の題に
+  for (const n of ns) {
+    const old = haveLine.get(n.id); if (!old) continue; const ids = idOf(old); if (ids.length !== 1 || ids[0] !== n.id || /^\s*[@^_<>+*★☆＋]/.test(old)) continue;
+    const nl = `${titleOf(n).replace(/\s+/g, ' ')} ${n.id}`; if (nl === old.trim() || L.topicLine(old).kw === titleOf(n).replace(/\s+/g, ' ')) continue;
+    const k = lines.indexOf(old); if (k < 0) continue; lines[k] = nl; haveLine.set(n.id, nl); renamed++;
+    if (t.map && Array.isArray(t.map.n)) for (const a of t.map.n) if (a[3] === old) a[3] = nl;
+  }
+  const fresh = ns.filter(n => !haveLine.has(n.id));
   for (const n of fresh) { const l = `${titleOf(n).replace(/\s+/g, ' ')} ${n.id}`; lines.push(l); haveLine.set(n.id, l); }
-  t.text = lines.join('\n') + '\n';
-  const m = TopicMap.reconcile(t.map, t.text), at = new Map(m.n.map(a => [a[3], a])), depth = n => { let d = 0, p = L.parentIn(n.id, has); while (p) { d++; p = L.parentIn(p, has); } return d; };
-  let y = Math.max(0, ...m.n.filter(a => !fresh.some(n => haveLine.get(n.id) === a[3])).map(a => a[2])) + TopicMap.ROW_H * 2; if (!m.n.length) y = 40;
+  const text = lines.join('\n') + (lines.length ? '\n' : '');
+  const m = TopicMap.reconcile(t.map, text), at = new Map(m.n.map(a => [a[3], a])), depth = n => { let d = 0, p = L.parentIn(n.id, has); while (p) { d++; p = L.parentIn(p, has); } return d; };
+  const freshLines = new Set(fresh.map(n => haveLine.get(n.id)));
+  let y = Math.max(0, ...m.n.filter(a => !freshLines.has(a[3])).map(a => a[2])) + (m.n.length > fresh.length ? TopicMap.ROW_H * 2 : 40);
   for (const n of fresh) { const a = at.get(haveLine.get(n.id)); if (a) { a[1] = 40 + depth(n) * TopicMap.COL_W; a[2] = y; y += TopicMap.ROW_H; } }
-  for (const n of ns) { const p = L.parentIn(n.id, has), a = at.get(haveLine.get(n.id)), b = p && at.get(haveLine.get(p)); if (!a || !b || a === b) continue; if (!fresh.includes(n) && !fresh.some(f => f.id === p)) continue; if (!m.l.some(([x, z]) => (x === a[0] && z === b[0]) || (x === b[0] && z === a[0]))) m.l.push([b[0], a[0]]); }
-  t.map = m; const sv = await api.saveTopic(t); if (!sv) return alert('保存できませんでした');
-  const st = await api.state(); if (st) applyState(st); renderList(); toast(`${fresh.length} 件のノートを足しました`); openTopic(t.name, 'view', true);
+  let links = 0;
+  for (const n of ns) {
+    const p = L.parentIn(n.id, has), a = at.get(haveLine.get(n.id)), b = p && at.get(haveLine.get(p)); if (!a || !b || a === b) continue;
+    if (!m.l.some(([x, z]) => (x === a[0] && z === b[0]) || (x === b[0] && z === a[0]))) { m.l.push([b[0], a[0]]); links++; }
+  }
+  if (!fresh.length && !links && !renamed) return 0;
+  t.text = text; t.map = m; return fresh.length + links + renamed;
+}
+const isFzMap = t => t && t.entry && L.isRegionOnly(t.entry.id) && t.entry.id !== ZERO && String(t.num) === '0';
+async function fzFillMap(t) {
+  const n = fzSync(t, false); if (!n) return toast('もう全部、そろっています');
+  const sv = await api.saveTopic(t); if (!sv) return alert('保存できませんでした');
+  const st = await api.state(); if (st) applyState(st); renderList(); toast(`${n} 件（ノート・線・題）をそろえました`); openTopic(t.name, 'view', true);
 }
 // 全体の地図（0-all）: 区画ごとに 1 行（名前 区画の番号）。無ければ作る。あとから増えた区画は足す（置いた位置・線・グループはそのまま）
 async function openWholeMap() {
@@ -2472,6 +2491,7 @@ function mapLineHtml(t, line) {
 // 線・線のひとこと・色・グループの枠は、地図（t.map）に持つ。索引の文字は、ノードの並びから作る
 function mountTopicMap(t, focus) {
   const el = $('#tmap'); if (!el) return;
+  if (isFzMap(t) && fzSync(t, true)) saveTopic(t);   // 区画の n-0 の地図は、開くたびに、新しいノートを足す（Folgezettel のまま）
   const text = L.topicText(t), m = TopicMap.reconcile(t.map, text);
   if (!t.map || !TopicMap.same(t.map, m)) { t.map = m; saveTopic(t); }
   const vs = viewOf(cur), def = L.defOf(t);
