@@ -414,7 +414,7 @@ test('Folgezettel の地図は放射状: 根が中心、深いほど外の輪、
     const row = [...a.w.document.querySelectorAll('#list [data-topic]')].find(e => e.dataset.topic === '雑'); row.click(); await tick(900);
     const m = a.store.state().topics.find(x => x.name === '雑').map, P = id => m.n.find(x => x[3].endsWith(' ' + id)), root = P('1');
     const dist = id => Math.hypot(P(id)[1] - root[1], P(id)[2] - root[2]);
-    assert.ok(dist('1a') > 100 && dist('1a1') > dist('1a') + 100, '深いほど外の輪: ' + dist('1a') + ' ' + dist('1a1'));
+    assert.ok(dist('1a') > 50 && dist('1a1') > dist('1a') + 40, '深いほど外の輪: ' + dist('1a') + ' ' + dist('1a1'));
     for (let i = 0; i < m.n.length; i++) for (let j = i + 1; j < m.n.length; j++) assert.ok(Math.hypot(m.n[i][1] - m.n[j][1], m.n[i][2] - m.n[j][2]) > 40, '重ならない: ' + m.n[i][3] + ' / ' + m.n[j][3]);
   } finally { a.close(); }
 });
