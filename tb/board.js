@@ -104,14 +104,51 @@
     if (TB.host && TB.host.renderText) el.innerHTML = TB.host.renderText(n.text); else el.textContent = n.text;
     return el;
   }
-  const frameEl = (f) => h("div", { class: "frame" + (f.shape === "round" ? " round" : "") + (TB.sel.includes(f.id) ? " sel" : ""), "data-frame": f.id, style: `left:${f.x}px;top:${f.y}px;width:${f.w}px;height:${f.h}px` + (f.color && f.color !== TB.FRAME_COLORS[0] ? `;--fc:${f.color}` : "") },
-    h("div", { class: "frame-title", text: f.title || "グループ" }), h("div", { class: "frame-resize", title: "大きさを変える" }));
+  // ---- グループ（縄・四角）: 入っている文字（f.m）の外側を、自動で囲む。文字を動かすと追いかける。重ねてもよい ----
+  const gBox = (n) => TB.boxOf(n);
+  const gCorners = (ms, pad) => ms.flatMap((n) => { const r = gBox(n); return [[r.x - r.w / 2 - pad, r.y - r.h / 2 - pad], [r.x + r.w / 2 + pad, r.y - r.h / 2 - pad], [r.x + r.w / 2 + pad, r.y + r.h / 2 + pad], [r.x - r.w / 2 - pad, r.y + r.h / 2 + pad]]; });
+  const gHull = (P) => { P = [...P].sort((a, c) => a[0] - c[0] || a[1] - c[1]); const cr = (o, a, c) => (a[0] - o[0]) * (c[1] - o[1]) - (a[1] - o[1]) * (c[0] - o[0]), lo = [], up = []; for (const p of P) { while (lo.length > 1 && cr(lo[lo.length - 2], lo[lo.length - 1], p) <= 0) lo.pop(); lo.push(p); } for (const p of [...P].reverse()) { while (up.length > 1 && cr(up[up.length - 2], up[up.length - 1], p) <= 0) up.pop(); up.push(p); } return lo.slice(0, -1).concat(up.slice(0, -1)); };
+  const gSmooth = (P) => { const n = P.length; let d = ""; for (let i = 0; i < n; i++) { const p0 = P[(i + n - 1) % n], p1 = P[i], p2 = P[(i + 1) % n], p3 = P[(i + 2) % n]; if (!i) d = `M${p1[0].toFixed(1)} ${p1[1].toFixed(1)}`; d += ` C${(p1[0] + (p2[0] - p0[0]) / 6).toFixed(1)} ${(p1[1] + (p2[1] - p0[1]) / 6).toFixed(1)} ${(p2[0] - (p3[0] - p1[0]) / 6).toFixed(1)} ${(p2[1] - (p3[1] - p1[1]) / 6).toFixed(1)} ${p2[0].toFixed(1)} ${p2[1].toFixed(1)}`; } return { d: d + " Z" }; };
+  // 丸っこい縄: 重心からの距離を、角度ごとに測って、ならす（角を丸めて、ふくらませる。文字は必ず内側）
+  function ropeOf(ms, pad) {
+    const H = gHull(gCorners(ms, pad)), cx = H.reduce((a, p) => a + p[0], 0) / H.length, cy = H.reduce((a, p) => a + p[1], 0) / H.length, K = 72;
+    const ray = (a) => { let best = 0; const dx = Math.cos(a), dy = Math.sin(a); for (let i = 0; i < H.length; i++) { const p = H[i], q = H[(i + 1) % H.length], ex = q[0] - p[0], ey = q[1] - p[1], den = dx * ey - dy * ex; if (Math.abs(den) < 1e-9) continue; const t = ((p[0] - cx) * ey - (p[1] - cy) * ex) / den, u = ((p[0] - cx) * dy - (p[1] - cy) * dx) / den; if (t > 0 && u >= -1e-6 && u <= 1 + 1e-6) best = Math.max(best, t); } return best; };
+    let r = Array.from({ length: K }, (_, k) => ray((k / K) * Math.PI * 2));
+    const blur = (a, w) => a.map((_, k) => { let s = 0, c = 0; for (let d = -w; d <= w; d++) { const wt = w + 1 - Math.abs(d); s += a[(k + d + K) % K] * wt; c += wt; } return s / c; });
+    const r0 = r; for (let it = 0; it < 5; it++) r = blur(r, 7).map((v, k) => Math.max(v * 1.03, r0[k] * 1.02));   // ならして、元の距離より内側には入らない
+    const pts = r.filter((_, k) => k % 3 === 0).map((v, k) => { const a = ((k * 3) / K) * Math.PI * 2; return [cx + Math.cos(a) * v, cy + Math.sin(a) * v]; });
+    return { ...gSmooth(pts), pts, top: [Math.min(...pts.map((p) => p[0])) / 2 + Math.max(...pts.map((p) => p[0])) / 2, Math.min(...pts.map((p) => p[1]))] };
+  }
+  function squareOf(ms, pad) {
+    const P = gCorners(ms, pad + 4), xs = P.map((p) => p[0]), ys = P.map((p) => p[1]), x0 = Math.min(...xs), y0 = Math.min(...ys), x1 = Math.max(...xs), y1 = Math.max(...ys), r = Math.min(30, (x1 - x0) / 2, (y1 - y0) / 2);
+    return { d: `M${x0 + r} ${y0}H${x1 - r}Q${x1} ${y0} ${x1} ${y0 + r}V${y1 - r}Q${x1} ${y1} ${x1 - r} ${y1}H${x0 + r}Q${x0} ${y1} ${x0} ${y1 - r}V${y0 + r}Q${x0} ${y0} ${x0 + r} ${y0}Z`, pts: [[x0, y0], [x1, y0], [x1, y1], [x0, y1]], top: [(x0 + x1) / 2, y0] };
+  }
+  TB.frameNodes = (f, seen) => { const b = TB.B(); if (f.m) return f.m.map(TB.node).filter(Boolean); const inF = (x, y) => x > f.x && x < f.x + f.w && y > f.y && y < f.y + f.h; return b.nodes.filter((n) => inF(n.x, n.y)); };
+  // 文字の入れ替わり（消した文字を外す・空のグループを消す）、入れ子の深さ、形・位置を決める
+  TB.syncGroups = () => {
+    const b = TB.B(), has = new Set(b.nodes.map((n) => n.id));
+    b.frames = b.frames.filter((f) => { if (!f.m) return true; f.m = f.m.filter((i) => has.has(i)); return f.m.length > 0; });
+    const gs = b.frames.filter((f) => f.m);
+    for (const f of gs) {
+      const depth = gs.filter((o) => o !== f && o.m.every((i) => f.m.includes(i)) && (o.m.length < f.m.length || (o.m.length === f.m.length && gs.indexOf(o) < gs.indexOf(f)))).length, ms = f.m.map(TB.node);
+      const g = f.shape === "box" ? squareOf(ms, 14 + depth * 11) : ropeOf(ms, 14 + depth * 11), xs = g.pts.map((p) => p[0]), ys = g.pts.map((p) => p[1]);
+      f.x = Math.round(Math.min(...xs)); f.y = Math.round(Math.min(...ys)); f.w = Math.round(Math.max(...xs) - f.x); f.h = Math.round(Math.max(...ys) - f.y); f._g = g;
+    }
+  };
+  const groupSvg = (f) => {
+    const NS = "http://www.w3.org/2000/svg", s = document.createElementNS(NS, "svg"), g = document.createElementNS(NS, "g"); s.setAttribute("class", "grp-svg"); g.setAttribute("transform", `translate(${-f.x} ${-f.y})`);
+    for (const c of ["grp-fill", "grp-line", "grp-hit"]) { const p = document.createElementNS(NS, "path"); p.setAttribute("d", f._g.d); p.setAttribute("class", c); g.append(p); }
+    s.append(g); return s;
+  };
+  const frameEl = (f) => h("div", { class: "frame" + (f.m ? " grp" : "") + (TB.sel.includes(f.id) ? " sel" : ""), "data-frame": f.id, style: `left:${f.x}px;top:${f.y}px;width:${f.w}px;height:${f.h}px` + (f.color && f.color !== TB.FRAME_COLORS[0] ? `;--fc:${f.color}` : "") },
+    f.m && f._g ? groupSvg(f) : null, h("div", { class: "frame-title", text: f.title || "グループ" }), f.m ? null : h("div", { class: "frame-resize", title: "大きさを変える" }));
   const textEl = (t) => h("div", { class: "note" + (TB.sel.includes(t.id) ? " sel" : ""), "data-text": t.id, style: `left:${t.x}px;top:${t.y}px;color:${TB.ink(t.color)}`, text: t.text });
 
   TB.renderBoard = () => {
     { const hb = document.getElementById("hint"), b0 = TB.B(); if (hb) hb.hidden = b0.nodes.length > 0 || b0.items.length > 0; }   // 操作の説明は、白紙のときだけ（ほかは右の「操作とキー」）
     if (TB.editing) { pending = true; return; }
     pending = false;
+    TB.syncGroups();
     const b = TB.B();
     const links = h("svg", { class: "layer links", width: 1, height: 1 });
     const pen = h("svg", { class: "layer pen", width: 1, height: 1 });
@@ -169,6 +206,7 @@
     const x = t.closest(".note"); if (x) return { type: "text", id: x.dataset.text };
     const rz = t.closest(".frame-resize"); if (rz) return { type: "frameResize", id: rz.parentNode.dataset.frame };
     const ft = t.closest(".frame-title"); if (ft) return { type: "frame", id: ft.parentNode.dataset.frame };
+    const gh = t.closest(".grp-hit"); if (gh) return { type: "frame", id: gh.closest(".frame").dataset.frame, line: true };
     const l = t.closest(".link"); if (l) return { type: "link", id: l.dataset.link };
     const s = t.closest(".stroke-hit"); if (s) return { type: "stroke", id: s.dataset.stroke };
     return { type: "empty" };
@@ -197,7 +235,7 @@
     if (t.type === "text") return drag(e, { up: (ev, m) => { if (m) return; if (TB.sel.length === 1 && TB.sel[0] === t.id) editText(t.id); else TB.select(t.id); } });   // 1 回目で選ぶ・選んでいるものをもう一度押すと書き直す
     if (t.type === "frame") { // 見出しをドラッグ＝枠ごと動かす／クリック＝名前を変える
       let op = null;
-      return drag(e, { move: (ev, m) => { if (!m) return; if (!op) op = beginMove(t, e); op.step(ev); }, up: () => { if (op && op.moved) op.end(); else { TB.select(t.id); editFrameTitle(t.id); } } });
+      return drag(e, { move: (ev, m) => { if (!m) return; if (!op) op = beginMove(t, e); op.step(ev); }, up: () => { if (op && op.moved) op.end(); else if (e.shiftKey || e.ctrlKey) TB.toggleSel(t.id); else { TB.select(t.id); if (!t.line) editFrameTitle(t.id); } } });
     }
     if (t.type === "frameResize") return resizeFrame(e, t.id);
     if (t.type === "link") return drag(e, { up: (ev, m) => { if (!m) TB.openLinkPop(t.id, true); } });
@@ -236,14 +274,14 @@
     if (t.type !== "frame" || TB.sel.includes(t.id)) { // 選んでいるものはまとめて動かす
       const ids = TB.sel.includes(t.id) ? TB.sel : [t.id];
       for (const id of ids) {
-        const n = TB.node(id); if (n) addNode(n); const f = frameOf(id); if (f) list.push({ o: f, x: f.x, y: f.y });
+        const n = TB.node(id); if (n) addNode(n); const f = frameOf(id); if (f) { if (f.m) { for (const q of TB.frameNodes(f)) if (!list.some((z) => z.o === q)) addNode(q); } else list.push({ o: f, x: f.x, y: f.y }); }
         const x = textOf(id); if (x) list.push({ o: x, x: x.x, y: x.y, pts: x.pts && x.pts.slice() });
       }
     }
     else { // 枠と、その中にあるもの全部
-      const f = frameOf(t.id); list.push({ o: f, x: f.x, y: f.y });
+      const f = frameOf(t.id); if (!f.m) list.push({ o: f, x: f.x, y: f.y });
       const inF = (x, y) => x > f.x && x < f.x + f.w && y > f.y && y < f.y + f.h;
-      for (const n of b.nodes) if (inF(n.x, n.y)) addNode(n);
+      for (const n of (f.m ? TB.frameNodes(f) : b.nodes.filter((q) => inF(q.x, q.y)))) addNode(n);
       for (const it of b.items) if (it.type === "text" ? inF(it.x, it.y) : inF(it.pts[0], it.pts[1])) list.push({ o: it, x: it.x, y: it.y, pts: it.pts && it.pts.slice() });
     }
     let snapped = false;
@@ -465,19 +503,24 @@
   TB.editFrameTitle = editFrameTitle;
   // 選んでいるものを、グループ（枠）で囲む
   TB.ungroup = (ids) => { const b = TB.B(), set = new Set(ids || TB.sel); if (!b.frames.some((f) => set.has(f.id))) return false; TB.snap(); b.frames = b.frames.filter((f) => !set.has(f.id)); TB.sel = TB.sel.filter((i) => !set.has(i)); TB.save(); TB.renderBoard(); TB.renderDrawer({ quiet: true }); return true; };
-  TB.reshapeFrame = (id, shape) => { const f = TB.B().frames.find((q) => q.id === id); if (!f || (f.shape || "rect") === shape) return; TB.snap(); const cx = f.x + f.w / 2, cy = f.y + f.h / 2, k = shape === "round" ? Math.SQRT2 : 1 / Math.SQRT2; f.w = Math.round(f.w * k); f.h = Math.round(f.h * k); f.x = Math.round(cx - f.w / 2); f.y = Math.round(cy - f.h / 2); if (shape === "round") f.shape = "round"; else delete f.shape; TB.save(); TB.renderBoard(); TB.markSel(); TB.renderDrawer({ quiet: true }); };
+  const touch = () => { TB.save(); TB.renderBoard(); TB.markSel(); TB.renderDrawer({ quiet: true }); };
+  // 形を変える（縄 ⇄ 四角）。むかしの四角い枠は、中に入っている文字を入れて、自動で囲むグループにする
+  TB.reshapeFrame = (id, shape) => {
+    const f = TB.B().frames.find((q) => q.id === id); if (!f) return; TB.snap();
+    if (!f.m) { const ms = TB.frameNodes(f); if (!ms.length) return; f.m = ms.map((n) => n.id); }
+    if (shape === "box") f.shape = "box"; else delete f.shape; touch();
+  };
+  TB.groupAdd = (fid, ids) => { const f = TB.B().frames.find((q) => q.id === fid); if (!f) return; TB.snap(); if (!f.m) f.m = TB.frameNodes(f).map((n) => n.id); for (const i of ids) if (TB.node(i) && !f.m.includes(i)) f.m.push(i); touch(); };
+  TB.groupRemove = (fid, ids) => { const f = TB.B().frames.find((q) => q.id === fid); if (!f) return; TB.snap(); if (!f.m) f.m = TB.frameNodes(f).map((n) => n.id); f.m = f.m.filter((i) => !ids.includes(i)); touch(); };
+  TB.groupsOf = (nid) => TB.B().frames.filter((f) => f.m && f.m.includes(nid));
+  // 選んでいるもの（文字・グループ）を、自動で囲むグループにする。グループを選んでいれば、その中身ごと外側から囲む（重ねられる）
   TB.groupSel = (shape) => {
-    const b = TB.B(); let x0 = 1e9, y0 = 1e9, x1 = -1e9, y1 = -1e9;
-    const add = (a, c, d, e) => { x0 = Math.min(x0, a); y0 = Math.min(y0, c); x1 = Math.max(x1, d); y1 = Math.max(y1, e); };
-    for (const id of TB.sel) {
-      const n = TB.node(id); if (n) { const r = TB.rectOf(n); add(r.x - r.w / 2, r.y - r.h / 2, r.x + r.w / 2, r.y + r.h / 2 + (n.t === "card" ? 56 : 0)); continue; }
-      const it = textOf(id); if (it && it.type === "text") { const el = world.querySelector(`[data-text="${CSS.escape(id)}"]`); add(it.x, it.y, it.x + (el ? el.offsetWidth : 60), it.y + (el ? el.offsetHeight : 30)); }
-      else if (it) for (let i = 0; i + 1 < it.pts.length; i += 2) add(it.pts[i], it.pts[i + 1], it.pts[i], it.pts[i + 1]);
-    }
-    if (x0 > x1) return;
+    const b = TB.B(), ids = [];
+    for (const id of TB.sel) { if (TB.node(id)) { if (!ids.includes(id)) ids.push(id); continue; } const f = b.frames.find((q) => q.id === id); if (f) for (const n of TB.frameNodes(f)) if (!ids.includes(n.id)) ids.push(n.id); }
+    if (!ids.length) return;
     TB.snap();
-    const f = { id: TB.uid(), x: Math.round(x0 - 28), y: Math.round(y0 - 24), w: Math.round(x1 - x0 + 56), h: Math.round(y1 - y0 + 48), title: "グループ", color: TB.FRAME_COLORS[0] };
-    if (shape === "round") { const cx = f.x + f.w / 2, cy = f.y + f.h / 2; f.w = Math.round(f.w * Math.SQRT2); f.h = Math.round(f.h * Math.SQRT2); f.x = Math.round(cx - f.w / 2); f.y = Math.round(cy - f.h / 2); f.shape = "round"; }
+    const f = { id: TB.uid(), x: 0, y: 0, w: 10, h: 10, title: "グループ", color: TB.FRAME_COLORS[0], m: ids };
+    if (shape === "box") f.shape = "box";
     b.frames.push(f); TB.save(); TB.renderBoard(); TB.select(f.id); editFrameTitle(f.id);
   };
   // アイデアの見た目: 枠（なし・線・塗り）と色

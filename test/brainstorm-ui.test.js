@@ -192,7 +192,7 @@ test('ふつうの文字: クリックで選ぶ（右の欄は選んだときだ
     assert.strictEqual(T.B().links.filter(l => T.B().nodes.find(n => n.id === l.b && n.deck === 'prompt')).length, 6, '選んだ文字の下に 5W1H をつないで置く（1 段目は選んだ文字から、2 段目は上のカードから）');
     assert.strictEqual(T.B().links.filter(l => l.a === 'a').length, 3, '1 段目の 3 枚が、選んだ文字につながる');
     T.select(['a', 'b']); T.groupSel(); await tick(100);
-    assert.strictEqual(T.B().frames.length, 1, 'グループ（枠）'); const f = T.B().frames[0]; assert.ok(f.x < 0 && f.x + f.w > 300, '選んだものを囲む');
+    assert.strictEqual(T.B().frames.length, 1, 'グループ（枠）'); const f = T.B().frames[0]; assert.strictEqual(JSON.stringify(f.m), JSON.stringify(['a', 'b']), '選んだものを囲む');
     d.querySelector('.frame .frame-title').dispatchEvent(new fw.Event('blur')); await tick(50);
     T.select('a'); click(d.querySelector('.node[data-id="a"]')); await tick(50);
     assert.strictEqual(T.editing, 'a', '選んでいる文字をもう一度押すと書き直す');
@@ -237,21 +237,35 @@ test('Ctrl+U: ブレストで、ノートを探して、新しい文字として
   } finally { a.close(); }
 });
 
-test('グループ: 円形にもできる・四角に戻せる・g で付け外し。縦に並べたカードにも、矢印は名札の下に出ない。右パネルを出せる', async () => {
-  const data = { v: 3, title: '盤', nodes: [{ id: 'a', t: 'idea', x: 0, y: 0, text: '上' }, { id: 'b', t: 'idea', x: 0, y: 200, text: '下' }], links: [{ id: 'l1', a: 'a', b: 'b', label: '', kind: 'arrow' }], frames: [], items: [] };
+test('グループ: 選ぶと縄で自動に囲む・四角にもできる・重ねられる・入れる外す・g で付け外し。縦のカードの矢印は名札の下に出ない。右パネルを出せる', async () => {
+  const data = { v: 3, title: '盤', nodes: [{ id: 'a', t: 'idea', x: 0, y: 0, text: '上' }, { id: 'b', t: 'idea', x: 0, y: 200, text: '下' }, { id: 'c', t: 'idea', x: 300, y: 100, text: '横' }], links: [{ id: 'l1', a: 'a', b: 'b', label: '', kind: 'arrow' }], frames: [], items: [] };
   const a = await app(st => st.saveNote({ s: 'd', id: '2', created: '2026-11-12 09:00:00', title: '盤', body: '', kind: 'brainstorm', data }));
   try {
-    await a.open('d', '2'); const T = await a.tb(), fw = a.$('#tbframe').contentWindow, d = fw.document;
-    T.select(['a', 'b']); T.groupSel('round');
-    let f = T.B().frames[0]; assert.strictEqual(f.shape, 'round'); assert.ok(d.querySelector('.frame.round'));
-    T.reshapeFrame(f.id, 'rect'); assert.ok(!T.B().frames[0].shape);
-    T.editing = null; fw.document.activeElement && fw.document.activeElement.blur(); T.select([f.id]); d.dispatchEvent(new fw.KeyboardEvent('keydown', { key: 'g', bubbles: true, cancelable: true }));
-    assert.strictEqual(T.B().frames.length, 0, 'g で外れる');
-    T.select(['a']); d.dispatchEvent(new fw.KeyboardEvent('keydown', { key: 'G', shiftKey: true, bubbles: true, cancelable: true }));
-    assert.strictEqual(T.B().frames[0].shape, 'round', 'Shift+G は円形');
-    assert.ok(a.$('#bstage > aside#margin'), '右のパネルの場所がある');
-    assert.ok(a.$('#bstage').classList.contains('nomgn'), '標準は隠す');
+    await a.open('d', '2'); const T = await a.tb(), fw = a.$('#tbframe').contentWindow, d = fw.document, key = (k, o = {}) => { T.editing = null; fw.document.activeElement && fw.document.activeElement.blur(); d.dispatchEvent(new fw.KeyboardEvent('keydown', { key: k, bubbles: true, cancelable: true, ...o })); };
+    T.select(['a', 'b']); T.groupSel(); T.editing = null;
+    const f = T.B().frames[0]; assert.strictEqual(JSON.stringify(f.m), '["a","b"]'); assert.ok(d.querySelector('.frame.grp svg path.grp-line'), '縄が描かれる');
+    const w0 = f.w; T.node('b').y = 400; T.renderBoard(); assert.ok(T.B().frames[0].h > 300, '文字を動かすと、囲みが追いかける: ' + JSON.stringify([f.x, f.y, f.w, f.h]));
+    T.reshapeFrame(f.id, 'box'); assert.strictEqual(T.B().frames[0].shape, 'box'); T.reshapeFrame(f.id, 'rope'); assert.ok(!T.B().frames[0].shape);
+    T.groupAdd(f.id, ['c']); assert.strictEqual(T.B().frames[0].m.length, 3); T.groupRemove(f.id, ['c']); assert.strictEqual(T.B().frames[0].m.length, 2);
+    T.select(['b', 'c']); T.groupSel('box'); T.editing = null; assert.strictEqual(T.B().frames.length, 2, '重ねてもよい'); assert.strictEqual(T.groupsOf('b').length, 2, '同じ文字が 2 つのグループに入る');
+    T.select([f.id]); key('g'); assert.strictEqual(T.B().frames.length, 1, 'g で外れる（グループだけ選んでいるとき）');
+    T.select(['a']); key('G', { shiftKey: true }); assert.ok(T.B().frames.some((q) => q.shape === 'box'), 'Shift+G は四角');
+    T.editing = null; T.select(['a']); T.deleteSelected(); T.editing = null; T.renderBoard(); assert.ok(T.B().frames.every((q) => !q.m.includes('a')), '文字を消すと、グループから外れる');
+    assert.ok(a.$('#bstage > aside#margin'), '右のパネルの場所がある'); assert.ok(a.$('#bstage').classList.contains('nomgn'), '標準は隠す');
     a.w.document.dispatchEvent(new a.w.KeyboardEvent('keydown', { key: '\\', ctrlKey: true, bubbles: true, cancelable: true }));
     assert.ok(!a.$('#bstage').classList.contains('nomgn'), 'Ctrl+\\ で出る');
+  } finally { a.close(); }
+});
+
+test('右に分けて開く: Shift+クリックで、読むだけの画面が右に出る。閉じる', async () => {
+  const a = await app(st => { st.saveNote({ s: 'd', id: '2', created: '2026-11-12 09:00:00', title: '参照元', body: 'これは ->1 を見る' }); });
+  try {
+    await a.open('d', '2');
+    const row = a.$$('#list .item.note').find(e => e.dataset.id === '1'); assert.ok(row, '一覧に 1 がある');
+    row.dispatchEvent(new a.w.MouseEvent('click', { shiftKey: true, bubbles: true, cancelable: true })); await tick(700);
+    assert.ok(!a.$('#splitpane').hidden, '右の画面が出る');
+    assert.match(a.$('#splitpane').textContent, /読むだけ/);
+    a.$('#splitpane [data-spact="close"]').click(); await tick(100);
+    assert.ok(a.$('#splitpane').hidden, '閉じる');
   } finally { a.close(); }
 });

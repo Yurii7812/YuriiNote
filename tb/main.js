@@ -82,10 +82,10 @@
     }
     const cur = TB.node(TB.sel[TB.sel.length - 1]);
     if (e.key === "Delete" || e.key === "Backspace") { e.preventDefault(); if (TB.selLink) TB.removeLink(TB.selLink); else TB.deleteSelected(); return; }
-    if ((e.key === "g" || e.key === "G") && !e.ctrlKey && !e.metaKey && !e.altKey) { // g: グループにする／外す（Shift+G は円形）
-      const hasF = TB.sel.some((i) => TB.B().frames.some((f) => f.id === i));
-      if (hasF) { e.preventDefault(); TB.ungroup(); return; }
-      if (TB.sel.length) { e.preventDefault(); TB.groupSel(e.shiftKey ? "round" : undefined); return; }
+    if ((e.key === "g" || e.key === "G") && !e.ctrlKey && !e.metaKey && !e.altKey) { // g: 選んだものを縄で囲む／グループだけ選んでいれば外す（Shift+G は四角）
+      const hasF = TB.sel.some((i) => TB.B().frames.some((f) => f.id === i)), hasN = TB.sel.some((i) => TB.node(i));
+      if (hasF && !hasN) { e.preventDefault(); TB.ungroup(); return; }
+      if (TB.sel.length) { e.preventDefault(); TB.groupSel(e.shiftKey ? "box" : undefined); return; }
     }
     const dir = { ArrowLeft: [-1, 0], ArrowRight: [1, 0], ArrowUp: [0, -1], ArrowDown: [0, 1] }[e.key];
     if (dir) { e.preventDefault(); TB.moveSel(...dir); return; }

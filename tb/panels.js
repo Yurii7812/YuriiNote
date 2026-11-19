@@ -73,7 +73,7 @@
       if (!n.slot) items.push(["この枠ごと消す", del, "danger"]);
     }
     if (TB.host && TB.host.nodeMenu) { const extra = TB.host.nodeMenu(n); if (extra.length) items.push("-", ...extra); }
-    if (TB.sel.length > 1 && TB.sel.includes(id)) items.push("-", [`選んだ ${TB.sel.length} 個をグループにする`, () => TB.groupSel()], [`選んだ ${TB.sel.length} 個を円形のグループにする`, () => TB.groupSel("round")], [`選んだ ${TB.sel.length} 個を消す（Delete）`, () => TB.deleteSelected(), "danger"]);
+    if (TB.sel.length > 1 && TB.sel.includes(id)) items.push("-", [`選んだ ${TB.sel.length} 個を縄で囲む（G）`, () => TB.groupSel()], [`選んだ ${TB.sel.length} 個を四角で囲む（Shift+G）`, () => TB.groupSel("box")], [`選んだ ${TB.sel.length} 個を消す（Delete）`, () => TB.deleteSelected(), "danger"]);
     const cut = b.links.filter((l) => l.a === id || l.b === id);
     if (cut.length) items.push("-", [`つながりを全部消す（${cut.length}本）`, () => { TB.snap(); b.links = b.links.filter((l) => !cut.includes(l)); TB.save(); TB.renderAll(); }]);
     TB.menu(items, x, y);
@@ -86,8 +86,8 @@
   };
   TB.frameMenu = (id, x, y) => {
     const b = TB.B();
-    const f = b.frames.find((q) => q.id === id), round = f && f.shape === "round";
-    TB.menu([["名前を変える", () => TB.editFrameTitle(id)], [round ? "四角にする" : "円形にする", () => TB.reshapeFrame(id, round ? "rect" : "round")],
+    const f = b.frames.find((q) => q.id === id), box = f && f.shape === "box";
+    TB.menu([["名前を変える", () => TB.editFrameTitle(id)], [box ? "縄にする" : "四角にする", () => TB.reshapeFrame(id, box ? "rope" : "box")],
       "-", ["グループを外す（中身は残す）", () => TB.ungroup([id]), "danger"]], x, y);
   };
   TB.removeLink = (id) => { TB.snap(); TB.B().links = TB.B().links.filter((l) => l.id !== id); if (TB.selLink === id) TB.selLink = null; $("#pop").hidden = true; TB.save(); TB.renderBoard(); };
@@ -274,6 +274,17 @@
       h("div", { class: "chips" }, ["w5h1", "next", "roles", "scamper", "hats"].map((id) => { const se = window.Prompts.SETS.find((x) => x.id === id); return se && chip(se.name, () => TB.drawPromptSet(id)); }).filter(Boolean),
         chip("1枚", () => TB.doDraw("prompt"))));
   }
+  // 選んでいる文字を、グループに入れる・外す
+  function groupPanel(ids) {
+    const gs = TB.B().frames.filter((f) => f.m); if (!gs.length) return null;
+    const btn = [];
+    for (const f of gs) {
+      const miss = ids.filter((i) => !f.m.includes(i)), has = ids.filter((i) => f.m.includes(i));
+      if (miss.length) btn.push(chip("＋ " + (f.title || "グループ") + " に入れる", () => TB.groupAdd(f.id, miss)));
+      if (has.length) btn.push(chip("− " + (f.title || "グループ") + " から外す", () => TB.groupRemove(f.id, has)));
+    }
+    return h("div", { class: "d-psets" }, h("h4", { text: "グループ" }), h("div", { class: "chips" }, btn));
+  }
   function ideaDetail(n) {
     const par = TB.parentOf(n.id), kids = kidsOf(n.id);
     return [
@@ -282,6 +293,7 @@
       par ? h("div", { class: "d-rel" }, h("h4", { text: "元" }), h("button", { type: "button", class: "rel", onclick: () => TB.select(par.id) }, h("b", { text: nodeLabel(par) }))) : null,
       kids.length ? h("div", { class: "d-rel" }, h("h4", { text: `ここから（${kids.length}）` }), kids.map((k) => h("button", { type: "button", class: "rel idea", onclick: () => TB.select(k.id) }, h("span", { text: nodeLabel(k) })))) : null,
       styleBox([n]),
+      groupPanel([n.id]),
       h("div", { class: "d-btns" },
         h("button", { type: "button", text: "＋広げる（Tab）", onclick: () => TB.newIdea(n.id) }),
         h("button", { type: "button", text: "書き直す（Enter・もう一度クリック）", onclick: () => TB.editIdea(n.id) }),
@@ -293,15 +305,17 @@
     if (!f) return [];
     return [h("h3", { text: "グループ" }), h("input", { value: f.title, ...lazy((v) => { f.title = v; TB.renderBoard(); TB.markSel(); }) }),
       h("div", { class: "d-style" }, colRow("枠色", f.color && f.color !== TB.FRAME_COLORS[0] ? f.color : "", (v) => { TB.snap(); f.color = v || TB.FRAME_COLORS[0]; TB.save(); TB.renderBoard(); TB.markSel(); TB.renderDrawer({ quiet: true }); })),
-      h("div", { class: "d-btns" }, h("button", { type: "button", class: !f.shape ? "primary" : "", text: "四角", onclick: () => TB.reshapeFrame(f.id, "rect") }), h("button", { type: "button", class: f.shape === "round" ? "primary" : "", text: "円形", onclick: () => TB.reshapeFrame(f.id, "round") }), h("button", { type: "button", class: "danger", text: "グループを外す", onclick: () => TB.ungroup([f.id]) })),
-      h("p", { class: "muted", text: "見出しをドラッグすると中身ごと動きます。右下の角で大きさを変えられます" })];
+      h("div", { class: "d-btns" }, h("button", { type: "button", class: f.shape !== "box" ? "primary" : "", text: "縄", onclick: () => TB.reshapeFrame(f.id, "rope") }), h("button", { type: "button", class: f.shape === "box" ? "primary" : "", text: "四角", onclick: () => TB.reshapeFrame(f.id, "box") }), h("button", { type: "button", class: "danger", text: "グループを外す（G）", onclick: () => TB.ungroup([f.id]) })),
+      f.m ? h("div", { class: "d-rel" }, h("h4", { text: `入っているもの（${f.m.length}）` }), TB.frameNodes(f).map((n) => h("button", { type: "button", class: "rel idea", title: "押すと選ぶ。Shift+クリックで外す", onclick: (e) => { if (e.shiftKey) TB.groupRemove(f.id, [n.id]); else TB.select(n.id); } }, h("b", { text: nodeLabel(n) })))) : null,
+      h("p", { class: "muted", text: "文字が増える・動くと、囲みは自動で追いかけます。点線や見出しをドラッグすると、中身ごと動きます" })];
   }
   function multi(ids) {
     const ideas = ids.map(TB.node).filter((n) => n && n.t === "idea");
     return [h("h3", { text: `${ids.filter((x) => !TB.isLinkId(x)).length}個を選択中` }),
-      h("div", { class: "d-btns" }, h("button", { type: "button", class: "primary", text: "グループにする", title: "選んだものを四角い枠で囲む", onclick: () => TB.groupSel() }), h("button", { type: "button", class: "primary", text: "円形で囲む", title: "選んだものを丸い枠で囲む", onclick: () => TB.groupSel("round") }),
+      h("div", { class: "d-btns" }, h("button", { type: "button", class: "primary", text: "縄で囲む（G）", title: "選んだ文字・グループを、縄で囲む。重ねてもよい", onclick: () => TB.groupSel() }), h("button", { type: "button", text: "四角で囲む", onclick: () => TB.groupSel("box") }),
         h("button", { type: "button", class: "danger", text: "まとめて消す（Delete）", onclick: () => TB.deleteSelected() }), h("button", { type: "button", text: "選択を外す（Esc）", onclick: () => TB.select([]) })),
       ideas.length ? styleBox(ideas) : null,
+      ideas.length ? groupPanel(ideas.map((n) => n.id)) : null,
       TB.selLinks().length ? [h("h4", { text: `つながった線 ${TB.selLinks().length}本` }), linkStyle(TB.selLinks().map((id) => TB.B().links.find((l) => l.id === id)).filter(Boolean))] : null,
       h("p", { class: "muted", text: "Ctrl+ドラッグで、まとめて動かせます。Ctrl+クリックで、選ぶものを足す・外す" })];
   }

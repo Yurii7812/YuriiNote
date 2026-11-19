@@ -1328,8 +1328,48 @@ function syncLeftPanel() {
   lp.hidden = !panelLeft || !lp.firstChild || mgnOff();
 }
 function togglePanelLeft() { panelLeft = !panelLeft; try { localStorage.setItem('ysimple-panel-left', panelLeft ? '1' : '0'); } catch { } if (cur && cur.k === 'note') openNote(cur.s, cur.id, null, true); else syncLeftPanel(); }
+// ===== 右に分けて開く（参照用。読むだけ。Shift+クリック／タブを右クリック）=====
+let split = (() => { try { return JSON.parse(localStorage.getItem('pkm-split') || 'null'); } catch { return null; } })(), splitSig = '';
+const saveSplit = () => { try { localStorage.setItem('pkm-split', JSON.stringify(split)); } catch { } };
+function openSplit(d) {
+  if (!d || !(d.k === 'note' || d.k === 'topic')) return toast('分けて開けるのは、ノートと索引です');
+  if (split && split.k === d.k && (split.id || split.name) === (d.id || d.name) && split.s === d.s) { return; }
+  split = d.k === 'note' ? { k: 'note', s: d.s, id: d.id } : { k: 'topic', name: d.name }; saveSplit(); splitSig = ''; renderSplit();
+}
+const closeSplit = () => { split = null; saveSplit(); splitSig = ''; renderSplit(); };
+function renderSplit(force) {
+  const el = $('#splitpane'); if (!el) return;
+  if (!split) { el.hidden = true; el.innerHTML = ''; return; }
+  const n = split.k === 'note' ? get(split.s, split.id) : null, t = split.k === 'topic' ? topics.find(x => x.name === split.name) : null;
+  if (!n && !t) { closeSplit(); return; }
+  const sig = split.k + (n ? n.s + n.id + '|' + (n.title || '') + '|' + (n.body || '') : t.name + '|' + (t.text || ''));
+  if (!force && sig === splitSig && !el.hidden) return; splitSig = sig; el.hidden = false;
+  const head = n ? (n.noid ? 'IDなし' : (n.s === 'p' ? '紙 ' : '') + n.id) : `索引 ${t.entry ? (t.entry.s === 'p' ? '紙 ' : '') + t.entry.id + '-' + (t.num || 1) : ''}`;
+  const body = n ? (n.s === 'p' && n.image ? `<img src="${n.image}" style="max-width:100%">` : '') + `<div class="md" data-user></div>` : `<div data-user>${(t.text || '').split('\n').map(l => l.trim() ? `<div class="tl">${mapLineHtml(t, l)}</div>` : '').join('')}</div>`;
+  el.innerHTML = `<div class="sp-h"><b>${esc(n ? titleOf(n) || '（無題）' : t.name)}</b><small>${esc(head)}</small><button data-spact="swap" title="メインの画面で開く">メインで開く</button><button data-spact="close" title="分けた画面を閉じる">✕</button></div><div class="sp-b">${body}</div><div class="sp-hint">読むだけの画面です。ID を押すと、ここで移ります（Ctrl+クリックでメインへ）</div>`;
+  if (n) el.querySelector('.md').innerHTML = renderMd(clipText(n.body || ''));
+}
+$('#splitpane').addEventListener('click', e => {
+  const sp = e.target.closest('[data-spact]'); if (sp) { e.stopPropagation(); const d = split; if (sp.dataset.spact === 'close') return closeSplit(); closeSplit(); return d && (d.k === 'note' ? openNote(d.s, d.id) : openTopic(d.name)); }
+  if (e.ctrlKey || e.metaKey) return;   // Ctrl+クリックは、ふつうどおり（メインで新しいタブ）
+  const tp = e.target.closest('[data-topic]'); if (tp) { e.stopPropagation(); e.preventDefault(); return openSplit({ k: 'topic', name: tp.dataset.topic }); }
+  const c = e.target.closest('[data-id][data-s]'); if (c) { e.stopPropagation(); e.preventDefault(); const ts = c.classList.contains('chip') && !c.dataset.n ? topicsOf(c.dataset.s, c.dataset.id) : []; if (ts.length === 1) return openSplit({ k: 'topic', name: ts[0].name }); if (get(c.dataset.s, c.dataset.id)) openSplit({ k: 'note', s: c.dataset.s, id: c.dataset.id }); }
+});
+document.addEventListener('click', e => {   // Shift+クリック: 右に分けて開く（左の一覧・ID・索引の名前）
+  if (!e.shiftKey || e.ctrlKey || e.metaKey || selMode || e.target.closest('#splitpane,#modal,.cm-editor')) return;
+  const tp = e.target.closest('[data-topic]'); const row = e.target.closest('#list .item.topicrow'); const c = e.target.closest('[data-id][data-s]');
+  let d = null;
+  if (tp) d = { k: 'topic', name: tp.dataset.topic };
+  else if (row && row.dataset.topic) d = { k: 'topic', name: row.dataset.topic };
+  else if (c && get(c.dataset.s, c.dataset.id)) d = { k: 'note', s: c.dataset.s, id: c.dataset.id };
+  if (!d) return; e.preventDefault(); e.stopPropagation(); openSplit(d);
+}, true);
+$('#tabbar').addEventListener('contextmenu', e => {
+  const tb = e.target.closest('[data-ti]'); if (!tb) return; e.preventDefault(); const t = tabs[+tb.dataset.ti];
+  popMenu(e, [['⫼ 右に分けて開く', () => openSplit(t)], ...(split ? [['分けた画面を閉じる', closeSplit]] : []), ['× 閉じる', () => closeTab(+tb.dataset.ti)]]);
+});
 function renderTabs() {
-  syncLeftPanel();
+  syncLeftPanel(); clearTimeout(renderSplit.t); renderSplit.t = setTimeout(() => renderSplit(), 250);
   drawIdBar();
   $('#tabbar').innerHTML = tabs.map((t, i) => `<div class="tab${i === active ? ' on' : ''}" data-ti="${i}"><span>${tabLabel(t)}</span><b class="x" data-close="${i}" title="閉じる (Ctrl+W)">×</b></div>`).join('')
     + '<button class="tab-new" title="新しいタブ (Ctrl+T)">＋</button>';
@@ -1881,6 +1921,7 @@ function noteMenu(btn, note) {
     ...(text ? [['▦ 表を入れる', () => insertTable()], ['🖍️ ボードを入れる（文字と線）', () => insertBoard()], ['📎 ファイルを添付', () => pick(true, f => attach(note, f), '*')]] : []),
     ...(text && s === 'd' && !(note.body || '').trim() ? [['🧠 ブレストにする', () => toBrainstorm(note)]] : []),
     ...(note.kind === 'brainstorm' && s === 'd' ? [[note.noid ? '🧠 並列のブレスト（IDなし）' : `🧠 並列のブレスト ${free(s, L.sibling(id))}`, () => createBrainstorm({ note, act: 'sib' })], [note.noid ? '🧠 分岐のブレスト（IDなし）' : `🧠 分岐のブレスト ${free(s, L.child(id))}`, () => createBrainstorm({ note, act: 'chi' })]] : []),
+    [split ? '⫼ 分けた画面を閉じる' : '⫼ 右に分けて開く（今のノートを）', () => split ? closeSplit() : openSplit({ k: 'note', s, id })],
     ...(note.kind === 'brainstorm' ? [[bbHidden ? '📋 右のパネルを出す（子ノート・バックリンク）' : '📋 右のパネルを隠す', () => toggleMgn()]] : []),
     ['🆔 IDを変更・解除…', () => idSettingsDialog(note)],
     ['🗑️ 削除', () => deleteNotes([{ s, id }]), true]

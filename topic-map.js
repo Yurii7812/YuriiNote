@@ -54,7 +54,7 @@ function convert(text) {
 // 見た目の持ち物（ノード: 枠・文字の色・枠の色 / 線: 種類・ひとこと・色 / グループの枠）。なければ付けない
 const NODE_KEYS = ['box', 'color', 'bc'], LINK_KEYS = ['kind', 'label', 'color'];
 const pick = (o, keys) => { if (!o || typeof o !== 'object') return null; const r = {}; for (const k of keys) if (typeof o[k] === 'string' && o[k] && !(k === 'kind' && o[k] === 'line')) r[k] = o[k]; return Object.keys(r).length ? r : null; };
-const cleanFrames = f => Array.isArray(f) ? f.filter(x => x && typeof x === 'object').map(x => ({ id: String(x.id || ''), x: Math.round(+x.x || 0), y: Math.round(+x.y || 0), w: Math.round(+x.w || 0), h: Math.round(+x.h || 0), title: String(x.title || ''), color: String(x.color || ''), ...(x.shape === 'round' ? { shape: 'round' } : {}) })) : [];
+const cleanFrames = f => Array.isArray(f) ? f.filter(x => x && typeof x === 'object').map(x => ({ id: String(x.id || ''), x: Math.round(+x.x || 0), y: Math.round(+x.y || 0), w: Math.round(+x.w || 0), h: Math.round(+x.h || 0), title: String(x.title || ''), color: String(x.color || ''), ...(Array.isArray(x.m) ? { m: x.m.map(v => typeof v === 'string' ? v : +v || 0).filter(Boolean), ...(x.shape === 'box' ? { shape: 'box' } : {}) } : {}) })) : [];
 const clean = m => m && Array.isArray(m.n) ? ((f) => ({
   v: 1,
   n: m.n.filter(a => Array.isArray(a) && a.length >= 4 && typeof a[3] === 'string').map(a => { const o = [+a[0] || 0, Math.round(+a[1] || 0), Math.round(+a[2] || 0), a[3]], ex = pick(a[4], NODE_KEYS); if (ex) o.push(ex); return o; }),
@@ -88,7 +88,7 @@ function toBoard(map) {
     v: 3, title: '', template: 'free', layout: null, summary: '', draws: [], items: [],
     nodes: m.n.map(a => ({ id: 'n' + a[0], t: 'idea', x: a[1], y: a[2], text: a[3], ...(a[4] || {}) })),
     links: m.l.map((a, i) => ({ id: 'l' + a[0] + '_' + a[1] + '_' + i, a: 'n' + a[0], b: 'n' + a[1], kind: (a[2] && a[2].kind) || 'line', label: (a[2] && a[2].label) || '', ...(a[2] && a[2].color ? { color: a[2].color } : {}) })),
-    frames: (m.f || []).map(f => ({ ...f, color: f.color || '#8b909c' })),
+    frames: (m.f || []).map(f => ({ ...f, color: f.color || '#8b909c', ...(f.m ? { m: f.m.map(i => 'n' + i) } : {}) })),
   };
 }
 // 盤面から地図へ。行の並び（索引の文字になる）は、前の地図の並びを保ち、新しいノードは最後に足す。空の文字のノードは落とす
@@ -107,7 +107,7 @@ function fromBoard(board, prev) {
     const key = a < b ? a + ':' + b : b + ':' + a; if (seen.has(key)) continue; seen.add(key);
     const o = [a, b], ex = pick(k, LINK_KEYS); if (ex) o.push(ex); l.push(o);
   }
-  return clean({ v: 1, n, l, f: board && board.frames });
+  return clean({ v: 1, n, l, f: (board && board.frames || []).map(f => f.m ? { ...f, m: f.m.map(i => num.get(i)).filter(Boolean) } : f) });
 }
 
 const toText = map => (clean(map) || { n: [] }).n.map(a => a[3]).join('\n');

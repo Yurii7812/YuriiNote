@@ -319,7 +319,18 @@ aside.sort1 #dlist .dtop{padding-right:50px}
 .note-map-container .float-tooltip-kap{max-width:min(260px,90%);padding:6px 10px;border-radius:5px;background:var(--bg);box-shadow:2px 2px 8px rgba(0,0,0,.2);color:var(--fg);font-size:.9rem;text-align:start}
 #gsvg{user-select:none;-webkit-user-select:none;flex:1;min-height:0;width:100%;cursor:grab;font-family:inherit;touch-action:none}
 #gsvg .gn,#gsvg .gt{cursor:pointer}#gsvg .gn:hover circle{fill:var(--acc-bg)}
-#pane{flex:1;min-height:0;overflow:auto;padding:0}
+#panes{flex:1;min-height:0;display:flex;min-width:0}
+#pane{flex:1;min-width:0;min-height:0;overflow:auto;padding:0}
+#splitpane{flex:0 0 42%;min-width:260px;display:flex;flex-direction:column;border-left:1px solid var(--line);background:#fff;min-height:0}
+#splitpane[hidden]{display:none}
+#splitpane .sp-h{display:flex;align-items:center;gap:8px;padding:8px 12px;border-bottom:1px solid var(--line);flex:none}
+#splitpane .sp-h b{flex:1;min-width:0;font-size:14.5px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+#splitpane .sp-h small{font:500 12px var(--mono);color:var(--sub)}
+#splitpane .sp-h button{height:28px;padding:0 10px;border-radius:7px;font-size:12.5px}
+#splitpane .sp-b{flex:1;min-height:0;overflow:auto;padding:16px 22px 40px;line-height:1.8;font-size:15px}
+#splitpane .sp-b .tl{display:block;margin:2px 0}
+#splitpane .sp-b h2{font-size:20px;margin:0 0 10px}
+#splitpane .sp-hint{padding:5px 12px;font-size:11.5px;color:var(--sub);border-top:1px solid var(--line);flex:none}
 #pane:not(:has(.stage)){padding:14px 24px}
 .stage{display:flex;align-items:flex-start;min-height:100%}
 .stage:has(#nbody){height:100%;align-items:stretch;min-height:0}
@@ -1012,7 +1023,7 @@ button.ic.dj{color:var(--sub);border-color:transparent;background:none}button.ic
     </div>
     <div id="where"><nav id="crumbs" aria-label="今いる場所"></nav></div>
     <div id="idbar" hidden></div>
-    <div id="pane"></div>
+    <div id="panes"><div id="pane"></div><div id="splitpane" hidden></div></div>
   </section>
 </main>
 
