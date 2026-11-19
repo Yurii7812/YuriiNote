@@ -2243,26 +2243,12 @@ function openZero(keep) {
 }
 // Folgezettel から地図へ: 区画 r のノート（題 ID）を、親子の線つきで足す。すでに地図にある ID は足さない。木の形に並べる
 // 地図を開いたときも、ボタンも、同じ: 足りないノートを足し、足りない親子の線をつなぎ、題が変わったノートの行を直す。t.text / t.map を直し、直した数を返す
-// 放射状の置き方: 根（親のないノート）を中心に、深さごとの輪。子は親の向きの近くに、葉の数に応じた角度で。座標は、ノードの左上
-function radialPos(ns, has) {
-  const W = 150, H = TopicMap.ROW_H, byId = new Map(ns.map(n => [n.id, n])), kids = new Map(ns.map(n => [n.id, []])), roots = [];
-  for (const n of ns) { const p = L.parentIn(n.id, has); if (p && byId.has(p)) kids.get(p).push(n); else roots.push(n); }
-  const leaf = new Map(), cnt = n => { const k = kids.get(n.id); const v = k.length ? k.reduce((a, c) => a + cnt(c), 0) : 1; leaf.set(n.id, v); return v; };
-  roots.forEach(cnt);
-  const depth = new Map(), per = []; const dive = (n, d) => { depth.set(n.id, d); per[d] = (per[d] || 0) + 1; kids.get(n.id).forEach(c => dive(c, d + 1)); };
-  const multi = roots.length > 1; roots.forEach(r => dive(r, multi ? 1 : 0));
-  const R = []; for (let d = 0; d < per.length; d++) R[d] = d === 0 ? 0 : Math.max((R[d - 1] || 0) + 230, ((per[d] || 0) * (H + 26)) / (2 * Math.PI));
-  const out = new Map(), place = (n, a0, a1) => {
-    const am = (a0 + a1) / 2, r = R[depth.get(n.id)] || 0; out.set(n.id, { x: r * Math.cos(am) - W / 2, y: r * Math.sin(am) - H / 2 });
-    let a = a0; const tot = leaf.get(n.id); for (const c of kids.get(n.id)) { const sp = (a1 - a0) * leaf.get(c.id) / tot; place(c, a, a + sp); a += sp; }
-  };
-  if (!multi) place(roots[0], -Math.PI * 0.9, Math.PI * 1.1);
-  else { const tot = roots.reduce((a, c) => a + leaf.get(c.id), 0); let a = -Math.PI / 2; for (const r of roots) { const sp = 2 * Math.PI * leaf.get(r.id) / tot; place(r, a, a + sp); a += sp; } }
-  return out;
-}
+// 放射状の置き方（topic-map.js の radial）。座標は、ノードの左上
+function radialPos(ns, has) { return TopicMap.radial(ns.map(n => ({ id: n.id, parent: L.parentIn(n.id, has) }))); }
 function fzSync(t, auto, force) {
-  const r = String(t.entry.id), sp = t.entry.s, has = x => !!get(sp, x);
+  const r = String(t.entry.id), sp = t.entry.s, has = x => x === r || !!get(sp, x);   // 区画の番号そのもの（1）も、親として数える
   const ns = notes.filter(n => n.s === sp && !n.noid && String(L.region(n.id)) === r && n.kind !== 'memo').sort((a, b) => L.cmpId(a.id, b.id));
+  if (!get(sp, r) && ns.some(n => !L.parentIn(n.id, has) || L.parentIn(n.id, has) === r)) { const g = regions.find(x => x.n === r); ns.unshift({ s: sp, id: r, title: (g && g.name) || '区画', hub: true }); }   // 区画の番号のノートが無いときは、中心に、区画の行を置く
   const lines = L.topicText(t).split('\n').filter(x => x.trim()), idOf = l => (L.topicLine(l).ids || []).map(i => i.raw);
   const haveLine = new Map(); for (const l of lines) for (const raw of idOf(l)) if (!/\(/.test(raw) && !haveLine.has(raw)) haveLine.set(raw, l);
   let renamed = 0;   // 「題 ID」だけの行は、ノートの今の題に
@@ -2285,7 +2271,7 @@ function fzSync(t, auto, force) {
     for (const n of fresh) { const a = at.get(haveLine.get(n.id)), q = rp.get(n.id); if (a && q) { a[1] = Math.round(q.x + dx); a[2] = Math.round(q.y + dy); } }
   }
   let relaid = 0;
-  if (ns.length && (force || !m.radial)) {   // 昔の置き方の地図は、一度だけ、放射状に作り直す（ボタンなら、いつでも）。ノート以外の行は動かさない
+  if (ns.length && (force || m.radial !== 2)) {   // 昔の置き方の地図は、一度だけ、放射状に作り直す（ボタンなら、いつでも）。ノート以外の行は動かさない
     const rp = radialPos(ns, has), mine = new Set(), bran = [];
     for (const n of ns) { const l = haveLine.get(n.id), a = l && at.get(l); if (a) mine.add(a); }
     for (const a of m.n) for (const raw of idOf(a[3])) { const mm = /^(.+)\((\d+)\)$/.exec(raw); if (mm && ns.some(n => n.id === mm[1])) { bran.push([a, mm[1]]); mine.add(a); } }
@@ -2298,7 +2284,7 @@ function fzSync(t, auto, force) {
       let ang = Math.atan2(pa[2] - cy, pa[1] - cx); if (!isFinite(ang)) ang = 0; ang += (k % 2 ? 1 : -1) * Math.ceil(k / 2) * 0.4;
       a[1] = Math.round(pa[1] + 210 * Math.cos(ang)); a[2] = Math.round(pa[2] + 210 * Math.sin(ang));
     }
-    m.radial = 1;
+    m.radial = 2;
   }
   let links = 0;
   for (const n of ns) {

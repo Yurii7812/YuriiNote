@@ -56,7 +56,7 @@ const NODE_KEYS = ['box', 'color', 'bc', 'img', 'iw'], LINK_KEYS = ['kind', 'lab
 const pick = (o, keys) => { if (!o || typeof o !== 'object') return null; const r = {}; for (const k of keys) { if (k === 'iw') { if (Number.isFinite(+o[k]) && +o[k] > 0) r[k] = Math.round(+o[k]); } else if (typeof o[k] === 'string' && o[k] && !(k === 'kind' && o[k] === 'line')) r[k] = o[k]; } return Object.keys(r).length ? r : null; };
 const cleanFrames = f => Array.isArray(f) ? f.filter(x => x && typeof x === 'object').map(x => ({ id: String(x.id || ''), x: Math.round(+x.x || 0), y: Math.round(+x.y || 0), w: Math.round(+x.w || 0), h: Math.round(+x.h || 0), title: String(x.title || ''), color: String(x.color || ''), ...(Array.isArray(x.m) ? { m: x.m.map(v => typeof v === 'string' ? v : +v || 0).filter(Boolean), ...(x.shape === 'box' ? { shape: 'box' } : {}) } : {}) })) : [];
 const clean = m => m && Array.isArray(m.n) ? ((f) => ({
-  v: 1, ...(m.radial ? { radial: 1 } : {}),
+  v: 1, ...(m.radial ? { radial: +m.radial || 1 } : {}),
   n: m.n.filter(a => Array.isArray(a) && a.length >= 4 && typeof a[3] === 'string').map(a => { const o = [+a[0] || 0, Math.round(+a[1] || 0), Math.round(+a[2] || 0), a[3]], ex = pick(a[4], NODE_KEYS); if (ex) o.push(ex); return o; }),
   l: Array.isArray(m.l) ? m.l.filter(a => Array.isArray(a) && a.length >= 2).map(a => { const o = [+a[0] || 0, +a[1] || 0], ex = pick(a[2], LINK_KEYS); if (ex) o.push(ex); return o; }) : [],
   ...(f.length ? { f } : {})
@@ -77,7 +77,7 @@ function reconcile(map, text) {
   });
   const ids = new Set(out.map(a => a[0]));
   const seen = new Set(), l = m.l.filter(([a, b]) => { const k = a < b ? a + ':' + b : b + ':' + a; if (a === b || !ids.has(a) || !ids.has(b) || seen.has(k)) return false; seen.add(k); return true; });
-  return { v: 1, ...(m.radial ? { radial: 1 } : {}), n: out, l, ...(m.f && m.f.length ? { f: m.f } : {}) };
+  return { v: 1, ...(m.radial ? { radial: +m.radial || 1 } : {}), n: out, l, ...(m.f && m.f.length ? { f: m.f } : {}) };
 }
 
 
@@ -110,7 +110,32 @@ function fromBoard(board, prev) {
   return clean({ v: 1, n, l, f: (board && board.frames || []).map(f => f.m ? { ...f, m: f.m.map(i => num.get(i)).filter(Boolean) } : f) });
 }
 
+// 放射状の置き方: 親のないノート（根）を中心に、深さごとの輪。子は、親の向きの近くに、葉の数に応じた角度で置く
+// 輪の半径は、どのノードも、となりと重ならないだけ（箱 W×H）広げる。items: [{ id, parent }]。座標は、箱の左上
+function radial(items, W = 170, H = ROW_H) {
+  const byId = new Map(items.map(n => [n.id, n])), kids = new Map(items.map(n => [n.id, []])), roots = [];
+  for (const n of items) if (n.parent && byId.has(n.parent)) kids.get(n.parent).push(n); else roots.push(n);
+  const leaf = new Map(), cnt = n => { const k = kids.get(n.id), v = k.length ? k.reduce((a, c) => a + cnt(c), 0) : 1; leaf.set(n.id, v); return v; };
+  roots.forEach(cnt);
+  const multi = roots.length > 1, total = roots.reduce((a, c) => a + leaf.get(c.id), 0);
+  // 角度の割り当て
+  const ang = new Map(), depth = new Map(), span = new Map();
+  const place = (n, a0, a1, d) => { ang.set(n.id, (a0 + a1) / 2); span.set(n.id, a1 - a0); depth.set(n.id, d); let a = a0; for (const c of kids.get(n.id)) { const sp = (a1 - a0) * leaf.get(c.id) / leaf.get(n.id); place(c, a, a + sp, d + 1); a += sp; } };
+  if (!multi) place(roots[0], -Math.PI * 0.9, Math.PI * 1.1, 0);
+  else { let a = -Math.PI / 2; for (const r of roots) { const sp = 2 * Math.PI * leaf.get(r.id) / total; place(r, a, a + sp, 1); a += sp; } }
+  // 輪の半径: 前の輪から離れ、かつ、その輪のどのノードの角度の幅にも、箱が入る
+  const maxD = Math.max(...depth.values()), R = [0], diag = Math.hypot(W, H) * 0.62;
+  for (let d = 1; d <= maxD; d++) {
+    let need = (R[d - 1] || 0) + W + 30;
+    for (const [id, dd] of depth) if (dd === d) need = Math.max(need, diag / Math.max(span.get(id), 0.02) * 0.9);
+    R[d] = need;
+  }
+  const out = new Map();
+  for (const [id, a] of ang) { const r = R[depth.get(id)] || 0; out.set(id, { x: r * Math.cos(a) - W / 2, y: r * Math.sin(a) - H / 2 }); }
+  return out;
+}
+
 const toText = map => (clean(map) || { n: [] }).n.map(a => a[3]).join('\n');
 const same = (a, b) => JSON.stringify(clean(a)) === JSON.stringify(clean(b));
 
-module.exports = { convert, reconcile, toText, keyOf, clean, same, COL_W, ROW_H, NODE_KEYS, LINK_KEYS, toBoard, fromBoard };
+module.exports = { radial, convert, reconcile, toText, keyOf, clean, same, COL_W, ROW_H, NODE_KEYS, LINK_KEYS, toBoard, fromBoard };
