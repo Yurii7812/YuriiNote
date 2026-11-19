@@ -63,11 +63,14 @@ test('引く: タロットの型（ケルト十字など）を位置の名前と
   try {
     await a.open('d', '6'); const T = await a.tb();
     assert.ok(Object.keys(T.LAYOUTS).filter(k => k.startsWith('tarot:')).length >= 14, '基本の型');
-    await T.drawSpread('tarot:celtic'); await tick(600);
+    const fd0 = a.$('#tbframe').contentWindow.document;
+    const sp = T.drawSpread('tarot:celtic'); await tick(200);
+    assert.ok(T.dialogOpen(), '占う前に、問いを書く画面'); const qi = fd0.querySelector('.dlg-box.ask .q-in'); qi.value = '仕事をどうするか';
+    fd0.querySelector('.dlg-box.ask .q-bar .primary').click(); await sp; await tick(600);
     const cards = T.B().nodes.filter(n => n.deck === 'tarot');
     assert.strictEqual(cards.length, 10); assert.ok(cards.every(n => n.item && n.label && n.hint), '位置の名前と意味');
-    assert.strictEqual(T.B().frames[0].title, 'ケルト十字（10枚）');
-    T.select('c'); await T.doDraw('iching'); await tick(300);
+    assert.strictEqual(T.B().frames[0].title, '仕事をどうするか（ケルト十字（10枚））', '枠の名前に問い');
+    T.select('c'); await T.doDraw('iching', { asked: true }); await tick(300);
     const ic = T.B().nodes.filter(n => n.deck === 'iching');
     assert.ok(ic[0].label.startsWith('本卦'));
     assert.match(T.ichingGuide(ic[0]).map(x => x.textContent).join(''), /今の状況.*変わるところ/);
@@ -173,3 +176,26 @@ test('ノートの中の小さなボード: v1 を読み、文字同士をつな
   } finally { a.close(); }
 });
 
+
+test('ふつうの文字: クリックで選ぶ（右の欄は選んだときだけ）・もう一度で書き直す・枠と色・グループ・選んだ文字のまわりに 5W1H', async () => {
+  const data = { v: 3, title: '盤', nodes: [{ id: 'a', t: 'idea', x: 0, y: 0, text: 'A' }, { id: 'b', t: 'idea', x: 300, y: 0, text: 'B' }], links: [], frames: [], items: [] };
+  const a = await app(st => st.saveNote({ s: 'd', id: '4', created: '2026-11-12 09:00:00', title: '盤', body: '', kind: 'brainstorm', data }));
+  try {
+    await a.open('d', '4'); const T = await a.tb(), fw = a.$('#tbframe').contentWindow, d = fw.document;
+    assert.ok(d.querySelector('#drawer').hidden, '何も選んでいないときは、右の欄を出さない');
+    const click = el => { el.dispatchEvent(new fw.MouseEvent('pointerdown', { bubbles: true, cancelable: true, button: 0, clientX: 1, clientY: 1 })); fw.dispatchEvent(new fw.MouseEvent('pointerup', { bubbles: true, button: 0, clientX: 1, clientY: 1 })); };
+    click(d.querySelector('.node[data-id="a"]')); await tick(100);
+    assert.deepStrictEqual([...T.sel], ['a'], 'クリックで選ぶ'); assert.ok(!T.editing, 'まだ書き直さない'); assert.ok(!d.querySelector('#drawer').hidden, '選ぶと右の欄');
+    T.styleSel('box', 'line'); T.styleSel('color', '#c0392b'); await tick(100);
+    assert.ok(d.querySelector('.node[data-id="a"]').classList.contains('box-line'), '枠'); assert.strictEqual(T.node('a').color, '#c0392b', '色');
+    T.drawPromptSet('w5h1'); await tick(300);
+    assert.strictEqual(T.B().links.filter(l => l.a === 'a').length, 6, '選んだ文字のまわりに 5W1H をつないで置く');
+    T.select(['a', 'b']); T.groupSel(); await tick(100);
+    assert.strictEqual(T.B().frames.length, 1, 'グループ（枠）'); const f = T.B().frames[0]; assert.ok(f.x < 0 && f.x + f.w > 300, '選んだものを囲む');
+    d.querySelector('.frame .frame-title').dispatchEvent(new fw.Event('blur')); await tick(50);
+    T.select('a'); click(d.querySelector('.node[data-id="a"]')); await tick(50);
+    assert.strictEqual(T.editing, 'a', '選んでいる文字をもう一度押すと書き直す');
+    d.querySelector('.node[data-id="a"] .txt').dispatchEvent(new fw.Event('blur')); await tick(50);
+    T.select([]); await tick(50); assert.ok(d.querySelector('#drawer').hidden, '選択を外すと、右の欄はしまう ' + JSON.stringify([T.sel, T.editing, T.drawerPinned, T.selLink]));
+  } finally { a.close(); }
+});

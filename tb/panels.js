@@ -73,7 +73,7 @@
       if (!n.slot) items.push(["この枠ごと消す", del, "danger"]);
     }
     if (TB.host && TB.host.nodeMenu) { const extra = TB.host.nodeMenu(n); if (extra.length) items.push("-", ...extra); }
-    if (TB.sel.length > 1 && TB.sel.includes(id)) items.push("-", [`選んだ ${TB.sel.length} 個を消す（Delete）`, () => TB.deleteSelected(), "danger"]);
+    if (TB.sel.length > 1 && TB.sel.includes(id)) items.push("-", [`選んだ ${TB.sel.length} 個をグループにする`, () => TB.groupSel()], [`選んだ ${TB.sel.length} 個を消す（Delete）`, () => TB.deleteSelected(), "danger"]);
     const cut = b.links.filter((l) => l.a === id || l.b === id);
     if (cut.length) items.push("-", [`つながりを全部消す（${cut.length}本）`, () => { TB.snap(); b.links = b.links.filter((l) => !cut.includes(l)); TB.save(); TB.renderAll(); }]);
     TB.menu(items, x, y);
@@ -134,6 +134,9 @@
     else if (ids.length === 1) parts = frameDetail(TB.B().frames.find((f) => f.id === ids[0]));
     else parts = overview();
     dr.replaceChildren(...parts.flat().filter(Boolean));
+    // 右の欄は、何かを選んでいるときだけ（何も選んでいないときは、上の「まとめ」で開ける）
+    const show = !!(ids.length > 0 || TB.sel.some((id) => TB.B().items.some((i) => i.id === id)) || TB.drawerPinned);
+    if (dr.hidden === show) { dr.hidden = !show; const bt = $("#btn-sum"); if (bt) bt.classList.toggle("on", !!TB.drawerPinned && !ids.length); }
     if (opt.focusCard) { const i = $("#card-input"); if (i) i.focus(); }
   };
 
@@ -233,6 +236,22 @@
     return h("div", { class: "d-in", id: "d-in", hidden: !open }, input, list);
   }
 
+  // アイデアの枠と色（選んでいる全部に）
+  const COLORS = [["", "墨"], ["#c0392b", "赤"], ["#d9822b", "橙"], ["#2f8a3e", "緑"], ["#2f6fd0", "青"], ["#7b4fc0", "紫"], ["#8b909c", "灰"]];
+  function styleBox(ideas) {
+    const box = ideas.every((n) => n.box === ideas[0].box) ? ideas[0].box || "" : null, col = ideas.every((n) => (n.color || "") === (ideas[0].color || "")) ? ideas[0].color || "" : null;
+    return h("div", { class: "d-style" },
+      h("div", { class: "st-row" }, h("span", { class: "st-l", text: "枠" }), [["", "なし"], ["line", "線"], ["fill", "塗り"]].map(([v, t]) =>
+        h("button", { type: "button", class: "st-box b-" + (v || "none") + (box === v ? " on" : ""), text: t, onclick: () => TB.styleSel("box", v) }))),
+      h("div", { class: "st-row" }, h("span", { class: "st-l", text: "色" }), COLORS.map(([v, t]) =>
+        h("button", { type: "button", class: "st-col" + (col === v ? " on" : ""), title: t, "aria-label": t, style: `--c:${v || "#1f1f1e"}`, onclick: () => TB.styleSel("color", v) }))));
+  }
+  // 選んだもののまわりに、発想カードの型を並べる
+  function promptRow() {
+    return h("div", { class: "d-psets" }, h("h4", { text: "このまわりに並べる" }),
+      h("div", { class: "chips" }, ["w5h1", "next", "roles", "scamper", "hats"].map((id) => { const se = window.Prompts.SETS.find((x) => x.id === id); return se && chip(se.name, () => TB.drawPromptSet(id)); }).filter(Boolean),
+        chip("1枚", () => TB.doDraw("prompt"))));
+  }
   function ideaDetail(n) {
     const par = TB.parentOf(n.id), kids = kidsOf(n.id);
     return [
@@ -240,10 +259,12 @@
       h("textarea", { class: "grow", value: n.text, ...lazy((v) => { n.text = v; TB.renderBoard(); TB.markSel(); }) }),
       par ? h("div", { class: "d-rel" }, h("h4", { text: "元" }), h("button", { type: "button", class: "rel", onclick: () => TB.select(par.id) }, h("b", { text: nodeLabel(par) }))) : null,
       kids.length ? h("div", { class: "d-rel" }, h("h4", { text: `ここから（${kids.length}）` }), kids.map((k) => h("button", { type: "button", class: "rel idea", onclick: () => TB.select(k.id) }, h("span", { text: nodeLabel(k) })))) : null,
+      styleBox([n]),
       h("div", { class: "d-btns" },
         h("button", { type: "button", text: "＋広げる（Tab）", onclick: () => TB.newIdea(n.id) }),
-        h("button", { type: "button", text: "発想カードをつなぐ", onclick: () => TB.doDraw("prompt") }),
+        h("button", { type: "button", text: "書き直す（Enter・もう一度クリック）", onclick: () => TB.editIdea(n.id) }),
         kids.length ? h("button", { type: "button", text: "子を並べ直す", onclick: () => TB.arrangeKids(n.id) }) : null),
+      promptRow(),
     ];
   }
   function frameDetail(f) {
@@ -252,8 +273,11 @@
       h("p", { class: "muted", text: "見出しをドラッグすると中身ごと動きます。右下の角で大きさを変えられます" })];
   }
   function multi(ids) {
+    const ideas = ids.map(TB.node).filter((n) => n && n.t === "idea");
     return [h("h3", { text: `${ids.length}個を選択中` }),
-      h("div", { class: "d-btns" }, h("button", { type: "button", class: "danger", text: "まとめて消す（Delete）", onclick: () => TB.deleteSelected() }), h("button", { type: "button", text: "選択を外す（Esc）", onclick: () => TB.select([]) })),
+      h("div", { class: "d-btns" }, h("button", { type: "button", class: "primary", text: "グループにする", title: "選んだものを枠で囲む", onclick: () => TB.groupSel() }),
+        h("button", { type: "button", class: "danger", text: "まとめて消す（Delete）", onclick: () => TB.deleteSelected() }), h("button", { type: "button", text: "選択を外す（Esc）", onclick: () => TB.select([]) })),
+      ideas.length ? styleBox(ideas) : null,
       h("p", { class: "muted", text: "Ctrl+ドラッグで、まとめて動かせます。Ctrl+クリックで、選ぶものを足す・外す" })];
   }
 
@@ -269,7 +293,8 @@
       h("textarea", { class: "grow", placeholder: "全体としての結論・次にやること", value: b.summary, ...lazy((v) => (b.summary = v)) }),
       b.draws.length ? h("div", { class: "muted", text: "最後に引いた: " + TB.drawText(b.draws[b.draws.length - 1]) }) : null,
       h("details", { class: "help" }, h("summary", { text: "操作とキー" }),
-        h("p", { text: "クリック＝文字 / ドラッグ＝ペン / カードや文字をクリック＝つながった入力欄 / カードや文字から別のものへドラッグ＝つなぐ（空きに離すと新しい文字）/ Ctrl+クリック＝選ぶ（足す・外す）/ Ctrl+空きをドラッグ＝囲んで選ぶ / Ctrl+ドラッグ＝動かす（選んだものはまとめて）/ 右ドラッグ・中ボタン＝画面を動かす / 右クリック＝消す・メニュー / ホイール＝拡大" }),
+        h("p", { text: "空きをクリック＝文字 / ドラッグ＝ペン / 文字やカードをクリック＝選ぶ（右に詳細）/ 選んだ文字をもう一度クリック・Enter・F2＝書き直す / カードをダブルクリック＝つないで書く / 文字やカードから別のものへドラッグ＝つなぐ（空きに離すと新しい文字）/ Ctrl+クリック＝選ぶものを足す・外す / Ctrl+空きをドラッグ＝囲んで選ぶ / 右ドラッグ・Ctrl+ドラッグ＝動かす / 右クリック＝メニュー / ホイール＝拡大" }),
+        h("p", { text: "選んでいるとき: Tab＝そこから広げる / Enter＝隣に次 / 文字を打つ＝書き直す / Delete＝消す / 2 つ以上選ぶと「グループにする」" }),
         h("p", { text: "書いている間: Enter＝次 / Tab＝そこから広げる / Shift+Tab＝元へ / Esc＝終わる" }),
         h("p", { text: "書いている間: Ctrl+U ノートを探して ID を入れる / Ctrl+M 次の (n)" }),
         h("p", { text: "Ctrl+D 引く / Ctrl+A 全部を選ぶ / Ctrl+Z・Y 元に戻す・やり直す / Ctrl+0 全体 / 矢印 近くへ移る / Delete 選んだものを消す / Esc 選択を外す" }))];

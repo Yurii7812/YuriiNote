@@ -674,7 +674,7 @@ button,select,.vseg button,.nb,.tab span,.c-speaker-label{white-space:nowrap}
 .item.topicrow.on{background:var(--acc-bg);border-radius:0;box-shadow:inset 5px 0 0 var(--acc)}.item.topicrow.decided{box-shadow:inset 0 0 0 2px #f0b429}.ix.on{background:var(--hl);border-radius:0;box-shadow:inset 5px 0 0 var(--acc)}
 .item.topicrow.on.decided{box-shadow:inset 0 0 0 2px #f0b429,inset 5px 0 0 var(--acc)}
 .item.topicrow.tc{margin:6px 10px;padding:9px 12px;border-radius:10px}.item.topicrow.tc.on,.item.topicrow.tc.decided{border-radius:10px}   /* カード表示のとき、索引 の行も、カードと同じ幅に */
-body{font-family:var(--uifont,system-ui),"Noto Sans JP","Noto Color Emoji","Apple Color Emoji","Segoe UI Emoji",sans-serif}button,input,select,textarea{font-family:inherit}
+body{font-family:var(--uifont,"Noto Sans CJK JP"),"Noto Sans CJK JP","Noto Sans JP","Hiragino Sans","Yu Gothic UI","IPAPGothic","Noto Color Emoji",sans-serif}   /* 日本語の字形（JP）を先に。system-ui だと中国語の字形になることがある */button,input,select,textarea{font-family:inherit}
 html.dark{filter:invert(.92) hue-rotate(180deg);background:#fff}html.dark img,html.dark .kimg,html.dark video,html.dark .pic img{filter:invert(1) hue-rotate(180deg)}
 #rail #fold-list{margin-top:auto}#rail #fold-list .ico{width:22px;height:22px}#rail #fold-list.on{opacity:1;color:var(--acc)}#rail #more{font-size:20px}#rail #more{position:relative}#rail #more.badge{opacity:1}#rail #more.badge::after{content:"";position:absolute;top:7px;right:7px;width:9px;height:9px;border-radius:50%;background:#e03131}
 .sdlg h3{margin:0 0 8px}.sdlg .sec{border-top:1px solid var(--line);padding:10px 0}.sdlg .sec:first-of-type{border-top:0}.sdlg .sec>b{display:block;font-size:12px;color:var(--sub);letter-spacing:.06em;margin-bottom:6px}
@@ -834,8 +834,7 @@ body{-webkit-user-select:none;user-select:none}
 #tbframe{flex:1 1 auto;min-height:0;width:100%;border:0;display:block;background:#fff}
 /* 静かな枠: 書いている間は、まわりの枠・ボタンを薄くする（マウスを動かすと戻る） */
 #rail,#tabbar,#where,#topbar-right,.idline,.bline,.thead,main>aside{transition:opacity .35s}
-body.typing #rail,body.typing #tabbar,body.typing #where,body.typing .idline,body.typing main>aside{opacity:.28}
-body.typing .bstage .bline .nm,body.typing .bstage .bline .bdraw{opacity:.2}
+/* 書いている間に、まわりを薄くするのは、やめた（2026-11-19 利用者:「モヤがかかるのをやめて」） */
 /* 入る・出るの動き */
 #pane.zin{animation:yn-zin .2s ease-out}#pane.zout{animation:yn-zout .2s ease-out}
 @keyframes yn-zin{from{transform:scale(.86);opacity:.35}to{transform:none;opacity:1}}
@@ -873,6 +872,8 @@ main>aside{background:var(--side);border-right:1px solid #ecebe8}
 .item.region{background:none}.item.region:hover{background:var(--hl)}.item.region .nt{color:var(--fg);font-weight:600}
 .item.region .nt b{flex:none;width:var(--idw,34px);font:600 12.5px/1.45 var(--mono);color:var(--sub);margin:0}
 .item.topicrow{background:none;padding-left:calc(var(--idw,34px) + 24px)}.item.topicrow:hover{background:var(--hl)}.item.topicrow .nt{color:#3f4a9e;font-size:14px}
+.item.topicrow{padding-top:3px;padding-bottom:3px}.item.topicrow .nrow{display:flex;align-items:baseline;gap:8px}.item.topicrow .ns{margin:0;flex:none}.item.topicrow:not(.vtopic) .ns{display:none}
+.item.topicrow.vtopic .nt{color:#8a8984}.item.topicrow.vtopic .ns{color:#a3a29c}.item.topicrow.vtopic:hover .nt{color:#3f4a9e}
 #list h4{font-size:11px;letter-spacing:.06em;color:var(--sub);font-weight:500;margin:12px 14px 4px}
 #idbar .idb-r{padding-left:8px}
 /* 上の段: 戻る・進む・タブ・録音・時刻・新規 を 1 行に */

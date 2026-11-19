@@ -94,7 +94,8 @@
       if (k) { el.classList.add("deal"); el.style.setProperty("--dx", k.dx + "px"); el.style.setProperty("--dy", k.dy + "px"); el.style.setProperty("--dly", k.i * 140 + "ms"); }
       return el;
     }
-    return h("div", { class: `node idea${n.center ? " center" : ""}${sel}`, "data-id": n.id, style: `left:${n.x}px;top:${n.y}px` },
+    const box = n.box === "line" || n.box === "fill" ? " box-" + n.box : "", col = n.color ? `;--ic:${n.color}` : "";
+    return h("div", { class: `node idea${n.center ? " center" : ""}${box}${n.color ? " colored" : ""}${sel}`, "data-id": n.id, style: `left:${n.x}px;top:${n.y}px${col}` },
       ideaTxt(n));
   }
   // YuriiNote: アイデアの文字の中の ID（->1a・1a(2) など）はチップにする（押すとそのノートを開く）
@@ -189,7 +190,7 @@
     if (e.ctrlKey && ["node", "text", "frame", "stroke"].includes(t.type)) { startMove(e, t); return; }
     if (e.ctrlKey) { lasso(e); return; }
     if (t.type === "node") return nodeDown(e, t.id);
-    if (t.type === "text") return drag(e, { up: (ev, m) => { if (!m) editText(t.id); } });
+    if (t.type === "text") return drag(e, { up: (ev, m) => { if (m) return; if (TB.sel.length === 1 && TB.sel[0] === t.id) editText(t.id); else TB.select(t.id); } });   // 1 回目で選ぶ・選んでいるものをもう一度押すと書き直す
     if (t.type === "frame") { // 見出しをドラッグ＝枠ごと動かす／クリック＝名前を変える
       let op = null;
       return drag(e, { move: (ev, m) => { if (!m) return; if (!op) op = beginMove(t, e); op.step(ev); }, up: () => { if (op && op.moved) op.end(); else { TB.select(t.id); editFrameTitle(t.id); } } });
@@ -324,11 +325,16 @@
       },
     });
   }
+  // クリック＝選ぶ（右の欄が出る）。選んでいるアイデアをもう一度押す・ダブルクリック＝書き直す。カードのダブルクリック＝つないで書く
+  let lastClick = { id: null, at: 0 };
   function nodeClick(id) {
     const n = TB.node(id); if (!n) return;
-    if (n.t === "idea") { TB.select(id, { quiet: true }); TB.editIdea(id); return; }
+    const again = TB.sel.length === 1 && TB.sel[0] === id, dbl = lastClick.id === id && Date.now() - lastClick.at < 380;
+    lastClick = { id, at: Date.now() };
+    if (n.t === "idea") { if (again || dbl) TB.editIdea(id); else TB.select(id); return; }
     if (!n.item) { TB.select(id, { focusCard: true }); return; }
-    TB.select(id); TB.newIdea(id);
+    if (dbl) { TB.newIdea(id); return; }
+    TB.select(id);
   }
 
   // ================= アイデア（枠つきの短い文） =================
@@ -399,7 +405,7 @@
       },
       up: (ev, m) => {
         if (m && pts.length >= 4) { TB.snap(); TB.B().items.push({ id: TB.uid(), type: "stroke", pts: thin(pts), color, w: 2.5 }); TB.save(); TB.renderBoard(); }
-        else { if (path) path.remove(); newText(TB.toWorld(ev.clientX, ev.clientY)); }
+        else { if (path) path.remove(); const p = TB.toWorld(ev.clientX, ev.clientY); TB.newIdea(null, { x: Math.round(p.x), y: Math.round(p.y) }); }   // 空きをクリック＝その場に文字（選べる・つなげる・枠や色を付けられる）
       },
     });
   }
@@ -433,6 +439,25 @@
     el.addEventListener("blur", done); el.addEventListener("keydown", key);
   }
   TB.editFrameTitle = editFrameTitle;
+  // 選んでいるものを、グループ（枠）で囲む
+  TB.groupSel = () => {
+    const b = TB.B(); let x0 = 1e9, y0 = 1e9, x1 = -1e9, y1 = -1e9;
+    const add = (a, c, d, e) => { x0 = Math.min(x0, a); y0 = Math.min(y0, c); x1 = Math.max(x1, d); y1 = Math.max(y1, e); };
+    for (const id of TB.sel) {
+      const n = TB.node(id); if (n) { const r = TB.rectOf(n); add(r.x - r.w / 2, r.y - r.h / 2, r.x + r.w / 2, r.y + r.h / 2 + (n.t === "card" ? 56 : 0)); continue; }
+      const it = textOf(id); if (it && it.type === "text") { const el = world.querySelector(`[data-text="${CSS.escape(id)}"]`); add(it.x, it.y, it.x + (el ? el.offsetWidth : 60), it.y + (el ? el.offsetHeight : 30)); }
+      else if (it) for (let i = 0; i + 1 < it.pts.length; i += 2) add(it.pts[i], it.pts[i + 1], it.pts[i], it.pts[i + 1]);
+    }
+    if (x0 > x1) return;
+    TB.snap();
+    const f = { id: TB.uid(), x: Math.round(x0 - 28), y: Math.round(y0 - 24), w: Math.round(x1 - x0 + 56), h: Math.round(y1 - y0 + 48), title: "グループ", color: TB.FRAME_COLORS[0] };
+    b.frames.push(f); TB.save(); TB.renderBoard(); TB.select(f.id); editFrameTitle(f.id);
+  };
+  // アイデアの見た目: 枠（なし・線・塗り）と色
+  TB.styleSel = (k, v) => {
+    const ideas = TB.sel.map(TB.node).filter((n) => n && n.t === "idea"); if (!ideas.length) return;
+    TB.snap(); for (const n of ideas) { if (v) n[k] = v; else delete n[k]; } TB.save(); TB.renderBoard(); TB.markSel(); TB.renderDrawer({ quiet: true });
+  };
   function resizeFrame(e, id) {
     const f = frameOf(id), w = f.w, hh = f.h, p0 = TB.toWorld(e.clientX, e.clientY); let snapped = false;
     drag(e, { move: (ev, m) => { if (!m) return; if (!snapped) { TB.snap(); snapped = true; } const p = TB.toWorld(ev.clientX, ev.clientY); f.w = Math.max(160, Math.round(w + p.x - p0.x)); f.h = Math.max(100, Math.round(hh + p.y - p0.y)); TB.renderBoard(); }, up: () => TB.save() });

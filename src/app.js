@@ -676,8 +676,14 @@ function renderList() {
     const byFz = sortBy === 'fz' && tab !== 'u';
     if (byFz && (tab === 'd' || tab === 'p')) for (const t of topics.filter(x => (!x.entry || !get(x.entry.s, x.entry.id)) && !(x.entry && x.entry.s === 'd' && L.isRegionOnly(x.entry.id)) && (x.entry ? x.entry.s : 'd') === tab).sort((a, b) => a.name.localeCompare(b.name, 'ja'))) out.push(topicRow(t)); // 親のノートがまだないもの（取り込み前の紙の番号など）は、その側の先頭
     // デジタルは、区画（1, 2 …）の行を、そのノートの手前に出す（初めて出てくるところ。残りは最後）。区画の下に、その索引（1-1…）
-    if (byFz && tab === 'd') out.push(regionRow(ZERO));   // 0番（目次）は、番号順の先頭
-    const shownRegion = new Set(), regionHead = r => { shownRegion.add(r); for (const t of uniqueTopics(topicsOf('d', r).filter(topicVisible))) out.push(topicRow(t)); out.push(regionRow(r)); };   // 区画の索引（1-1…）は、区画の行の上に出す
+    // 区画の行の下に、その区画の索引（地図の地図 n-all → 雑の地図 n-0 → n-1 …）。n-all と n-0 は、まだ無くても行を出し、押すと作る
+    const shownRegion = new Set(), regionHead = r => {
+      shownRegion.add(r); out.push(regionRow(r));
+      const ts = uniqueTopics(topicsOf('d', r).filter(topicVisible));
+      if (byFz && r !== ZERO) for (const [num, what] of [['all', '地図の地図'], ['0', '雑の地図']]) if (!topicsOf('d', r).some(t => String(t.num) === num)) out.push(`<div class="item topicrow vtopic" data-vtopic="${esc(r)}|${num}" title="押すと、${esc(r)}-${num}（${what}）を作ります"><div class="nrow"><div class="nt">${esc(r)}-${num}</div><div class="ns">${what}（まだ）</div></div></div>`);
+      for (const t of ts) out.push(topicRow(t));
+    };
+    if (byFz && tab === 'd') regionHead(ZERO);   // 0番（全体の目次）は、番号順の先頭。その下に 0 の索引（0-1 …）
     for (const n of list) {
       if (byFz && foldIds.size && fzHidden(n)) continue;   // たたまれた親の下は、出さない
       if (tab === 'd' && !n.noid && !shownRegion.has(String(L.region(n.id)))) regionHead(String(L.region(n.id)));
@@ -706,6 +712,8 @@ function onOpenClick(e) {
   const dd = e.target.closest('[data-diary]'); if (dd && !e.target.closest('.cm-editor')) return openDiary(dd.dataset.diary, undefined, dd.dataset.kind || '日記');
   const sb = e.target.closest('[data-ixs]'); if (sb) { e.stopPropagation(); return setIxSide(sb.dataset.ixs); }
   const pen = e.target.closest('[data-ixedit]'); if (pen && mode === 'notes') { e.stopPropagation(); return ixEditDialog(pen.dataset.ixedit); }
+  const vt = e.target.closest('[data-vtopic]');
+  if (vt && mode === 'notes') { const [r, num] = vt.dataset.vtopic.split('|'); return makeTopicAt(r, num); }
   const rg = e.target.closest('[data-region]');
   if (rg && mode === 'notes') {   // 区画の行・区画のチップ: 名前と、トピックIndex（グローバルIndexに追加）
     return openRegion(rg.dataset.region);
@@ -1146,14 +1154,7 @@ function leavePage() {
 }
 const viewOf = t => views().get(pageKey(t));
 // これから描く画面の、覚えておいたスクロール位置を、描き終わったあとで戻す（skipRestore で取りやめ）
-// 静かな枠: 本文・盤面に文字を打っている間は、枠を薄くする。マウスを動かす・本文から出ると戻る
-document.addEventListener('keydown', e => {
-  if (e.ctrlKey || e.metaKey || e.altKey || e.key === 'Escape' || e.key.length !== 1 && !['Enter', 'Backspace', 'Process'].includes(e.key)) return;
-  const t = e.target; if (t && t.closest && (t.closest('.cm-content') || t.closest('.bb-input')) && !t.closest('#modal')) document.body.classList.add('typing');
-}, true);
-let calmX = -1, calmY = -1;
-document.addEventListener('mousemove', e => { if (Math.abs(e.clientX - calmX) + Math.abs(e.clientY - calmY) > 6) document.body.classList.remove('typing'); calmX = e.clientX; calmY = e.clientY; });
-document.addEventListener('focusout', () => setTimeout(() => { const a = document.activeElement; if (!(a && a.closest && (a.closest('.cm-content') || a.closest('.bb-input')))) document.body.classList.remove('typing'); }, 0));
+// （静かな枠＝書いている間に、まわりを薄くするのは、2026-11-19 にやめた）
 // 入る・出るの動き（0.2 秒）: 盤面（ブレスト・地図）のノードのリンクで別の画面へ入るときは、押した所から広がる。戻るときは、その所へ縮む
 let zoomFrom = null, zoomT = 0;
 const zoomBack = new Map();
@@ -2054,7 +2055,7 @@ function topicAddDialog(note) {
 // 索引を単独で作る。親は新しいノート（新しいID）か、既存のノート
 // キーワードを指定すると、そのキーワードのIDが最初から入り、Index に赤い点が付く（IDが2つ以上のときだけ）
 // 区画の行（デジタルの一覧）。番号と名前だけ。クリックで名前を付ける・変える。＋索引で、その区画の索引（1-1…）を作る
-const regionRow = r => { const g = r === ZERO ? { name: '' } : regions.find(x => x.n === r) || { name: '' }; return `<div class="item region${cur && cur.k === 'region' && cur.id === r ? ' on' : ''}${decided && decided.k === 'region' && decided.id === r ? ' decided' : ''}" data-region="${esc(r)}"><div class="nrow"><div class="nt"><b>${esc(r)}</b> ${g.name ? esc(g.name) : r === ZERO ? '' : '<span class="sub">無名</span>'}</div></div></div>`; };
+const regionRow = r => { const g = r === ZERO ? { name: '全体の目次' } : regions.find(x => x.n === r) || { name: '' }; return `<div class="item region${cur && cur.k === 'region' && cur.id === r ? ' on' : ''}${decided && decided.k === 'region' && decided.id === r ? ' decided' : ''}" data-region="${esc(r)}"><div class="nrow"><div class="nt"><b>${esc(r)}</b> ${g.name ? esc(g.name) : r === ZERO ? '' : '<span class="sub">無名</span>'}</div></div></div>`; };
 const uniqueTopics = list => [...new Map(list.map(t => [t.name, t])).values()];
 // 区画のページ（左の一覧の「1」を押すと開く）: 名前・グローバルIndexの名前・子ノート（直接の子だけ。タイトル付き）・トピックIndex
 // 区画の新しい子ノートの番号: 最後の子の次（1a の次は 1b）。子が無ければ a
@@ -2065,7 +2066,8 @@ function openZero(keep) {
   if (!inPreview) decided = { k: 'region', id: ZERO };
   if (!inPreview && !$('#q').value) tab = 'd';
   const list = regions.filter(g => g.n !== ZERO).slice().sort((a, b) => a.n - b.n);
-  $('#pane').innerHTML = `<div class="row thead rgh"><span class="ti-ic">🗂️</span><h2 class="tname">${ZERO}</h2></div>
+  $('#pane').innerHTML = `<div class="row thead rgh"><span class="ti-ic">🗂️</span><h2 class="tname">${ZERO} 全体の目次</h2><span class="grow"></span><button class="tbtn" data-act="rgmk" title="0 の下に、無名のトピックIndexを作る（0-1, 0-2 …）">➕ トピックIndex <small>${ZERO}-${maxNum(topicsOf('d', ZERO)) + 1}</small></button></div>
+    ${topicsOf('d', ZERO).length ? `<div class="row tmeta">${topicsOf('d', ZERO).map(t => tchip(t.name)).join(' ')}</div>` : ''}
     <table class="ti">${list.map(g => `<tr><td class="kidt" data-zero="${esc(g.n)}"><b>${esc(g.n)}</b> ${g.name ? esc(g.name) : '<span class="sub">（名前なし）</span>'}</td><td></td></tr>`).join('') || '<tr><td class="none">まだ区画がありません</td></tr>'}</table>`;
   renderTabs(); renderList();
 }
@@ -2083,6 +2085,14 @@ function openRegion(n, keep) {
 }
 $('#pane').addEventListener('click', e => { const z = e.target.closest('[data-zero]'); if (z && cur && cur.k === 'region' && cur.id === ZERO) openRegion(z.dataset.zero); });
 const regionRefresh = n => { if (cur && cur.k === 'region' && cur.id === n) openRegion(n, true); };
+// 区画 r の索引を、番号 num（'all'・'0'・空なら次の数）で作って開く（無名）
+async function makeTopicAt(r, num) {
+  if (num && topicsOf('d', r).some(t => String(t.num) === String(num))) return;
+  const name = num ? `無名${r}-${num}` : autoName('d', r);
+  const t = { name: topics.find(x => x.name === name) ? autoName('d', r) : name, entry: { s: 'd', id: r }, keyword: '', text: '', ...(num ? { num } : {}) };
+  const sv = await api.saveTopic(t); if (!sv) return alert('保存できませんでした');
+  const st = await api.state(); if (st) applyState(st); renderList(); openTopic(t.name, 'view');
+}
 async function regionAct(act) {
   const n = cur.id;
   if (act === 'rgset') return regionDialog(n);
@@ -2151,7 +2161,7 @@ function topicNewDialog(kw = '', presetId = '', side = 'd') {
     $('#tn-pre').textContent = v ? (v.d.length + v.p.length >= 2 ? `${k} ${[...v.d, ...v.p.map(x => '紙' + x)].join(' ')}` + (exists && !(sp === 'd' ? v.d : v.p).includes(id) || !exists ? ` ${sp === 'p' ? '紙' : ''}${id}` : '') + `　→ ${sp === 'p' ? '紙' : ''}${id} の上に赤い点が付きます` : 'このキーワードのIDは2つ未満です') : '';
   };
   const fillIds = () => {   // 選べる番号（候補）: いまある番号と、それぞれの次の索引（1a-1 など）
-    const sp = $('#tn-s').value, ids = [...new Set([...notes.filter(n => n.s === sp && !n.noid).map(n => String(L.region(n.id))).filter(x => x !== '0'), ...(sp === 'd' ? regions.map(r => String(r.n)) : [])])].sort(L.cmpId).slice(0, 600);   // 候補は区画の番号だけ
+    const sp = $('#tn-s').value, ids = [...new Set([...notes.filter(n => n.s === sp && !n.noid).map(n => String(L.region(n.id))), ...(sp === 'd' ? [ZERO, ...regions.map(r => String(r.n))] : [])])].sort(L.cmpId).slice(0, 600);   // 候補は区画の番号だけ
     $('#tn-ids').innerHTML = ids.map(i => `<option value="${esc(i + '-' + nextNum(sp, i))}">`).join('');
   };
   $('#tn-s').value = side === 'p' ? 'p' : 'd';
@@ -2990,6 +3000,15 @@ function loaded(st) {
     }
   } catch { tabs = []; active = -1; }
   show(active);
+  migrateIdTopics();
+}
+// 昔の、ノートの ID で番号を付けた索引（1a-1 など）を、区画の番号（1-2 など）に付け直す。中身・名前・ファイル名はそのまま、入口と番号だけ
+async function migrateIdTopics() {
+  const old = topics.filter(t => t.entry && /^\d+[a-z]/.test(String(t.entry.id)));   // 1a・1a2 など（区画の番号だけ・IDなしは対象外）
+  if (!old.length) return;
+  for (const t of old) await api.saveTopic({ ...t, entry: { s: t.entry.s, id: String(L.region(t.entry.id)) }, num: 0 });
+  const st = await api.state(); if (st) applyState(st); renderList();
+  toast(`ノートの ID で番号が付いていた索引 ${old.length} 個を、区画の番号に付け直しました`);
 }
 // 左下のメニュー: スマホで撮った紙のカード・USB取り込み・設定。
 $('#more').onclick = async () => {
@@ -3074,7 +3093,7 @@ function settingsDialog() {
       <div class="srow"><span>アクセントの色</span>${ACCENTS.map(c => `<i class="sw${sw.accent.toLowerCase() === c ? ' on' : ''}" data-sw="${c}" style="background:${c}"></i>`).join('')}<input type="color" id="s-acc" value="${esc(sw.accent)}" title="好きな色"></div>
       <div class="srow"><span>画面全体の大きさ</span><input type="range" id="s-scale" min="80" max="150" step="5" value="${sw.scale}"><output id="s-scale-o">${sw.scale}%</output></div>
       <div class="srow"><span>本文の文字の大きさ</span><input type="range" id="s-body" min="12" max="28" step="1" value="${sw.bodySize}"><output id="s-body-o">${sw.bodySize}px</output></div>
-      <div class="srow"><span>画面の文字（フォント）</span><input type="text" id="s-uifont" placeholder="空なら OS の標準。例: Noto Sans JP" value="${esc(sw.uiFont)}" style="flex:1"></div>
+      <div class="srow"><span>画面の文字（フォント）</span><input type="text" id="s-uifont" placeholder="空なら Noto Sans CJK JP（日本語の字形）" value="${esc(sw.uiFont)}" style="flex:1"></div>
       <div class="srow"><span>本文のフォント</span><select id="s-bf"><option value="default"${sw.bodyFont === 'default' ? ' selected' : ''}>画面と同じ</option><option value="serif"${sw.bodyFont === 'serif' ? ' selected' : ''}>明朝</option><option value="mono"${sw.bodyFont === 'mono' ? ' selected' : ''}>等幅</option><option value="custom"${sw.bodyFont === 'custom' ? ' selected' : ''}>好きな名前</option></select><input type="text" id="s-bfc" placeholder="フォント名" value="${esc(sw.bodyFontCustom)}" style="flex:1"></div></div>
     <div class="sec"><b>URLプレビュー</b><div class="srow"><button id="s-url-refresh">URLプレビュー情報を再取得</button><span id="s-url-progress" role="status"></span></div></div>
     <div class="sec"><b>スマホ</b><div class="srow"><span>つないだら、自動で取り込む・アプリを更新する</span><label class="nm-sw"><input type="checkbox" id="s-autophone" ${sw.autoPhone !== false ? 'checked' : ''}><i></i></label></div><div class="srow"><button id="s-phone">スマホにアプリを入れる…（USB）</button></div></div>

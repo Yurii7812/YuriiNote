@@ -313,3 +313,54 @@ button.primary:hover { background: #33332f; }
 .split button.primary.caret { border-left: 1px solid #3a3a38; }
 #nid.chip-fixed { font: 500 12px ui-monospace, "JetBrains Mono", "DejaVu Sans Mono", monospace; color: #6b6b66; background: #f1f0ed; border-radius: 5px; padding: 3px 7px; }
 #title { font-weight: 600; }
+/* 右の欄は、選んでいるときだけ */
+#drawer[hidden] { display: none; }
+#btn-sum.on { background: #e6e5e1; color: #1f1f1e; }
+/* アイデア（ふつうの文字）の枠と色 */
+.node.idea.colored { color: var(--ic); }
+.node.idea.box-line { border-color: var(--ic, #1f1f1e); background: #fff; padding: 5px 10px; border-radius: 8px; }
+.node.idea.box-fill { border-color: transparent; background: color-mix(in srgb, var(--ic, #8b909c) 14%, white); padding: 5px 10px; border-radius: 8px; }
+.node.idea.sel { box-shadow: 0 0 0 2px #1f1f1e; background: #fff; border-radius: 6px; }
+.node.idea.box-fill.sel { background: color-mix(in srgb, var(--ic, #8b909c) 14%, white); }
+.d-style { display: flex; flex-direction: column; gap: 8px; padding: 10px 0; border-top: 1px solid var(--line); border-bottom: 1px solid var(--line); }
+.st-row { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+.st-l { font-size: 12px; color: var(--sub); width: 2em; }
+.st-box { height: 28px; padding: 0 10px; font-size: 12.5px; }
+.st-box.on { background: #1f1f1e; color: #fff; border-color: #1f1f1e; }
+.st-col { width: 24px; height: 24px; padding: 0; border-radius: 50%; background: var(--c); border: 2px solid #fff; box-shadow: 0 0 0 1px var(--line); }
+.st-col.on { box-shadow: 0 0 0 2px #1f1f1e; }
+.d-psets { display: flex; flex-direction: column; gap: 4px; }
+/* 引くメニュー: 上のタブ（タロット・易・発想カード・設定）と、絵つきの札 */
+#drawopt { width: min(600px, calc(100vw - 16px)); padding: 0; gap: 0; }
+.dm-tabs { display: flex; gap: 2px; padding: 8px 10px 0; border-bottom: 1px solid var(--line); position: sticky; top: 0; background: #fff; z-index: 1; }
+.dm-tabs button { border: 0; border-radius: 0; background: none; padding: 8px 12px; font-size: 13.5px; color: var(--sub); height: auto; }
+.dm-tabs button.on { color: #1f1f1e; font-weight: 600; box-shadow: inset 0 -2px 0 #1f1f1e; }
+.dm-body { display: flex; flex-direction: column; gap: 8px; padding: 12px 14px 14px; }
+.dm-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 6px; }
+.dm-tile { display: flex; align-items: center; gap: 10px; text-align: left; height: auto; min-height: 58px; padding: 8px 10px; border: 1px solid var(--line); border-radius: 10px; background: #fff; white-space: normal; min-width: 0; position: relative; }
+.dm-tile:hover { border-color: #1f1f1e; background: #fafaf8; }
+.dm-tile.big { min-height: 76px; padding: 12px 14px; }
+.dm-tile.big b { font-size: 15px; }
+.dm-tx { display: flex; flex-direction: column; gap: 2px; min-width: 0; flex: 1; }
+.dm-tx b { font-size: 13.5px; font-weight: 600; color: #1f1f1e; }
+.dm-tx small { font-size: 11.5px; color: var(--sub); line-height: 1.4; overflow: hidden; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
+.dm-n { position: absolute; right: 8px; top: 6px; font-style: normal; font-size: 10.5px; color: var(--sub); }
+.dm-mini { flex: none; width: 72px; height: 46px; background: #f4f3f0; border-radius: 6px; }
+.dm-mini rect { fill: #1f1f1e; opacity: .78; }
+.dm-card1 { flex: none; width: 30px; height: 46px; border-radius: 4px; background: #f3eee2; border: 1px solid #d8ceb6; box-shadow: 3px 3px 0 -1px #e9e2d0; }
+.dm-card1.p { background: #fff; border-top: 4px solid #2f6fd0; border-color: var(--line); box-shadow: none; }
+.dm-card1.r { background: repeating-linear-gradient(135deg, #fff 0 6px, #f1f0ed 6px 12px); border-color: var(--line); box-shadow: none; }
+.dm-sw { flex: none; width: 30px; height: 40px; border-radius: 4px; border: 1px solid var(--line); border-top: 5px solid var(--pc); background: #fff; }
+.dm-tile .hex { flex: none; width: 46px; fill: #1f1f1e; }
+.dm-tile .hex .mv { fill: #c0392b; }
+.dm-steps { margin: 2px 0 0; padding-left: 20px; font-size: 12.5px; color: var(--sub); line-height: 1.8; }
+.dm-steps b { color: #1f1f1e; font-weight: 600; }
+.dm-h { font-size: 11.5px; font-weight: 500; color: var(--sub); margin: 6px 0 0; letter-spacing: .04em; }
+/* 問いを書く画面 */
+.dlg-box.ask { width: min(520px, calc(100vw - 32px)); display: flex; flex-direction: column; gap: 10px; padding: 22px 24px; }
+.dlg-box.ask .q-in { width: 100%; font: inherit; font-size: 16px; line-height: 1.6; padding: 10px 12px; border: 1px solid var(--line); border-radius: 10px; resize: none; }
+.dlg-box.ask .q-in:focus { border-color: #1f1f1e; box-shadow: none; }
+.q-bar { display: flex; gap: 8px; align-items: center; }
+.q-bar .grow { flex: 1; }
+.node.idea[data-id] .txt { white-space: pre-wrap; }
+.st-col.on, .st-col:hover { background: var(--c); border-color: #fff; }

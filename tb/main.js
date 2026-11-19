@@ -31,6 +31,7 @@
   on("#btn-undo", () => TB.undo());
   on("#btn-redo", () => TB.redo());
   on("#btn-fit", () => TB.fit());
+  on("#btn-sum", () => { TB.drawerPinned = !TB.drawerPinned; if (TB.drawerPinned && TB.sel.length) TB.select([]); else TB.renderDrawer({ quiet: true }); });
   on("#btn-more", (e) => { if (TB.host && TB.host.menu) TB.host.menu(e.currentTarget.getBoundingClientRect()); });
 
   // 選んでいるものを消す（スプレッドの枠のカードは中身だけ外す。文字・ペンの線・枠も）
