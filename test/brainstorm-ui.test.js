@@ -269,3 +269,122 @@ test('右に分けて開く: Shift+クリックで、読むだけの画面が右
     assert.ok(a.$('#splitpane').hidden, '閉じる');
   } finally { a.close(); }
 });
+
+test('(n) を右クリック → 索引 1-0 に追加: ノートの行から枝分かれした行・ノード。外せる', async () => {
+  const a = await app(st => st.saveNote({ s: 'd', id: '1a', created: '2026-11-12 09:00:00', title: '認識論', body: '', kind: 'brainstorm', data: { v: 3, title: '認識論', nodes: [{ id: 'x1', t: 'idea', x: 80, y: 80, text: '大事な論点 (1)' }], links: [], frames: [], draws: [], items: [], template: 'free', layout: null, summary: '' } }));
+  try {
+    await a.open('d', '1a'); const T = await a.tb(); await tick(400);
+    const fw = a.$('#tbframe').contentWindow, d = fw.document, an = d.querySelector('.node .bb-anc');
+    assert.ok(an, '(n) の表示がある: ' + d.querySelector('.node') + ' ' + (d.querySelector('.node') || {}).innerHTML + ' ' + JSON.stringify(T.B().nodes.map(n => n.text)));
+    an.dispatchEvent(new fw.MouseEvent('pointerdown', { bubbles: true, cancelable: true, button: 2, clientX: 5, clientY: 5 })); await tick(50);
+    an.dispatchEvent(new fw.MouseEvent('pointerup', { bubbles: true, cancelable: true, button: 2, clientX: 5, clientY: 5 })); await tick(200);
+    const item = a.$$('.popmenu div').find(x => x.textContent.includes('トピックインデックスに追加'));
+    assert.ok(item, 'メニューが出る: ' + a.$$('.popmenu div').map(x => x.textContent).join('|'));
+    item.click(); await tick(100); a.$('#an-name').value = '論点A'; a.$('#an-ok').click(); await tick(900);
+    const t = a.store.state().topics.find(x => String(x.num) === '0');
+    assert.ok(t, '0 の索引ができた'); assert.match(t.text, /論点A .+\(1\)/);
+    assert.ok(t.map && t.map.l.length === 1, 'ノートの行から枝分かれ');
+  } finally { a.close(); }
+});
+
+test('Ctrl+E: ブレストの盤面の中を探す（ノード・グループの名前）。Enter で次へ・Esc で閉じる', async () => {
+  const data = { v: 3, title: '考え', template: 'free', layout: null, summary: '', draws: [], items: [], links: [], frames: [],
+    nodes: [{ id: 'a', t: 'idea', x: 40, y: 40, text: '旅行の計画' }, { id: 'b', t: 'idea', x: 40, y: 140, text: '予算の話' }, { id: 'c', t: 'idea', x: 40, y: 240, text: '旅行の持ち物' }] };
+  const a = await app(st => st.saveNote({ s: 'd', id: '2', created: '2026-11-12 09:00:00', title: '盤', body: '', kind: 'brainstorm', data }));
+  try {
+    await a.open('d', '2'); const T = await a.tb(); await tick(300);
+    const fw = a.$('#tbframe').contentWindow, d = fw.document;
+    d.dispatchEvent(new fw.KeyboardEvent('keydown', { key: 'e', code: 'KeyE', ctrlKey: true, bubbles: true, cancelable: true })); await tick(100);
+    const inp = d.querySelector('#findbar input'); assert.ok(inp, '探す欄が出る');
+    inp.value = '旅行'; inp.dispatchEvent(new fw.Event('input', { bubbles: true })); await tick(100);
+    assert.strictEqual(d.querySelector('#findbar .fc').textContent, '1/2');
+    assert.strictEqual(d.querySelectorAll('.node.found').length, 2, '見つかったノードに印');
+    assert.strictEqual(JSON.stringify(T.sel), '["a"]', '最初の 1 つを選ぶ');
+    inp.dispatchEvent(new fw.KeyboardEvent('keydown', { key: 'Enter', bubbles: true, cancelable: true })); await tick(50);
+    assert.strictEqual(JSON.stringify(T.sel), '["c"]', '次へ');
+    inp.dispatchEvent(new fw.KeyboardEvent('keydown', { key: 'Escape', bubbles: true, cancelable: true })); await tick(50);
+    assert.ok(!d.querySelector('#findbar') && !d.querySelector('.found'), '閉じる');
+  } finally { a.close(); }
+});
+
+test('区画 0 の「🗺️ 全体の地図」: 全部の区画を 1 行ずつ地図に。増えた区画は、あとから足す', async () => {
+  const a = await app(st => st.saveNote({ s: "d", id: "2", created: "2026-11-12 09:00:00", title: "二", body: "b" }));
+  try {
+    // 一覧の 0 番を開く
+    const row = [...a.w.document.querySelectorAll('#list .item.region')].find(e => e.dataset.region === '0');
+    assert.ok(row, '0 番の行がある'); row.click(); await tick(300);
+    const btn = a.w.document.querySelector('[data-act="rgmap"]'); assert.ok(btn, '全体の地図のボタン'); btn.click(); await tick(900);
+    const t = a.store.state().topics.find(x => String(x.num) === 'all' && x.entry.id === '0');
+    assert.ok(t, '0-all ができた'); assert.match(t.text, / 1\n/); assert.match(t.text, / 2\n/);
+  } finally { a.close(); }
+});
+
+test('盤面のノードに画像: 表示される・取っ手のドラッグで大きさが変わる・保存される。索引の地図にも残る', async () => {
+  const data = { v: 3, title: '絵', template: 'free', layout: null, summary: '', draws: [], items: [], links: [], frames: [],
+    nodes: [{ id: 'a', t: 'idea', x: 40, y: 40, text: '表紙', img: 'cover.png', iw: 150 }] };
+  const a = await app(st => st.saveNote({ s: 'd', id: '2', created: '2026-11-12 09:00:00', title: '盤', body: '', kind: 'brainstorm', data }));
+  try {
+    await a.open('d', '2'); const T = await a.tb(); await tick(300);
+    const fw = a.$('#tbframe').contentWindow, d = fw.document, w0 = () => d.querySelector('.node .nimg');
+    assert.ok(w0() && /cover\.png/.test(w0().querySelector('img').src), '画像が出る');
+    assert.strictEqual(w0().style.width, '150px');
+    const grip = d.querySelector('.nimg-h'); assert.ok(grip, '取っ手');
+    grip.dispatchEvent(new fw.MouseEvent('pointerdown', { bubbles: true, cancelable: true, clientX: 100, clientY: 100 }));
+    fw.dispatchEvent(new fw.MouseEvent('pointermove', { bubbles: true, clientX: 160, clientY: 100 }));
+    fw.dispatchEvent(new fw.MouseEvent('pointerup', { bubbles: true, clientX: 160, clientY: 100 })); await tick(700);
+    const nd = T.B().nodes[0]; assert.ok(nd.iw > 150, '広がった: ' + nd.iw);
+    assert.strictEqual(d.querySelector('.node .nimg').style.width, nd.iw + 'px', '見た目も');
+    const saved = a.store.state().notes.find(n => n.id === '2').data.nodes[0]; assert.strictEqual(saved.iw, nd.iw, '保存された');
+  } finally { a.close(); }
+});
+
+test('ノートの文中の画像: 取っ手をドラッグすると、![名前|幅](パス) に書き換わり、その幅で出る', async () => {
+  const a = await app(st => st.saveNote({ s: 'd', id: '3', created: '2026-11-12 09:00:00', title: '画像', body: '![表紙](cover.png)\n続き' }));
+  try {
+    await a.open('d', '3'); await tick(400);
+    const g = a.$('.cm-img-h'); assert.ok(g, '取っ手がある');
+    g.dispatchEvent(new a.w.MouseEvent('pointerdown', { bubbles: true, cancelable: true, clientX: 100, clientY: 10 }));
+    a.w.dispatchEvent(new a.w.MouseEvent('pointermove', { bubbles: true, clientX: 260, clientY: 10 }));
+    a.w.dispatchEvent(new a.w.MouseEvent('pointerup', { bubbles: true, clientX: 260, clientY: 10 })); await tick(900);
+    const body = a.store.state().notes.find(n => n.id === '3').body;
+    assert.match(body, /^!\[表紙\|\d+\]\(cover\.png\)/, body);
+    const w = +/\|(\d+)\]/.exec(body)[1]; assert.ok(w >= 40);
+    assert.strictEqual(a.$('.cm-img-b').style.width, w + 'px', 'その幅で出る');
+  } finally { a.close(); }
+});
+
+test('ノートの本文の 1-0 / 1-0(1) は、その索引へのリンク。素の (n) の右クリックで索引に追加できる', async () => {
+  const a = await app(st => {
+    st.saveTopic({ name: '雑', entry: { s: 'd', id: '1' }, text: '論点 1(1)\n', num: '0' });
+    st.saveNote({ s: 'd', id: '1b', created: '2026-11-12 09:00:00', title: '参照', body: '索引は 1-0 と 1-0(1) と 9-9。メモ (2)' });
+  });
+  try {
+    await a.open('d', '1b'); await tick(500);
+    const refs = a.$$('.cm-content .lk').filter(e => /"t":"topic"/.test(e.getAttribute('data-l')));
+    assert.strictEqual(refs.length, 2, '存在する索引の番号だけ（9-9 は対象外）: ' + a.$('.cm-content').textContent);
+    refs[0].dispatchEvent(new a.w.MouseEvent('mousedown', { bubbles: true, cancelable: true, button: 0 })); await tick(600);
+    assert.ok(a.$('#tmap') || a.$('table.ti'), '索引が開く');
+    await a.open('d', '1b'); await tick(500);
+    const mk = a.$$('.cm-content .mk').find(e => /\(2\)/.test(e.textContent)); assert.ok(mk, '素の (2)');
+    mk.dispatchEvent(new a.w.MouseEvent('contextmenu', { bubbles: true, cancelable: true })); await tick(100);
+    assert.ok(a.$$('.popmenu div').some(d => /追加|外す/.test(d.textContent)), '右クリックのメニュー');
+  } finally { a.close(); }
+});
+
+test('索引の「🌳 Folgezettel から足す」: 区画のノートが、親子の線つきで地図に。もう有るものは足さない', async () => {
+  const a = await app(st => {
+    st.saveNote({ s: 'd', id: '1a', created: '2026-11-12 09:00:00', title: '二', body: 'b' });
+    st.saveNote({ s: 'd', id: '1a1', created: '2026-11-12 09:01:00', title: '三', body: 'c' });
+    st.saveTopic({ name: '雑', entry: { s: 'd', id: '1' }, text: '', num: '0' });
+  });
+  try {
+    const row = [...a.w.document.querySelectorAll('#list [data-topic]')].find(e => e.dataset.topic === '雑'); assert.ok(row, '索引の行');
+    row.click(); await tick(600);
+    const b = a.w.document.querySelector('[data-act="tfz"]'); assert.ok(b, 'ボタン'); b.click(); await tick(900);
+    const t = a.store.state().topics.find(x => x.name === '雑');
+    assert.ok(/二 1a/.test(t.text) && /三 1a1/.test(t.text) && /ふつう 1/.test(t.text), t.text);
+    assert.ok(t.map.l.length >= 2, '親子の線: ' + JSON.stringify(t.map.l));
+    const n = t.map.n.length; a.w.document.querySelector('[data-act="tfz"]').click(); await tick(600);
+    assert.strictEqual(a.store.state().topics.find(x => x.name === '雑').map.n.length, n, '2 回目は、増えない');
+  } finally { a.close(); }
+});

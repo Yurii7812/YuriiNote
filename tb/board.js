@@ -96,8 +96,30 @@
     }
     const box = n.box === "line" || n.box === "fill" ? " box-" + n.box : "", col = (n.color ? `;--ic:${n.color}` : "") + (n.bc ? `;--bc:${n.bc}` : "");
     return h("div", { class: `node idea${n.center ? " center" : ""}${box}${n.color ? " colored" : ""}${sel}`, "data-id": n.id, style: `left:${n.x}px;top:${n.y}px${col}` },
-      ideaTxt(n));
+      ideaTxt(n), nodeImg(n));
   }
+  // ノードの画像（n.img = 取り込んだファイル名・n.iw = 幅）。右下の取っ手をドラッグして大きさを変える
+  function nodeImg(n) {
+    if (!n.img || !TB.host || !TB.host.imageUrl) return null;
+    const w = Math.max(40, Math.min(1600, +n.iw || 220)), wrap = h("div", { class: "nimg", style: `width:${w}px` });
+    const im = new Image(); im.draggable = false; im.src = TB.host.imageUrl(n.img); wrap.append(im);
+    const grip = h("div", { class: "nimg-h", title: "ドラッグで大きさを変える" }); wrap.append(grip);
+    grip.addEventListener("pointerdown", (e) => {
+      e.preventDefault(); e.stopPropagation(); const x0 = e.clientX, w0 = w; TB.snap && TB.snap();
+      const mv = (ev) => { const nw = Math.max(40, Math.min(1600, Math.round(w0 + (ev.clientX - x0) / TB.view.s))); wrap.style.width = nw + "px"; n.iw = nw; };
+      const up = () => { removeEventListener("pointermove", mv); removeEventListener("pointerup", up); TB.save(); TB.renderBoard(); };
+      addEventListener("pointermove", mv); addEventListener("pointerup", up);
+    });
+    return wrap;
+  }
+  // 画像ファイルを、盤面へドロップ: ノードの上なら、そのノードに。空きなら、新しいノード（文字はファイル名）に
+  board.addEventListener("dragover", (e) => { if (TB.host && TB.host.dropImages && [...(e.dataTransfer && e.dataTransfer.types || [])].includes("Files")) e.preventDefault(); });
+  board.addEventListener("drop", (e) => {
+    const fs = [...(e.dataTransfer && e.dataTransfer.files || [])].filter((f) => /^image\//.test(f.type) || /\.(png|jpe?g|gif|webp|svg|bmp|avif)$/i.test(f.name));
+    if (!fs.length || !TB.host || !TB.host.dropImages) return; e.preventDefault();
+    const el = document.elementFromPoint(e.clientX, e.clientY), nd = el && el.closest && el.closest("#world .node.idea"), p = TB.toWorld(e.clientX, e.clientY);
+    TB.host.dropImages(fs, nd ? nd.dataset.id : null, { x: Math.round(p.x), y: Math.round(p.y) });
+  });
   // YuriiNote: アイデアの文字の中の ID（->1a・1a(2) など）はチップにする（押すとそのノートを開く）
   function ideaTxt(n) {
     const el = h("span", { class: "txt" });
@@ -140,8 +162,9 @@
     for (const c of ["grp-fill", "grp-line", "grp-hit"]) { const p = document.createElementNS(NS, "path"); p.setAttribute("d", f._g.d); p.setAttribute("class", c); g.append(p); }
     s.append(g); return s;
   };
+  const frameTitleEl = (f) => { const e = h("div", { class: "frame-title", text: f.title || "グループ" }); if (f.title && TB.host && TB.host.renderText && /\(\d+\)|\d/.test(f.title)) e.innerHTML = TB.host.renderText(f.title); return e; };
   const frameEl = (f) => h("div", { class: "frame" + (f.m ? " grp" : "") + (TB.sel.includes(f.id) ? " sel" : ""), "data-frame": f.id, style: `left:${f.x}px;top:${f.y}px;width:${f.w}px;height:${f.h}px` + (f.color && f.color !== TB.FRAME_COLORS[0] ? `;--fc:${f.color}` : "") },
-    f.m && f._g ? groupSvg(f) : null, h("div", { class: "frame-title", text: f.title || "グループ" }), f.m ? null : h("div", { class: "frame-resize", title: "大きさを変える" }));
+    f.m && f._g ? groupSvg(f) : null, frameTitleEl(f), f.m ? null : h("div", { class: "frame-resize", title: "大きさを変える" }));
   const textEl = (t) => h("div", { class: "note" + (TB.sel.includes(t.id) ? " sel" : ""), "data-text": t.id, style: `left:${t.x}px;top:${t.y}px;color:${TB.ink(t.color)}`, text: t.text });
 
   TB.renderBoard = () => {
@@ -245,7 +268,7 @@
 
   // ---- 右ボタン: 短く押すとメニュー。カード・文字・枠・ペンの線の上でドラッグすると動かす（選んでいれば、まとめて）。空きでドラッグすると画面を動かす ----
   function rightDown(e, t) {
-    { const c = e.target.closest(".chip"); if (c && TB.host && TB.host.chipMenu) { TB.host.chipMenu(c, e); return; } }
+    { const c = e.target.closest(".chip, .bb-anc"); if (c && TB.host && TB.host.chipMenu) { TB.host.chipMenu(c, e); return; } }
     const movable = ["node", "text", "frame", "stroke"].includes(t.type);
     let pan = null, op = null;
     drag(e, {

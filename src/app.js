@@ -138,6 +138,16 @@ function links(mode, space) {
         if (t.arrow) syms.push([t.arrow, 'arrow', t]);   // -> は、見た目では → に。コンマも赤
         if (t.sep) syms.push([t.sep, 'sep', t]);
       }
+      // 1-0 や 1-0(3) のような索引の番号は、その索引（(3) はその地図の (3)）へのリンク。ある索引の番号だけ
+      { const code = L.codeRanges ? L.codeRanges(text) : [];
+        for (const m of text.matchAll(/(?<![\w-])(\d+[a-z0-9]*-(?:all|\d+)(?:-\d+|[a-z]+\d*)*)(?:\((\d+)\))?(?![\w-])/g)) {
+          if (!L.isTopicNo(m[1])) continue; const tt = topics.find(x => topicNo(x) === m[1]); if (!tt) continue;
+          const f = m.index, e = f + m[0].length;
+          if (code.some(([a, b]) => f < b && a < e)) continue;
+          const over = items.filter(([a, b]) => f < b && a < e); if (over.some(x => !(x[2] && x[2].t === 'ref'))) continue;   // 番号の中の 0(1) のような ID は、番号のほうを優先
+          for (const x of over) items.splice(items.indexOf(x), 1);
+          items.push([f, e, { t: 'topic', name: tt.name, n: m[2] }, true, 'ref']);
+        } }
       const markdownLinks = [...text.matchAll(new RegExp(L.MDLINK.source, 'g'))]
         .map(m => ({from: m.index, to: m.index + m[0].length, rel: m[0].slice(m[0].lastIndexOf('](') + 2, -1)}))
         .filter(x => !UrlLinks.fencedRanges(text).some(([a,b]) => x.from < b && a < x.to));
@@ -245,23 +255,38 @@ class NameWidget extends WidgetType {
   eq(o) { return o.name === this.name; }
   toDOM() { const e = document.createElement('span'); e.className = 'imgname'; e.textContent = this.name; return e; }
 }
+// 画像の大きさは、名前のあとの |幅（例: ![表紙|300](パス)）。右下の取っ手をドラッグすると、その数字を書き換える
 class ImgWidget extends WidgetType {
-  constructor(rel) { super(); this.rel = rel; }
-  eq(o) { return o.rel === this.rel; }
+  constructor(rel, w, from, to) { super(); this.rel = rel; this.w = w; this.from = from; this.to = to; }
+  eq(o) { return o.rel === this.rel && o.w === this.w && o.from === this.from && o.to === this.to; }
   toDOM() {
     const d = document.createElement('div'); d.className = 'cm-img';
-    const i = new Image();
+    const box = document.createElement('div'); box.className = 'cm-img-b'; if (this.w) box.style.width = this.w + 'px';
+    const i = new Image(); i.draggable = false;
     try { i.src = /^https?:|^data:/.test(this.rel) ? this.rel : new URL(this.rel, vaultUrl()).href; } catch { }
-    d.append(i); return d;
+    const g = document.createElement('div'); g.className = 'cm-img-h'; g.title = 'ドラッグで大きさを変える';
+    g.onpointerdown = e => {
+      e.preventDefault(); e.stopPropagation(); const x0 = e.clientX, w0 = box.getBoundingClientRect().width; let w = Math.round(w0);
+      const mv = ev => { w = Math.max(40, Math.min(2400, Math.round(w0 + ev.clientX - x0))); box.style.width = w + 'px'; };
+      const up = () => {
+        removeEventListener('pointermove', mv); removeEventListener('pointerup', up);
+        const v = EditorView.findFromDOM(d) || lastView; if (!v) return;
+        const cur = v.state.doc.sliceString(this.from, this.to), alt = cur.replace(/\|\d+$/, '');
+        v.dispatch({ changes: { from: this.from, to: this.to, insert: alt + '|' + w } });
+      };
+      addEventListener('pointermove', mv); addEventListener('pointerup', up);
+    };
+    box.append(i, g); d.append(box); return d;
   }
   ignoreEvent() { return true; }
 }
 const images = space => {
   const build = state => {
     const b = new RangeSetBuilder();
-    for (const m of state.doc.toString().matchAll(/!\[[^\]\n]*\]\(([^)\s]*)\)/g)) {
-      if (/^(link|memo|note):/.test(m[1]) || /^\d{14}(?:-\d+)?\.md$/.test(m[1])) continue;
-      b.add(state.doc.lineAt(m.index + m[0].length).to, state.doc.lineAt(m.index + m[0].length).to, Decoration.widget({ widget: new ImgWidget(m[1]), block: true, side: 1 }));
+    for (const m of state.doc.toString().matchAll(/!\[([^\]\n]*)\]\(([^)\s]*)\)/g)) {
+      if (/^(link|memo|note):/.test(m[2]) || /^\d{14}(?:-\d+)?\.md$/.test(m[2])) continue;
+      const w = (/\|(\d+)$/.exec(m[1]) || [])[1], at = state.doc.lineAt(m.index + m[0].length).to;
+      b.add(at, at, Decoration.widget({ widget: new ImgWidget(m[2], w ? +w : 0, m.index + 2, m.index + 2 + m[1].length), block: true, side: 1 }));
     }
     return b.finish();
   };
@@ -390,7 +415,7 @@ async function follow(l, view) {
     if (l.n && lastView && lastView.dom.isConnected) { const p = L.selfTarget(lastView.state.doc.toString(), l.n, false); if (p >= 0) jump(lastView, p); }
     return;
   }
-  if (l.t === 'topic') { if (topics.find(t => t.name === l.name)) openTopic(l.name); return; }
+  if (l.t === 'topic') { if (topics.find(t => t.name === l.name)) openTopic(l.name, 'view', false, l.n ? { n: l.n } : undefined); return; }
   if (get(l.s, l.id)) return openNote(l.s, l.id, l.n);
   if (confirm(`${SP[l.s]} ${l.id} はまだありません。作りますか？`)) create(l.s, l.id);
 }
@@ -1473,7 +1498,86 @@ const nodeHtml = (text, s = 'd') => {   // ノードの文字: ID はチップ�
   }
   return (out + esc(text.slice(last))).replace(/\n/g, '<br>');
 };
+// ===== 盤面（ブレスト・索引の地図）の画像: ノードに付ける（右クリック・ドロップ）。大きさは右下の取っ手でドラッグ =====
+const boardImgUrl = name => vaultUrl() + encodeURIComponent(name);
+async function boardSaveImages(files) { const list = []; for (const f of files) list.push({ name: f.name || 'image.png', bytes: await f.arrayBuffer() }); const names = await api.addFiles(list); filesCache = await api.filesInfo(); return names; }
+function boardAttach(a) {   // a: 盤面のノード
+  pick(false, async fs => { const [nm] = await boardSaveImages(fs.slice(0, 1)), w = tbFrame.contentWindow; if (!nm || !w) return; a.img = nm; delete a.iw; w.TB.save(); w.TB.renderBoard(); });
+}
+const boardImgMenu = a => a.t !== 'idea' ? [] : [['🖼️ 画像を付ける', () => boardAttach(a)], ...(a.img ? [['🖼️ 画像を外す', () => { const w = tbFrame.contentWindow; delete a.img; delete a.iw; w.TB.save(); w.TB.renderBoard(); }]] : [])];
+async function boardDropImages(fs, nid, pt) {
+  const names = await boardSaveImages(fs), w = tbFrame.contentWindow; if (!names.length || !w) return; const T = w.TB;
+  if (nid && T.node(nid)) { const a = T.node(nid); a.img = names[0]; delete a.iw; }
+  else names.forEach((nm, i) => { const a = T.newIdea(null, { x: pt.x + i * 30, y: pt.y + i * 30 }, { text: nm.replace(/\.[^.]+$/, '') }); if (a) a.img = nm; });
+  T.save(); T.renderBoard();
+}
 const anchorsIn = texts => L.tokens(texts.join('\n')).filter(t => t.k === 'self' && t.bare).map(t => +t.n);
+// ===== (n) をトピックインデックス n-0 に登録する（右クリック）。登録すると、そのノートの行から枝分かれした「名前 ID(n)」の行・ノードになる =====
+// 索引は区画ごとに自動（区画 1 なら 1-0）。無ければ作る。外すのも同じ右クリック
+const anchorLabel = text => { let o = '', at = 0; for (const t of L.tokens(text)) { if (t.from < at) continue; o += text.slice(at, t.from); at = t.to; } return (o + text.slice(at)).replace(/^\s*(?:[-*+]|\d+[.)])\s+/, '').replace(/->|<-/g, ' ').replace(/\s+/g, ' ').trim(); };
+const branchRow = (note, n, label) => `${label} ${note.id}(${n})`;
+const zeroTopic = note => topicsOf(note.s, String(L.region(note.id))).find(t => String(t.num) === '0');
+function registered(note, n) {
+  const t = zeroTopic(note); if (!t) return null;
+  const want = `${note.id}(${n})`, lines = L.topicText(t).split('\n').filter(x => x.trim()), i = lines.findIndex(l => (L.topicLine(l).ids || []).some(x => x.raw === want));
+  return i >= 0 ? { t, lines, i } : null;
+}
+async function registerAnchor(note, n, label) {
+  const r = L.region(note.id); if (!r || note.noid) { toast('ID のあるノートの (n) だけ登録できます'); return false; }
+  label = (label || '').trim() || titleOf(note);
+  let t = zeroTopic(note);
+  if (!t) {
+    let name = `無名${r}-0` + (note.s === 'p' ? 'p' : ''); if (topics.find(x => x.name === name)) name = autoName(note.s, String(r));
+    t = { name, entry: { s: note.s, id: String(r) }, keyword: '', text: '', num: '0' };
+  }
+  const lines = L.topicText(t).split('\n').filter(x => x.trim());
+  const rowOfNote = lines.findIndex(l => (L.topicLine(l).ids || []).some(i => i.raw === note.id));
+  const noteLine = rowOfNote >= 0 ? lines[rowOfNote] : `${titleOf(note)} ${note.id}`, bLine = branchRow(note, n, label);
+  if (lines.includes(bLine)) { toast('もう登録してあります'); return false; }
+  if (rowOfNote < 0) lines.push(noteLine);
+  lines.push(bLine); t.text = lines.join('\n') + '\n';
+  const m = TopicMap.reconcile(t.map, t.text), A = m.n.find(x => x[3] === noteLine), B = m.n.find(x => x[3] === bLine);
+  if (A && B) {
+    const kids = m.l.filter(([a]) => a === A[0]).length; B[1] = A[1] + TopicMap.COL_W; B[2] = A[2] + kids * TopicMap.ROW_H;
+    if (!m.l.some(([a, b]) => (a === A[0] && b === B[0]) || (a === B[0] && b === A[0]))) m.l.push([A[0], B[0]]);
+  }
+  t.map = m;
+  const sv = await api.saveTopic(t); if (!sv) { alert('保存できませんでした'); return false; }
+  const st = await api.state(); if (st) applyState(st); renderList(); renderTabs();
+  toast(`索引 ${r}-0 に「${label}」を登録しました`);
+  if (cur && cur.k === 'topic' && cur.name === t.name) openTopic(t.name, 'view', true);
+  return true;
+}
+async function unregisterAnchor(note, n) {
+  const g = registered(note, n); if (!g) return;
+  const t = g.t; g.lines.splice(g.i, 1); t.text = g.lines.join('\n') + (g.lines.length ? '\n' : '');
+  t.map = TopicMap.reconcile(t.map, t.text);
+  await api.saveTopic(t); const st = await api.state(); if (st) applyState(st); renderList(); renderTabs();
+  toast(`索引 ${L.region(note.id)}-0 から外しました`);
+  if (cur && cur.k === 'topic' && cur.name === t.name) openTopic(t.name, 'view', true);
+}
+// 右クリックのメニュー。from = 文字（(n) のある行・ノード）
+function anchorMenu(e, note, n, from) {
+  if (!note || note.noid || !L.region(note.id)) return false;
+  const hint = anchorLabel(from || '') || titleOf(note), no = `${L.region(note.id)}-0`;
+  popMenu(e, registered(note, n)
+    ? [[`🗂️ 索引 ${no} から外す`, () => unregisterAnchor(note, n)]]
+    : [[`🗂️ トピックインデックスに追加（${no}）`, () => dialog(`<h3>🗂️ 索引 ${esc(no)} に登録</h3><div class="sub">${esc(titleOf(note))} ${esc(note.id)}(${n}) から、枝分かれします</div>
+        <div class="row"><input id="an-name" placeholder="${esc(hint)}" autocomplete="off" spellcheck="false" aria-label="名前" style="flex:1"><button class="p" id="an-ok">登録</button></div><div class="row"><button id="an-no">やめる</button></div>`, close => {
+        const go = () => { const v = $('#an-name').value; close(); registerAnchor(note, n, v || hint); };
+        $('#an-ok').onclick = go; $('#an-no').onclick = close; $('#an-name').focus();
+        $('#an-name').onkeydown = ev => { if (ev.key === 'Enter' && !ev.isComposing) { ev.preventDefault(); go(); } else if (ev.key === 'Escape') close(); };
+      })]]);
+  return true;
+}
+// ノートの本文の (n) を右クリック
+document.addEventListener('contextmenu', e => {
+  const el = e.target.closest && e.target.closest('.cm-content .selfref, .cm-content .mk'); if (!el || !cur || cur.k !== 'note') return;
+  let d; if (el.classList.contains('mk')) { const m = /\((\d+)\)/.exec(el.textContent); if (!m) return; d = { t: 'self', n: m[1] }; } else { try { d = JSON.parse(el.getAttribute('data-l')); } catch { return; } if (!d || d.t !== 'self') return; }
+  const note = get(cur.s, cur.id), v = EditorView.findFromDOM(el.closest('.cm-editor')); if (!note || !v) return;
+  const line = v.state.doc.lineAt(v.posAtDOM(el)).text;
+  e.preventDefault(); e.stopPropagation(); anchorMenu(e, note, d.n, line);
+}, true);
 // ブレストの盤面は tarot-brainstorm の盤面そのもの（tb/index.html を枠の中に開き、TB.mount で中身を渡す）
 let tbFrame = null;
 function tbWin(cb) {   // 盤面の枠を（一度だけ）読み込んで、使えるようになったら cb(win)
@@ -1508,7 +1612,13 @@ function openBrainstorm(note, n, keep) {
     key(e) { document.body.dispatchEvent(new KeyboardEvent('keydown', { key: e.key, code: e.code, ctrlKey: e.ctrlKey, shiftKey: e.shiftKey, altKey: e.altKey, metaKey: e.metaKey, bubbles: true, cancelable: true })); },
     chip(el) { const f = tbFrame.getBoundingClientRect(), r = el.getBoundingClientRect(); enterFrom({ getBoundingClientRect: () => ({ left: f.left + r.left, top: f.top + r.top, width: r.width, height: r.height }) }); onOpenClick({ target: el, stopPropagation() { } }); },
     renderText: t => nodeHtml(t, s),
-    nodeMenu: a => a.t === 'idea' ? [['📝 ノートにする', () => nodeToNote(note, a)]] : [],
+    chipMenu(c, e) {   // (n) の右クリック: 索引に追加・外す
+      if (!c.classList.contains('bb-anc')) return; const n = (c.textContent.match(/\d+/) || [])[0]; if (!n) return;
+      const f = tbFrame.getBoundingClientRect(), box = c.closest('.node, .frame-title');
+      anchorMenu({ clientX: f.left + e.clientX, clientY: f.top + e.clientY, preventDefault() { }, stopPropagation() { } }, note, +n, box ? box.innerText : '');
+    },
+    nodeMenu: a => a.t === 'idea' ? [['📝 ノートにする', () => nodeToNote(note, a)], ...boardImgMenu(a)] : [],
+    imageUrl: boardImgUrl, dropImages: boardDropImages,
     search: ins => InsertSearch.open({ space: s, curKey: s + ':' + id, insert: t => ins(t) }),
     anchor: t => { const w = tbFrame.contentWindow; return `(${Math.max(0, ...anchorsIn([...w.TB.B().nodes.map(a => a.text || ''), t])) + 1})`; },
     peek(t, r) { const k = L.tokens(t).find(x => x.k === 'ref'), nn = k && get(k.sp || s, k.id); if (!nn) return false; const f = tbFrame.getBoundingClientRect(); peekNote(nn, { getBoundingClientRect: () => ({ left: f.left + r.left, bottom: f.top + r.bottom, top: f.top + r.top, width: r.width, height: r.height }) }, k.n); return true; },
@@ -2122,10 +2232,36 @@ function openZero(keep) {
   if (!inPreview) decided = { k: 'region', id: ZERO };
   if (!inPreview && !$('#q').value) tab = 'd';
   const list = regions.filter(g => g.n !== ZERO).slice().sort((a, b) => a.n - b.n);
-  $('#pane').innerHTML = `<div class="row thead rgh"><span class="ti-ic">🗂️</span><h2 class="tname">${ZERO} 全体の目次</h2><span class="grow"></span><button class="tbtn" data-act="rgmk" title="0 の下に、無名のトピックIndexを作る（0-1, 0-2 …）">➕ トピックIndex <small>${ZERO}-${maxNum(topicsOf('d', ZERO)) + 1}</small></button></div>
+  $('#pane').innerHTML = `<div class="row thead rgh"><span class="ti-ic">🗂️</span><h2 class="tname">${ZERO} 全体の目次</h2><span class="grow"></span><button class="tbtn" data-act="rgmk" title="0 の下に、無名のトピックIndexを作る（0-1, 0-2 …）">➕ トピックIndex <small>${ZERO}-${maxNum(topicsOf('d', ZERO)) + 1}</small></button><button class="tbtn" data-act="rgmap" title="区画 1, 2, 3 … を、全部、地図に並べる（0-all）。グループや線で整理できる">🗺️ 全体の地図</button></div>
     ${topicsOf('d', ZERO).length ? `<div class="row tmeta">${topicsOf('d', ZERO).map(t => tchip(t.name)).join(' ')}</div>` : ''}
     <table class="ti">${list.map(g => `<tr><td class="kidt" data-zero="${esc(g.n)}"><b>${esc(g.n)}</b> ${g.name ? esc(g.name) : '<span class="sub">（名前なし）</span>'}</td><td></td></tr>`).join('') || '<tr><td class="none">まだ区画がありません</td></tr>'}</table>`;
   renderTabs(); renderList();
+}
+// Folgezettel から地図へ: 区画 r のノート（題 ID）を、親子の線つきで足す。すでに地図にある ID は足さない。木の形に並べる
+async function fzFillMap(t) {
+  const r = String(t.entry.id), sp = t.entry.s, has = x => !!get(sp, x);
+  const ns = notes.filter(n => n.s === sp && !n.noid && String(L.region(n.id)) === r && n.kind !== 'memo').sort((a, b) => L.cmpId(a.id, b.id));
+  const lines = L.topicText(t).split('\n').filter(x => x.trim()), idOf = l => (L.topicLine(l).ids || []).map(i => i.raw);
+  const haveLine = new Map(); for (const l of lines) for (const raw of idOf(l)) if (!/\(/.test(raw) && !haveLine.has(raw)) haveLine.set(raw, l);
+  const fresh = ns.filter(n => !haveLine.has(n.id)); if (!fresh.length) return toast('足すノートはありません（全部、もう地図にあります）');
+  for (const n of fresh) { const l = `${titleOf(n).replace(/\s+/g, ' ')} ${n.id}`; lines.push(l); haveLine.set(n.id, l); }
+  t.text = lines.join('\n') + '\n';
+  const m = TopicMap.reconcile(t.map, t.text), at = new Map(m.n.map(a => [a[3], a])), depth = n => { let d = 0, p = L.parentIn(n.id, has); while (p) { d++; p = L.parentIn(p, has); } return d; };
+  let y = Math.max(0, ...m.n.filter(a => !fresh.some(n => haveLine.get(n.id) === a[3])).map(a => a[2])) + TopicMap.ROW_H * 2; if (!m.n.length) y = 40;
+  for (const n of fresh) { const a = at.get(haveLine.get(n.id)); if (a) { a[1] = 40 + depth(n) * TopicMap.COL_W; a[2] = y; y += TopicMap.ROW_H; } }
+  for (const n of ns) { const p = L.parentIn(n.id, has), a = at.get(haveLine.get(n.id)), b = p && at.get(haveLine.get(p)); if (!a || !b || a === b) continue; if (!fresh.includes(n) && !fresh.some(f => f.id === p)) continue; if (!m.l.some(([x, z]) => (x === a[0] && z === b[0]) || (x === b[0] && z === a[0]))) m.l.push([b[0], a[0]]); }
+  t.map = m; const sv = await api.saveTopic(t); if (!sv) return alert('保存できませんでした');
+  const st = await api.state(); if (st) applyState(st); renderList(); toast(`${fresh.length} 件のノートを足しました`); openTopic(t.name, 'view', true);
+}
+// 全体の地図（0-all）: 区画ごとに 1 行（名前 区画の番号）。無ければ作る。あとから増えた区画は足す（置いた位置・線・グループはそのまま）
+async function openWholeMap() {
+  const list = regions.filter(g => g.n !== ZERO).slice().sort((a, b) => a.n - b.n);
+  let t = topicsOf('d', ZERO).find(x => String(x.num) === 'all'), fresh = !t;
+  if (!t) t = { name: topics.find(x => x.name === `無名${ZERO}-all`) ? autoName('d', ZERO) : `無名${ZERO}-all`, entry: { s: 'd', id: ZERO }, keyword: '', text: '', num: 'all' };
+  const lines = L.topicText(t).split('\n').filter(x => x.trim()), have = new Set(lines.flatMap(l => (L.topicLine(l).ids || []).map(i => i.raw)));
+  let add = 0; for (const g of list) { if (have.has(String(g.n))) continue; lines.push(`${g.name || '無名'} ${g.n}`); add++; }
+  if (fresh || add) { t.text = lines.join('\n') + (lines.length ? '\n' : ''); const sv = await api.saveTopic(t); if (!sv) return alert('保存できませんでした'); const st = await api.state(); if (st) applyState(st); renderList(); }
+  openTopic(t.name, 'view');
 }
 function openRegion(n, keep) {
   if (n === ZERO) return openZero(keep);
@@ -2166,6 +2302,7 @@ async function regionAct(act) {
   const n = cur.id;
   if (act === 'rgset') return regionDialog(n);
   if (act === 'rgnote') return create('d', nextRegionKid(n));   // 新しい子ノート（区画の次の番号。ノートが開く）
+  if (act === 'rgmap') return openWholeMap();   // 全部の区画（1, 2, 3 …）の地図
   if (act === 'rgmk') return topicKindDialog(n);   // どの地図を作るか選ぶ
 }
 function regionDialog(n) {
@@ -2355,7 +2492,8 @@ function mountTopicMap(t, focus) {
       popMenu({ clientX: f.left + e.clientX, clientY: f.top + e.clientY, preventDefault() { }, stopPropagation() { } }, [[c.classList.contains('dot') ? '⚪ 赤点を外す' : '🔴 赤点を付ける（この行のメイン）', () => { toggleDot(t, s, id); rowDots = null; openTopic(t.name, 'view', true); }]]);
     },
     renderText: line => mapLineHtml(t, line),
-    nodeMenu: () => [],
+    nodeMenu: a => boardImgMenu(a),
+    imageUrl: boardImgUrl, dropImages: boardDropImages,
     search: ins => InsertSearch.open({ space: def, insert: (x, it) => ins(x == null ? x : (it && it.type === 'note' && it.label && !(it.x && it.x.kind === 'diary') ? `${String(it.label).replace(/\s+/g, ' ').trim()} ${x.replace(/^->/, '').replace(/->(\s*)$/, '$1')}` : x.replace(/^->/, '').replace(/->(\s*)$/, '$1'))) }),   // 索引の行には、ID だけ（ノートなら、題をキーワードにして）
     peek(line, r) { const x = (L.topicLine(line).ids || [])[0]; if (!x) return false; const { id, n } = L.splitAnchor(x.raw), nn = get(x.sp || def, id); if (!nn) return false; peekNote(nn, here(r), n); return true; },
   };
@@ -2364,7 +2502,10 @@ function mountTopicMap(t, focus) {
     w.TB.mount(TopicMap.toBoard(t.map), host, { view: vs && vs.tbv, plain: true });
     if (!(vs && vs.tbv)) { setTimeout(() => w.TB.fit(), 120); setTimeout(() => w.TB.fit(), 500); }   // 枠の大きさが決まってから、全体が入るように
     curBoard = { el: tbFrame, vkey: 'tbv', api: { get view() { const v = w.TB.view; return { s: v.s, tx: v.tx, ty: v.ty }; }, fit: () => w.TB.fit() } };
-    if (focus) {   // ノートから飛んできたら、そのノートの ID のノードを示す
+    if (focus && focus.n) {   // 1-0(3): この地図の (3) のノードを示す
+      const hit = w.TB.B().nodes.find(a => a.t === 'idea' && anchorsIn([a.text || '']).includes(+focus.n));
+      if (hit) { skipRestore(); w.TB.select(hit.id); w.TB.reveal(hit); }
+    } else if (focus) {   // ノートから飛んできたら、そのノートの ID のノードを示す
       const hit = w.TB.B().nodes.find(a => a.t === 'idea' && (L.topicLine(a.text).ids || []).some(x => (x.sp || def) === focus.s && L.splitAnchor(x.raw).id === focus.id));
       if (hit) { skipRestore(); w.TB.select(hit.id); w.TB.reveal(hit); }
     }
@@ -2418,7 +2559,7 @@ function openTopic(name, tmode = 'view', keep, focus) {   // focus: ノートか
     <div class="row thead">
       ${topicNo(t) ? `<button class="tno" data-act="tconf" title="番号を変える">${esc(topicNo(t))}</button>` : ''}<h2 class="tname" data-act="trename" title="押して、名前を変える">${isAuto(t.name) ? '<span class="sub">（名前を付ける）</span>' : esc(stripId(t.name))}</h2>
       <span class="grow"></span>
-      ${tmode === 'conf' ? '' : `<span class="tview"><button class="tbtn${tmode === 'view' ? ' on' : ''}" data-act="tmapv" title="地図（ブレスト型）で見る・直す">地図</button><button class="tbtn${tmode === 'list' ? ' on' : ''}" data-act="tlistv" title="今までのリストで見る">リスト</button></span>
+      ${tmode === 'conf' ? '' : `<span class="tview"><button class="tbtn${tmode === 'view' ? ' on' : ''}" data-act="tmapv" title="地図（ブレスト型）で見る・直す">地図</button><button class="tbtn${tmode === 'list' ? ' on' : ''}" data-act="tlistv" title="今までのリストで見る">リスト</button></span>${t.entry && L.isRegionOnly(t.entry.id) && t.entry.id !== ZERO && tmode === 'view' ? `<button class="tbtn" data-act="tfz" title="区画 ${esc(t.entry.id)} のノートを、Folgezettel の親子のとおりに、地図へ足す（足すだけ。置いた位置・線・グループはそのまま）">🌳 Folgezettel から足す</button>` : ''}
       <button class="tbtn" data-act="tconf" title="名前・番号を変える">⚙️ 名前・番号</button>
       <button class="tbtn ${tmode === 'edit' ? 'p' : ''}" data-act="tedit">${tmode === 'edit' ? '✅ 完了' : '✏️ 編集'}</button>`}
     </div>
@@ -2612,6 +2753,7 @@ async function topicAct(act) {
   if (act === 'tconf') return openTopic(t.name, 'conf', true);
   if (act === 'tmapv') return openTopic(t.name, 'view', true);
   if (act === 'tlistv') return openTopic(t.name, 'list', true);
+  if (act === 'tfz') return fzFillMap(t);
   if (act === 'trename') return topicRenameDialog(t);
   if (act === 'tcancel') return openTopic(t.name, 'view', true);
   if (act === 'tdel') return deleteTopicNamed(t.name);

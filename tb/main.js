@@ -61,6 +61,7 @@
       if (k === "y" && !typing) return run(TB.redo);
       if (k === "d") return run(() => { if (!TB.plain) TB.doDraw(); });
       if (k === "u" && !typing && !TB.editing) return run(() => TB.searchAdd());   // Ctrl+U: ノートなどを探して、新しい文字として足す
+      if (k === "e") return run(() => TB.findOpen());   // Ctrl+E: 盤面の中を探す
       if (k === "0") return run(TB.fit);
       if (k === "a" && !typing) return run(TB.selectAll);
       if (["c", "v", "x"].includes(k) && typing) return;   // 書いている途中の写す・貼る
@@ -103,6 +104,38 @@
       else if (!cur.item) { const i = $("#card-input"); if (i) i.focus(); }
     }
   });
+
+  // ---- Ctrl+E: 盤面の中を探す（ノードの文字・グループの名前・文字。空白で区切ると、すべて含む。Enter で次・Shift+Enter で前・Esc で閉じる）----
+  TB.findOpen = () => {
+    let bar = document.getElementById("findbar");
+    if (bar) { bar.querySelector("input").focus(); bar.querySelector("input").select(); return; }
+    bar = document.createElement("div"); bar.id = "findbar";
+    bar.innerHTML = '<input placeholder="盤面の中を探す" autocomplete="off" spellcheck="false" aria-label="探す"><span class="fc"></span><button title="閉じる（Esc）">✕</button>';
+    document.body.append(bar);
+    const inp = bar.querySelector("input"), cnt = bar.querySelector(".fc"); let hits = [], at = -1;
+    const textOf = (n) => (n.t === "idea" ? n.text : TB.cardText ? TB.cardText(n) : "") || "";
+    const mark = () => { document.querySelectorAll(".found").forEach((e) => e.classList.remove("found")); for (const h of hits) { const el = document.querySelector(`.node[data-id="${CSS.escape(h)}"], .frame[data-frame="${CSS.escape(h)}"], .note[data-text="${CSS.escape(h)}"]`); if (el) el.classList.add("found"); } };
+    const find = () => {
+      const ts = inp.value.toLowerCase().split(/[\s\u3000]+/).filter(Boolean), b = TB.B();
+      const all = [...b.nodes.map((n) => [n.id, textOf(n)]), ...b.frames.map((f) => [f.id, f.title || ""]), ...b.items.filter((i) => i.type === "text").map((i) => [i.id, i.text || ""])];
+      hits = ts.length ? all.filter(([, t]) => { const l = t.toLowerCase(); return ts.every((x) => l.includes(x)); }).map((x) => x[0]) : [];
+      at = hits.length ? 0 : -1; show();
+    };
+    const show = () => {
+      cnt.textContent = inp.value.trim() ? (hits.length ? `${at + 1}/${hits.length}` : "なし") : ""; mark();
+      const id = hits[at]; if (!id) return; const n = TB.node(id) || b2(id); if (n) { TB.select(id); if (TB.reveal) TB.reveal(n); mark(); }
+    };
+    const b2 = (id) => TB.B().frames.find((f) => f.id === id) || TB.B().items.find((i) => i.id === id);
+    const close = () => { document.querySelectorAll(".found").forEach((e) => e.classList.remove("found")); bar.remove(); };
+    inp.oninput = find;
+    inp.onkeydown = (e) => {
+      if (e.isComposing || e.keyCode === 229) return;
+      if (e.key === "Escape") { e.preventDefault(); e.stopPropagation(); close(); }
+      else if (e.key === "Enter") { e.preventDefault(); if (hits.length) { at = (at + (e.shiftKey ? hits.length - 1 : 1)) % hits.length; show(); } }
+    };
+    bar.querySelector("button").onclick = close;
+    inp.focus();
+  };
 
   // ---- 前の形（v2: {t:[[x,y,文字,種類]], l:[[i,j]], s:[線]}）から読み替える ----
   TB.fromV2 = (d) => {

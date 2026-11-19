@@ -52,8 +52,8 @@ function convert(text) {
 }
 
 // 見た目の持ち物（ノード: 枠・文字の色・枠の色 / 線: 種類・ひとこと・色 / グループの枠）。なければ付けない
-const NODE_KEYS = ['box', 'color', 'bc'], LINK_KEYS = ['kind', 'label', 'color'];
-const pick = (o, keys) => { if (!o || typeof o !== 'object') return null; const r = {}; for (const k of keys) if (typeof o[k] === 'string' && o[k] && !(k === 'kind' && o[k] === 'line')) r[k] = o[k]; return Object.keys(r).length ? r : null; };
+const NODE_KEYS = ['box', 'color', 'bc', 'img', 'iw'], LINK_KEYS = ['kind', 'label', 'color'];
+const pick = (o, keys) => { if (!o || typeof o !== 'object') return null; const r = {}; for (const k of keys) { if (k === 'iw') { if (Number.isFinite(+o[k]) && +o[k] > 0) r[k] = Math.round(+o[k]); } else if (typeof o[k] === 'string' && o[k] && !(k === 'kind' && o[k] === 'line')) r[k] = o[k]; } return Object.keys(r).length ? r : null; };
 const cleanFrames = f => Array.isArray(f) ? f.filter(x => x && typeof x === 'object').map(x => ({ id: String(x.id || ''), x: Math.round(+x.x || 0), y: Math.round(+x.y || 0), w: Math.round(+x.w || 0), h: Math.round(+x.h || 0), title: String(x.title || ''), color: String(x.color || ''), ...(Array.isArray(x.m) ? { m: x.m.map(v => typeof v === 'string' ? v : +v || 0).filter(Boolean), ...(x.shape === 'box' ? { shape: 'box' } : {}) } : {}) })) : [];
 const clean = m => m && Array.isArray(m.n) ? ((f) => ({
   v: 1,
